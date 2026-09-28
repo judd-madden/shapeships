@@ -201,6 +201,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             bottomActionRailVm={vm.bottomActionRail}
             actionPanelVm={vm.actionPanel}
             thisTurn={vm.thisTurn}
+            presentedThisTurnStats={vm.presentedThisTurnStats}
             gameStats={vm.gameStats}
             viewer={vm.viewer}
             matchupIntro={presentedMatchupIntro}
@@ -247,6 +248,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             bottomActionRailVm={vm.bottomActionRail}
             actionPanelVm={vm.actionPanel}
             thisTurn={vm.thisTurn}
+            presentedThisTurnStats={vm.presentedThisTurnStats}
             gameStats={vm.gameStats}
             viewer={vm.viewer}
             matchupIntro={presentedMatchupIntro}

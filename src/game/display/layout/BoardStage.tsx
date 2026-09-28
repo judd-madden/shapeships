@@ -35,6 +35,7 @@ import { buildHealthBreakdownPresentation } from './boardStage/healthBreakdownPr
 interface BoardStageProps {
   vm: BoardViewModel;
   thisTurn: GameSessionViewModel['thisTurn'];
+  presentedThisTurnStats: GameSessionViewModel['presentedThisTurnStats'];
   gameStats: GameSessionViewModel['gameStats'];
   viewer: GameSessionViewModel['viewer'];
   matchupIntro: MatchupIntroViewModel | null;
@@ -443,6 +444,7 @@ function HealthTrigger({
 export function BoardStage({
   vm,
   thisTurn,
+  presentedThisTurnStats,
   gameStats,
   viewer,
   matchupIntro,
@@ -505,10 +507,10 @@ export function BoardStage({
     : shouldAnimateDeltas
       ? `opp:resolution:${vm.healthDeltaPresentationKey}`
       : 'opp:stable';
-  const myDamagePair = thisTurn?.me.damage ?? null;
-  const opponentDamagePair = thisTurn?.opponent.damage ?? null;
-  const myHealingPair = thisTurn?.me.healing ?? null;
-  const opponentHealingPair = thisTurn?.opponent.healing ?? null;
+  const myDamagePair = presentedThisTurnStats?.me.damage ?? null;
+  const opponentDamagePair = presentedThisTurnStats?.opponent.damage ?? null;
+  const myHealingPair = presentedThisTurnStats?.me.healing ?? null;
+  const opponentHealingPair = presentedThisTurnStats?.opponent.healing ?? null;
   const myDamageHoverSections = buildBoardStatHoverSections(myDamagePair);
   const opponentDamageHoverSections = buildBoardStatHoverSections(opponentDamagePair);
   const myHealingHoverSections = buildBoardStatHoverSections(myHealingPair);

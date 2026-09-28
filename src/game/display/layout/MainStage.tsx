@@ -37,6 +37,7 @@ interface MainStageProps {
   bottomActionRailVm: BottomActionRailViewModel;
   actionPanelVm: ActionPanelViewModel;
   thisTurn: GameSessionViewModel['thisTurn'];
+  presentedThisTurnStats: GameSessionViewModel['presentedThisTurnStats'];
   gameStats: GameSessionViewModel['gameStats'];
   viewer: GameSessionViewModel['viewer'];
   matchupIntro: GameSessionViewModel['matchupIntro'];
@@ -61,6 +62,7 @@ export function MainStage({
   bottomActionRailVm, 
   actionPanelVm, 
   thisTurn,
+  presentedThisTurnStats,
   gameStats,
   viewer,
   matchupIntro,
@@ -326,6 +328,7 @@ export function MainStage({
         <BoardStage
           vm={boardVm}
           thisTurn={thisTurn}
+          presentedThisTurnStats={presentedThisTurnStats}
           gameStats={gameStats}
           viewer={viewer}
           matchupIntro={matchupIntro}

@@ -13,6 +13,11 @@ import {
   mapBattleLogThisTurn,
   mapBattleLogTurns,
 } from '../../gameSession/battleLog';
+import {
+  createTurnStartStatPresentationState,
+  getTurnStartStatOrientationKey,
+  syncTurnStartStatPresentation,
+} from '../../gameSession/clienteffects/turnStartPresentationGates';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
   if (!condition) throw new Error(message);
@@ -120,6 +125,48 @@ function historyFor(turnNumber: number) {
     }],
   };
 }
+
+Deno.test('raw Battle Log advances while turn stat presentation remains held', () => {
+  const orientationKey = getTurnStartStatOrientationKey({
+    viewerRole: 'player', leftPlayerId: 'p1', rightPlayerId: 'p2',
+  });
+  const prior = base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    turnNumber: 4,
+  });
+  const rawNext = base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    turnNumber: 5,
+    publicThisTurn: {
+      identity: { gameId: 'game-1', turnNumber: 5 },
+      battleLog: {
+        turnNumber: 5,
+        diceValue: 6,
+        buildLinesByPlayerId: { p1: ['2 x FIG'], p2: [] },
+        battleLinesByPlayerId: {},
+        concealedBuildPlayerIds: ['p2'],
+      },
+      estimatesByPlayerId: {},
+    },
+  });
+  const held = syncTurnStartStatPresentation(
+    createTurnStartStatPresentationState({
+      gameId: 'game-1', orientationKey, turnNumber: 4,
+      presentation: prior, firstTurnRollPresentationActive: false,
+    }),
+    {
+      gameId: 'game-1', orientationKey, turnNumber: 5,
+      presentation: rawNext, settledTurnNumber: 4,
+      firstTurnRollPresentationActive: false,
+    },
+  );
+  const rawBattleLog = mapBattleLogThisTurn(rawNext);
+
+  assert(held.presented?.turnNumber === 4, 'stat display should remain on the prior turn');
+  assert(rawBattleLog?.turnNumber === 5, 'Battle Log should consume the raw new-turn VM');
+  assert(
+    lineText(rawBattleLog.me.buildLines).includes('2 x FIG'),
+    'Battle Log should expose the raw new-turn build line during the stat hold',
+  );
+});
 
 Deno.test('matching canonical preview replaces the complete own ledger without source concatenation', () => {
   const candidate = schedulerCandidate(previewCandidate(), 2);

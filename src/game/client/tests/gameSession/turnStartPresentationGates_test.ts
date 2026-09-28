@@ -6,7 +6,9 @@ import {
   applyTurnStartCataloguePresentationGate,
   classifyFirstTurnDiceSignature,
   createTurnStartEconomyPresentationState,
+  createTurnStartStatPresentationState,
   deriveBuildDrawingReadyNote,
+  getTurnStartStatOrientationKey,
   holdTurnStartDiceModifierPresentation,
   isCurrentTurnDicePresentationSettled,
   isNormalDrawingInteractionHeld,
@@ -14,8 +16,13 @@ import {
   settleTurnStartEconomyPresentation,
   shouldHoldTurnStartFleetMaterialisation,
   shouldHoldSetupTurnDiceCatchUp,
+  syncTurnStartStatPresentation,
   syncTurnStartEconomyPresentation,
 } from '../../gameSession/clienteffects/turnStartPresentationGates';
+import type {
+  ThisTurnMetricVm,
+  ThisTurnPresentationVm,
+} from '../../gameSession/types';
 
 function assertEquals(actual: unknown, expected: unknown, message: string): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -23,6 +30,178 @@ function assertEquals(actual: unknown, expected: unknown, message: string): void
       `${message}\nactual: ${JSON.stringify(actual)}\nexpected: ${JSON.stringify(expected)}`
     );
   }
+}
+
+function assertSame(actual: unknown, expected: unknown, message: string): void {
+  if (actual !== expected) {
+    throw new Error(message);
+  }
+}
+
+function assertNotSame(actual: unknown, expected: unknown, message: string): void {
+  if (actual === expected) {
+    throw new Error(message);
+  }
+}
+
+function statMetric(
+  total: number,
+  turnNumber: number,
+  source: Extract<ThisTurnMetricVm, { total: number }>['source'] = 'estimated',
+  label = 'Fighter',
+): ThisTurnMetricVm {
+  return {
+    state: total === 0 ? 'zero' : 'value',
+    turnNumber,
+    source,
+    total,
+    rows: total === 0
+      ? []
+      : [{ rowKind: 'ship', label, count: 1, amount: total, amountText: String(total) }],
+  };
+}
+
+function statPresentation(args: {
+  turnNumber: number;
+  total: number;
+  leftPlayerId?: string;
+  rightPlayerId?: string;
+  opponentDetail?: 'this_turn' | 'last';
+  opponentConcealed?: boolean;
+  label?: string;
+}): ThisTurnPresentationVm {
+  const current = statMetric(
+    args.total,
+    args.turnNumber,
+    'estimated',
+    args.label,
+  );
+  const last = statMetric(
+    Math.max(0, args.total - 1),
+    Math.max(0, args.turnNumber - 1),
+    'last_actual',
+    `${args.label ?? 'Fighter'} last`,
+  );
+  const pair = () => ({ current, last });
+
+  return {
+    turnNumber: args.turnNumber,
+    phaseKey: 'build.drawing',
+    liveLog: null,
+    archiveHandoff: null,
+    mobile: {
+      pairKey: `game-1::${args.turnNumber}`,
+      opponentDetail: args.opponentDetail ?? 'last',
+    },
+    me: {
+      playerId: args.leftPlayerId ?? 'p1',
+      damage: pair(),
+      healing: pair(),
+    },
+    opponent: {
+      playerId: args.rightPlayerId ?? 'p2',
+      damage: args.opponentConcealed
+        ? { current: { state: 'concealed', turnNumber: args.turnNumber }, last }
+        : pair(),
+      healing: pair(),
+    },
+  };
+}
+
+function chargeInclusivePresentation(args: {
+  turnNumber: number;
+  source: Extract<ThisTurnMetricVm, { total: number }>['source'];
+  opponentDetail: 'this_turn' | 'last';
+  totals: [number, number, number, number];
+  lastTotals: [number, number, number, number];
+  label: string;
+}): ThisTurnPresentationVm {
+  const pair = (
+    total: number,
+    lastTotal: number,
+    metricLabel: string,
+  ) => ({
+    current: {
+      ...statMetric(total, args.turnNumber, args.source, metricLabel),
+      rows: [
+        {
+          rowKind: 'ship' as const,
+          label: `${metricLabel} base`,
+          count: 1,
+          amount: Math.max(0, total - 2),
+          amountText: String(Math.max(0, total - 2)),
+        },
+        {
+          rowKind: 'ship' as const,
+          label: `${args.label} charge`,
+          count: 1,
+          amount: Math.min(2, total),
+          amountText: String(Math.min(2, total)),
+        },
+      ],
+    },
+    last: statMetric(
+      lastTotal,
+      Math.max(0, args.turnNumber - 1),
+      'last_actual',
+      `${metricLabel} prior`,
+    ),
+  });
+  const [myDamage, myHealing, opponentDamage, opponentHealing] = args.totals;
+  const [lastMyDamage, lastMyHealing, lastOpponentDamage, lastOpponentHealing] =
+    args.lastTotals;
+
+  return {
+    turnNumber: args.turnNumber,
+    phaseKey: args.source === 'held_actual'
+      ? 'battle.end_of_turn_resolution'
+      : 'build.drawing',
+    liveLog: null,
+    archiveHandoff: null,
+    mobile: {
+      pairKey: `game-1::${args.turnNumber}::${args.label}`,
+      opponentDetail: args.opponentDetail,
+    },
+    me: {
+      playerId: 'p1',
+      damage: pair(myDamage, lastMyDamage, 'My damage'),
+      healing: pair(myHealing, lastMyHealing, 'My healing'),
+    },
+    opponent: {
+      playerId: 'p2',
+      damage: pair(opponentDamage, lastOpponentDamage, 'Opponent damage'),
+      healing: pair(opponentHealing, lastOpponentHealing, 'Opponent healing'),
+    },
+  };
+}
+
+function statPresentationSnapshot(presentation: ThisTurnPresentationVm | null) {
+  const metric = (value: ThisTurnMetricVm) => value.state === 'zero' || value.state === 'value'
+    ? {
+        total: value.total,
+        source: value.source,
+        rows: value.rows.map((row) => row.label),
+      }
+    : { state: value.state };
+  const pair = (value: { current: ThisTurnMetricVm; last: ThisTurnMetricVm }) => ({
+    current: metric(value.current),
+    last: metric(value.last),
+  });
+
+  return presentation == null
+    ? null
+    : {
+        turnNumber: presentation.turnNumber,
+        opponentDetail: presentation.mobile.opponentDetail,
+        me: {
+          damage: pair(presentation.me.damage),
+          healing: pair(presentation.me.healing),
+        },
+        opponent: {
+          damage: pair(presentation.opponent.damage),
+          healing: pair(presentation.opponent.healing),
+        },
+      };
 }
 
 Deno.test('first established dice signature hydrates without presenting a roll', () => {
@@ -134,6 +313,481 @@ Deno.test('current-turn result UI remains gated until that turn settles', () => 
     isCurrentTurnDicePresentationSettled({ turnNumber: 3, settledTurnNumber: 3 }),
     true,
     'the current result may be exposed after settle'
+  );
+});
+
+Deno.test('turn stats retain the complete prior presentation and release the newest estimate at settlement', () => {
+  const orientationKey = getTurnStartStatOrientationKey({
+    viewerRole: 'player',
+    leftPlayerId: 'p1',
+    rightPlayerId: 'p2',
+  });
+  const prior = statPresentation({
+    turnNumber: 4,
+    total: 6,
+    opponentDetail: 'this_turn',
+    label: 'Prior fighter',
+  });
+  let state = createTurnStartStatPresentationState({
+    gameId: 'game-1',
+    orientationKey,
+    turnNumber: 4,
+    presentation: prior,
+    firstTurnRollPresentationActive: false,
+  });
+  const beforeDice = statPresentation({
+    turnNumber: 5,
+    total: 2,
+    opponentDetail: 'last',
+    label: 'Initial estimate',
+  });
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: beforeDice, settledTurnNumber: 4,
+    firstTurnRollPresentationActive: false,
+  });
+  assertEquals(state.presented, prior, 'the first new-turn render must retain every prior stat field');
+  const pendingBeforeDice = state;
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: statPresentation({
+      turnNumber: 5,
+      total: 2,
+      opponentDetail: 'last',
+      label: 'Initial estimate',
+    }),
+    settledTurnNumber: 4,
+    firstTurnRollPresentationActive: false,
+  });
+  assertSame(
+    state,
+    pendingBeforeDice,
+    'an equivalent newly allocated pending presentation must reuse the existing state',
+  );
+
+  const duringRoll = statPresentation({
+    turnNumber: 5,
+    total: 9,
+    opponentDetail: 'last',
+    label: 'Newest estimate',
+  });
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: duringRoll, settledTurnNumber: null,
+    firstTurnRollPresentationActive: false,
+  });
+  assertNotSame(state, pendingBeforeDice, 'a changed estimate must create a new pending state');
+  assertEquals(state.presented, prior, 'the roll must keep numbers, rows, sources, and mobile detail held');
+  assertEquals(state.latest, duringRoll, 'the newest safe estimate must be retained for release');
+  const updatedPending = state;
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: statPresentation({
+      turnNumber: 5,
+      total: 9,
+      opponentDetail: 'last',
+      label: 'Newest estimate',
+    }),
+    settledTurnNumber: null,
+    firstTurnRollPresentationActive: false,
+  });
+  assertSame(state, updatedPending, 'an equivalent repeated estimate must stabilize by reference');
+
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: duringRoll, settledTurnNumber: 5,
+    firstTurnRollPresentationActive: false,
+  });
+  assertNotSame(state, updatedPending, 'settlement must create the release state');
+  assertEquals(state.presented, duringRoll, 'settlement must release the complete newest presentation together');
+  assertEquals(state.pendingTurnNumber, null, 'settlement must clear the pending turn');
+  const settled = state;
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: statPresentation({
+      turnNumber: 5,
+      total: 9,
+      opponentDetail: 'last',
+      label: 'Newest estimate',
+    }),
+    settledTurnNumber: 5,
+    firstTurnRollPresentationActive: false,
+  });
+  assertSame(state, settled, 'an equivalent settled presentation must reuse the release state');
+});
+
+Deno.test('resolved actual stats publish before the next-turn dice hold and remain until settlement', () => {
+  const orientationKey = getTurnStartStatOrientationKey({
+    viewerRole: 'player', leftPlayerId: 'p1', rightPlayerId: 'p2',
+  });
+  const estimate = chargeInclusivePresentation({
+    turnNumber: 4,
+    source: 'estimated',
+    opponentDetail: 'this_turn',
+    totals: [6, 2, 7, 1],
+    lastTotals: [3, 1, 4, 2],
+    label: 'estimate',
+  });
+  let state = createTurnStartStatPresentationState({
+    gameId: 'game-1', orientationKey, turnNumber: 4,
+    presentation: estimate, firstTurnRollPresentationActive: false,
+  });
+  const resolved = chargeInclusivePresentation({
+    turnNumber: 4,
+    source: 'held_actual',
+    opponentDetail: 'this_turn',
+    totals: [14, 5, 11, 6],
+    lastTotals: [3, 1, 4, 2],
+    label: 'resolved',
+  });
+
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: resolved, settledTurnNumber: 4,
+    firstTurnRollPresentationActive: false,
+    resolvedPresentationTurnNumber: 4,
+  });
+  assertEquals(
+    statPresentationSnapshot(state.presented),
+    statPresentationSnapshot(resolved),
+    'authoritative Turn 4 totals, charge rows, sources, Last values, and mobile mode must publish immediately',
+  );
+  assertEquals(
+    state.authoritativeTurnNumber,
+    4,
+    'the resolved presentation must anchor the gate to its own turn',
+  );
+
+  const publishedResolved = state;
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: structuredClone(resolved), settledTurnNumber: 4,
+    firstTurnRollPresentationActive: false,
+    resolvedPresentationTurnNumber: 4,
+  });
+  assertSame(
+    state,
+    publishedResolved,
+    'an equivalent newly allocated held-actual presentation must preserve state identity',
+  );
+
+  const nextTurn = chargeInclusivePresentation({
+    turnNumber: 5,
+    source: 'estimated',
+    opponentDetail: 'last',
+    totals: [2, 3, 4, 5],
+    lastTotals: [14, 5, 11, 6],
+    label: 'next',
+  });
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: nextTurn, settledTurnNumber: 4,
+    firstTurnRollPresentationActive: false,
+    resolvedPresentationTurnNumber: null,
+  });
+  assertEquals(
+    statPresentationSnapshot(state.presented),
+    statPresentationSnapshot(resolved),
+    'early Turn 5 state and its Last fields must not replace resolved Turn 4 during the roll',
+  );
+  assertEquals(state.latest, nextTurn, 'raw Turn 5 must remain pending for release');
+
+  const pending = state;
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: structuredClone(nextTurn), settledTurnNumber: null,
+    firstTurnRollPresentationActive: false,
+    resolvedPresentationTurnNumber: null,
+  });
+  assertSame(
+    state,
+    pending,
+    'equivalent raw Turn 5 input must preserve pending state identity',
+  );
+
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: structuredClone(nextTurn), settledTurnNumber: 5,
+    firstTurnRollPresentationActive: false,
+    resolvedPresentationTurnNumber: null,
+  });
+  assertEquals(
+    statPresentationSnapshot(state.presented),
+    statPresentationSnapshot(nextTurn),
+    'dice settlement must release Turn 5 totals, rows, sources, Last fields, and mobile mode together',
+  );
+});
+
+Deno.test('turn stat holds are scoped to game and viewer orientation for both players and spectators', () => {
+  const cases = [
+    { role: 'player' as const, left: 'p1', right: 'p2' },
+    { role: 'player' as const, left: 'p2', right: 'p1' },
+    { role: 'spectator' as const, left: 'p1', right: 'p2' },
+  ];
+
+  for (const candidate of cases) {
+    const orientationKey = getTurnStartStatOrientationKey({
+      viewerRole: candidate.role,
+      leftPlayerId: candidate.left,
+      rightPlayerId: candidate.right,
+    });
+    const prior = statPresentation({
+      turnNumber: 2,
+      total: 3,
+      leftPlayerId: candidate.left,
+      rightPlayerId: candidate.right,
+    });
+    const next = statPresentation({
+      turnNumber: 3,
+      total: 7,
+      leftPlayerId: candidate.left,
+      rightPlayerId: candidate.right,
+    });
+    let state = createTurnStartStatPresentationState({
+      gameId: 'game-1', orientationKey, turnNumber: 2,
+      presentation: prior, firstTurnRollPresentationActive: false,
+    });
+    state = syncTurnStartStatPresentation(state, {
+      gameId: 'game-1', orientationKey, turnNumber: 3,
+      presentation: next, settledTurnNumber: 2,
+      firstTurnRollPresentationActive: false,
+    });
+    assertEquals(state.presented, prior, `${candidate.role} ${candidate.left} orientation should hold`);
+  }
+
+  const p1Orientation = getTurnStartStatOrientationKey({
+    viewerRole: 'player', leftPlayerId: 'p1', rightPlayerId: 'p2',
+  });
+  const p2Orientation = getTurnStartStatOrientationKey({
+    viewerRole: 'player', leftPlayerId: 'p2', rightPlayerId: 'p1',
+  });
+  const old = statPresentation({ turnNumber: 4, total: 4 });
+  const reoriented = statPresentation({
+    turnNumber: 4, total: 8, leftPlayerId: 'p2', rightPlayerId: 'p1',
+  });
+  const originalOrientationState = createTurnStartStatPresentationState({
+    gameId: 'game-1', orientationKey: p1Orientation, turnNumber: 4,
+    presentation: old, firstTurnRollPresentationActive: false,
+  });
+  const reset = syncTurnStartStatPresentation(
+    originalOrientationState,
+    {
+      gameId: 'game-1', orientationKey: p2Orientation, turnNumber: 4,
+      presentation: reoriented, settledTurnNumber: null,
+      firstTurnRollPresentationActive: false,
+    },
+  );
+  assertNotSame(reset, originalOrientationState, 'an orientation change must create a new state');
+  assertEquals(reset.presented, reoriented, 'an orientation change must hydrate instead of reusing held stats');
+
+  const newGame = statPresentation({ turnNumber: 4, total: 12 });
+  const originalGameState = createTurnStartStatPresentationState({
+    gameId: 'game-1', orientationKey: p1Orientation, turnNumber: 4,
+    presentation: old, firstTurnRollPresentationActive: false,
+  });
+  const gameReset = syncTurnStartStatPresentation(
+    originalGameState,
+    {
+      gameId: 'game-2', orientationKey: p1Orientation, turnNumber: 4,
+      presentation: newGame, settledTurnNumber: null,
+      firstTurnRollPresentationActive: false,
+    },
+  );
+  assertNotSame(gameReset, originalGameState, 'a game change must create a new state');
+  assertEquals(gameReset.presented, newGame, 'a game change must hydrate instead of reusing held stats');
+});
+
+Deno.test('null stat resets are idempotent while changed reset scope still creates state', () => {
+  const empty = createTurnStartStatPresentationState({
+    gameId: null,
+    orientationKey: null,
+    turnNumber: null,
+    presentation: null,
+    firstTurnRollPresentationActive: false,
+  });
+  const repeatedEmpty = syncTurnStartStatPresentation(empty, {
+    gameId: null,
+    orientationKey: null,
+    turnNumber: null,
+    presentation: null,
+    settledTurnNumber: null,
+    firstTurnRollPresentationActive: false,
+  });
+  assertSame(repeatedEmpty, empty, 'equivalent empty reset input must reuse the existing state');
+
+  const orientationKey = getTurnStartStatOrientationKey({
+    viewerRole: 'player', leftPlayerId: 'p1', rightPlayerId: 'p2',
+  });
+  const scopedReset = syncTurnStartStatPresentation(repeatedEmpty, {
+    gameId: 'game-1',
+    orientationKey,
+    turnNumber: 1,
+    presentation: null,
+    settledTurnNumber: null,
+    firstTurnRollPresentationActive: false,
+  });
+  assertNotSame(scopedReset, repeatedEmpty, 'changed game, orientation, and turn scope must create reset state');
+  const repeatedScopedReset = syncTurnStartStatPresentation(scopedReset, {
+    gameId: 'game-1',
+    orientationKey,
+    turnNumber: 1,
+    presentation: null,
+    settledTurnNumber: 1,
+    firstTurnRollPresentationActive: false,
+  });
+  assertSame(
+    repeatedScopedReset,
+    scopedReset,
+    'equivalent null reset state must remain stable when settlement has nothing pending',
+  );
+
+  const spectatorOrientation = getTurnStartStatOrientationKey({
+    viewerRole: 'spectator', leftPlayerId: 'p1', rightPlayerId: 'p2',
+  });
+  const reorientedReset = syncTurnStartStatPresentation(repeatedScopedReset, {
+    gameId: 'game-1',
+    orientationKey: spectatorOrientation,
+    turnNumber: 1,
+    presentation: null,
+    settledTurnNumber: 1,
+    firstTurnRollPresentationActive: false,
+  });
+  assertNotSame(reorientedReset, repeatedScopedReset, 'changed reset orientation must create new state');
+});
+
+Deno.test('a locally presented first-turn roll uses neutral zero stats while settled hydration remains immediate', () => {
+  const orientationKey = getTurnStartStatOrientationKey({
+    viewerRole: 'player', leftPlayerId: 'p1', rightPlayerId: 'p2',
+  });
+  const setupPresentation = statPresentation({
+    turnNumber: 0, total: 4, label: 'Setup presentation',
+  });
+  const setupState = createTurnStartStatPresentationState({
+    gameId: 'game-1', orientationKey, turnNumber: 0,
+    presentation: setupPresentation, firstTurnRollPresentationActive: false,
+  });
+  const firstEstimate = statPresentation({ turnNumber: 1, total: 7, label: 'Early estimate' });
+  let rolling = syncTurnStartStatPresentation(setupState, {
+    gameId: 'game-1', orientationKey, turnNumber: 1,
+    presentation: firstEstimate, settledTurnNumber: 0,
+    firstTurnRollPresentationActive: true,
+  });
+  assertNotSame(rolling, setupState, 'Turn 1 roll status and turn number must create a neutral hold state');
+  const neutralMetrics = [
+    rolling.presented?.me.damage,
+    rolling.presented?.me.healing,
+    rolling.presented?.opponent.damage,
+    rolling.presented?.opponent.healing,
+  ];
+  const neutralMetricValues = neutralMetrics.map((pair) => {
+    const current = pair?.current;
+    const last = pair?.last;
+    return [
+      current?.state,
+      current?.state === 'zero' || current?.state === 'value' ? current.total : null,
+      last?.state,
+      last?.state === 'zero' || last?.state === 'value' ? last.total : null,
+    ];
+  });
+  assertEquals(
+    neutralMetricValues,
+    Array.from({ length: 4 }, () => ['zero', 0, 'zero', 0]),
+    'all first-turn Current and Last slots should begin at neutral zero',
+  );
+  assertEquals(
+    neutralMetrics.flatMap((pair) => [
+      pair?.current.state === 'zero' ? pair.current.rows : ['unexpected'],
+      pair?.last.state === 'zero' ? pair.last.rows : ['unexpected'],
+    ]),
+    Array.from({ length: 8 }, () => []),
+    'neutral first-turn stats must not invent breakdown rows',
+  );
+
+  const initialRolling = rolling;
+  rolling = syncTurnStartStatPresentation(rolling, {
+    gameId: 'game-1', orientationKey, turnNumber: 1,
+    presentation: statPresentation({
+      turnNumber: 1, total: 7, label: 'Early estimate',
+    }),
+    settledTurnNumber: 0,
+    firstTurnRollPresentationActive: true,
+  });
+  assertSame(
+    rolling,
+    initialRolling,
+    'an equivalent newly allocated Turn 1 estimate must reuse the neutral hold state',
+  );
+
+  const latestEstimate = statPresentation({ turnNumber: 1, total: 11, label: 'Latest estimate' });
+  rolling = syncTurnStartStatPresentation(rolling, {
+    gameId: 'game-1', orientationKey, turnNumber: 1,
+    presentation: latestEstimate, settledTurnNumber: null,
+    firstTurnRollPresentationActive: true,
+  });
+  assertNotSame(rolling, initialRolling, 'a genuinely newer Turn 1 estimate must be retained');
+  assertEquals(rolling.presented?.me.damage.current.state, 'zero', 'the neutral baseline must survive the roll');
+  assertEquals(rolling.latest, latestEstimate, 'the newest Turn 1 estimate must be pending for release');
+  const updatedRolling = rolling;
+  rolling = syncTurnStartStatPresentation(rolling, {
+    gameId: 'game-1', orientationKey, turnNumber: 1,
+    presentation: statPresentation({
+      turnNumber: 1, total: 11, label: 'Latest estimate',
+    }),
+    settledTurnNumber: null,
+    firstTurnRollPresentationActive: true,
+  });
+  assertSame(rolling, updatedRolling, 'the repeated newest Turn 1 estimate must stabilize by reference');
+
+  rolling = syncTurnStartStatPresentation(rolling, {
+    gameId: 'game-1', orientationKey, turnNumber: 1,
+    presentation: statPresentation({
+      turnNumber: 1, total: 11, label: 'Latest estimate',
+    }),
+    settledTurnNumber: 1,
+    firstTurnRollPresentationActive: false,
+  });
+  assertNotSame(rolling, updatedRolling, 'Turn 1 settlement must create the release state');
+  assertEquals(rolling.presented, latestEstimate, 'first-turn settlement must release the latest estimate');
+  const settledTurnOne = rolling;
+  rolling = syncTurnStartStatPresentation(rolling, {
+    gameId: 'game-1', orientationKey, turnNumber: 1,
+    presentation: statPresentation({
+      turnNumber: 1, total: 11, label: 'Latest estimate',
+    }),
+    settledTurnNumber: 1,
+    firstTurnRollPresentationActive: false,
+  });
+  assertSame(rolling, settledTurnOne, 'equivalent settled Turn 1 input must reuse the release state');
+
+  const hydrated = statPresentation({ turnNumber: 6, total: 13 });
+  const hydratedState = createTurnStartStatPresentationState({
+    gameId: 'game-2', orientationKey, turnNumber: 6,
+    presentation: hydrated, firstTurnRollPresentationActive: false,
+  });
+  assertEquals(hydratedState.presented, hydrated, 'a midgame load with no local roll must hydrate immediately');
+});
+
+Deno.test('released stat presentation preserves opponent concealment without prior-turn fallback', () => {
+  const orientationKey = getTurnStartStatOrientationKey({
+    viewerRole: 'player', leftPlayerId: 'p1', rightPlayerId: 'p2',
+  });
+  const visible = statPresentation({ turnNumber: 5, total: 4 });
+  const concealed = statPresentation({ turnNumber: 5, total: 8, opponentConcealed: true });
+  const state = syncTurnStartStatPresentation(
+    createTurnStartStatPresentationState({
+      gameId: 'game-1', orientationKey, turnNumber: 5,
+      presentation: visible, firstTurnRollPresentationActive: false,
+    }),
+    {
+      gameId: 'game-1', orientationKey, turnNumber: 5,
+      presentation: concealed, settledTurnNumber: 5,
+      firstTurnRollPresentationActive: false,
+    },
+  );
+  assertEquals(
+    state.presented?.opponent.damage.current,
+    { state: 'concealed', turnNumber: 5 },
+    'concealment must pass through after release rather than borrowing the prior value',
   );
 });
 

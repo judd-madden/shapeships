@@ -278,8 +278,11 @@ export type {
 import { useTurnPhasePresentation } from './gameSession/clienteffects/useTurnPhasePresentation';
 import {
   applyTurnStartCataloguePresentationGate,
+  createTurnStartStatPresentationState,
+  getTurnStartStatOrientationKey,
   isNormalDrawingInteractionHeld,
   isCurrentTurnDicePresentationSettled,
+  syncTurnStartStatPresentation,
   type TurnStartEconomyPresentation,
 } from './gameSession/clienteffects/turnStartPresentationGates';
 
@@ -4865,6 +4868,52 @@ useEffect(() => {
     continueAuthoritativePhaseHold,
   });
   const thisTurnPresentation = buildThisTurnVm(thisTurnResolutionSnapshot);
+  const thisTurnStatOrientationKey = getTurnStartStatOrientationKey({
+    viewerRole: healthResolutionViewerRole,
+    leftPlayerId: getPlayerIdentityKey(displayLeftPlayer),
+    rightPlayerId: getPlayerIdentityKey(displayRightPlayer),
+  });
+  const firstTurnRollStatPresentationActive =
+    turnNumber === 1 &&
+    turnStartFleetMaterialisationHoldActive &&
+    presentedTurnDiceSettledTurnNumber !== turnNumber;
+  const [turnStartStatPresentationState, setTurnStartStatPresentationState] =
+    useState(() => createTurnStartStatPresentationState({
+      gameId: effectiveGameId,
+      orientationKey: thisTurnStatOrientationKey,
+      turnNumber,
+      presentation: thisTurnPresentation,
+      firstTurnRollPresentationActive: firstTurnRollStatPresentationActive,
+      resolvedPresentationTurnNumber:
+        thisTurnResolutionSnapshot?.resolvedTurnNumber ?? null,
+    }));
+  useLayoutEffect(() => {
+    setTurnStartStatPresentationState((current) =>
+      syncTurnStartStatPresentation(current, {
+        gameId: effectiveGameId,
+        orientationKey: thisTurnStatOrientationKey,
+        turnNumber,
+        presentation: thisTurnPresentation,
+        settledTurnNumber: presentedTurnDiceSettledTurnNumber,
+        firstTurnRollPresentationActive: firstTurnRollStatPresentationActive,
+        resolvedPresentationTurnNumber:
+          thisTurnResolutionSnapshot?.resolvedTurnNumber ?? null,
+      })
+    );
+  }, [
+    effectiveGameId,
+    thisTurnStatOrientationKey,
+    turnNumber,
+    thisTurnPresentation,
+    presentedTurnDiceSettledTurnNumber,
+    firstTurnRollStatPresentationActive,
+    thisTurnResolutionSnapshot?.resolvedTurnNumber,
+  ]);
+  const presentedThisTurnStats =
+    turnStartStatPresentationState.gameId === effectiveGameId &&
+      turnStartStatPresentationState.orientationKey === thisTurnStatOrientationKey
+      ? turnStartStatPresentationState.presented
+      : thisTurnPresentation;
   useEffect(() => {
     if (
       !hardRefreshThisTurnResolutionSnapshot ||
@@ -6244,6 +6293,7 @@ useEffect(() => {
 
     battleLogHistory,
     thisTurn: thisTurnPresentation,
+    presentedThisTurnStats,
 
     getMajorPhaseLabel,
     getSubphaseLabelFromPhaseKey,
@@ -7822,6 +7872,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       missionChallenge: null,
       gameStats: null,
       thisTurn: null,
+      presentedThisTurnStats: null,
       turnPhases: {
         turnNumber: null,
         currentMilestone: null,

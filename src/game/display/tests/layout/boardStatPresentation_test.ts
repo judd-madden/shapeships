@@ -22,6 +22,11 @@ import {
   buildHealthBreakdownPresentation,
   formatHealthChange,
 } from '../../layout/boardStage/healthBreakdownPresentation';
+import {
+  createTurnStartStatPresentationState,
+  getTurnStartStatOrientationKey,
+  syncTurnStartStatPresentation,
+} from '../../../client/gameSession/clienteffects/turnStartPresentationGates';
 
 function assertEquals(actual: unknown, expected: unknown): void {
   const actualJson = JSON.stringify(actual);
@@ -327,6 +332,94 @@ Deno.test('health breakdown maps each owner healing before incoming damage and p
   assertEquals(result.opponent?.damageLabel, 'Your Damage');
   assertEquals(formatHealthChange(-3), '−3');
   assertEquals(formatHealthChange(2), '+2');
+});
+
+Deno.test('held Damage and Healing stats do not delay raw Phase 18H health data', () => {
+  const orientationKey = getTurnStartStatOrientationKey({
+    viewerRole: 'player', leftPlayerId: 'p1', rightPlayerId: 'p2',
+  });
+  const priorStats = healthPresentation('estimated', 4);
+  const rawResolution = healthPresentation('held_actual', 5);
+  const heldState = syncTurnStartStatPresentation(
+    createTurnStartStatPresentationState({
+      gameId: 'game-1', orientationKey, turnNumber: 4,
+      presentation: priorStats, firstTurnRollPresentationActive: false,
+    }),
+    {
+      gameId: 'game-1', orientationKey, turnNumber: 5,
+      presentation: rawResolution, settledTurnNumber: 4,
+      firstTurnRollPresentationActive: false,
+    },
+  );
+  const health = buildHealthBreakdownPresentation({
+    boardVm: healthBoard({ turnNumber: 5 }),
+    thisTurn: rawResolution,
+    gameStats: null,
+    viewer: playerViewer,
+  });
+
+  assertEquals(heldState.presented?.turnNumber, 4);
+  assertEquals({ eligible: health.hoverEligible, turn: health.my?.turnNumber }, {
+    eligible: true,
+    turn: 5,
+  });
+});
+
+Deno.test('desktop stat numbers and hover rows show resolved actuals through next-turn dice settlement', () => {
+  const orientationKey = getTurnStartStatOrientationKey({
+    viewerRole: 'player', leftPlayerId: 'p1', rightPlayerId: 'p2',
+  });
+  const prior = healthPresentation('estimated', 4);
+  const resolved = healthPresentation('held_actual', 4);
+  resolved.me.damage.current = valueMetric(14, 'held_actual', 4, [{
+    rowKind: 'ship', label: 'Centaur charge', count: 1, amount: 14, amountText: '+14',
+  }]);
+  const next = healthPresentation('estimated', 5);
+  next.me.damage.current = valueMetric(12, 'estimated', 5, [{
+    rowKind: 'ship', label: 'Destroyer', count: 2, amount: 12, amountText: '+12',
+  }]);
+  let state = createTurnStartStatPresentationState({
+    gameId: 'game-1', orientationKey, turnNumber: 4,
+    presentation: prior, firstTurnRollPresentationActive: false,
+  });
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: resolved, settledTurnNumber: 4,
+    firstTurnRollPresentationActive: false,
+    resolvedPresentationTurnNumber: 4,
+  });
+  assertEquals(formatBoardStatMetric(state.presented?.me.damage.current, 'current'), '14');
+  assertEquals(
+    buildBoardStatHoverSections(state.presented?.me.damage).map((section) => [
+      section.totalText,
+      section.rows.map((row) => row.label),
+    ]),
+    [['14', ['Centaur charge']]],
+  );
+
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: next, settledTurnNumber: 4,
+    firstTurnRollPresentationActive: false,
+    resolvedPresentationTurnNumber: null,
+  });
+  assertEquals(formatBoardStatMetric(state.presented?.me.damage.current, 'current'), '14');
+  assertEquals(
+    buildBoardStatHoverSections(state.presented?.me.damage)[0]?.rows.map((row) => row.label),
+    ['Centaur charge'],
+  );
+
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: next, settledTurnNumber: 5,
+    firstTurnRollPresentationActive: false,
+    resolvedPresentationTurnNumber: null,
+  });
+  assertEquals(formatBoardStatMetric(state.presented?.me.damage.current, 'current'), '12');
+  assertEquals(
+    buildBoardStatHoverSections(state.presented?.me.damage)[0]?.rows.map((row) => row.label),
+    ['Destroyer'],
+  );
 });
 
 Deno.test('spectator health labels retain left and right player orientation', () => {

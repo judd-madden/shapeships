@@ -985,6 +985,7 @@ export interface GameSessionViewModel {
   missionChallenge: MissionChallengeViewModel | null;
   gameStats: GameStatsViewModel | null;
   thisTurn: ThisTurnPresentationVm | null;
+  presentedThisTurnStats: ThisTurnPresentationVm | null;
   turnPhases: TurnPhaseVm;
   turnPhasePresentation: TurnPhasePresentationVm;
   hud: HudViewModel;

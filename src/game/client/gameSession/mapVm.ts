@@ -220,6 +220,7 @@ export function mapGameSessionVm(args: {
 
   battleLogHistory: BattleLogHistoryResponse | null;
   thisTurn: ThisTurnPresentationVm | null;
+  presentedThisTurnStats: ThisTurnPresentationVm | null;
 
   getMajorPhaseLabel: (phaseKey: string) => string;
   getSubphaseLabelFromPhaseKey: (phaseKey: string) => string;
@@ -351,6 +352,7 @@ export function mapGameSessionVm(args: {
     currentTurnDicePresentationSettled,
     battleLogHistory,
     thisTurn,
+    presentedThisTurnStats,
     getMajorPhaseLabel,
     getSubphaseLabelFromPhaseKey,
     chatEntries,
@@ -1403,6 +1405,7 @@ export function mapGameSessionVm(args: {
     missionChallenge,
     gameStats,
     thisTurn,
+    presentedThisTurnStats,
     turnPhases,
     turnPhasePresentation: {
       presentedMilestone: turnPhases.currentMilestone,

@@ -1,3 +1,8 @@
+import type {
+  ThisTurnMetricPairVm,
+  ThisTurnPresentationVm,
+} from '../types';
+
 export interface TurnStartEconomyPresentation<TBreakdownRow = unknown> {
   myBonusLines: number;
   opponentBonusLines: number;
@@ -80,6 +85,252 @@ export function isCurrentTurnDicePresentationSettled(args: {
   settledTurnNumber: number | null;
 }): boolean {
   return args.settledTurnNumber === args.turnNumber;
+}
+
+export interface TurnStartStatPresentationState {
+  gameId: string | null;
+  orientationKey: string | null;
+  authoritativeTurnNumber: number | null;
+  latestKey: string | null;
+  latest: ThisTurnPresentationVm | null;
+  presented: ThisTurnPresentationVm | null;
+  pendingTurnNumber: number | null;
+}
+
+export function getTurnStartStatOrientationKey(args: {
+  viewerRole: 'player' | 'spectator' | 'unknown';
+  leftPlayerId: string | null;
+  rightPlayerId: string | null;
+}): string {
+  return JSON.stringify([
+    args.viewerRole,
+    args.leftPlayerId,
+    args.rightPlayerId,
+  ]);
+}
+
+function getTurnStartStatPresentationKey(
+  presentation: ThisTurnPresentationVm | null,
+): string | null {
+  return presentation == null ? null : JSON.stringify(presentation);
+}
+
+function reuseEquivalentTurnStartStatPresentationState(
+  current: TurnStartStatPresentationState,
+  next: TurnStartStatPresentationState,
+): TurnStartStatPresentationState {
+  return current.gameId === next.gameId &&
+      current.orientationKey === next.orientationKey &&
+      current.authoritativeTurnNumber === next.authoritativeTurnNumber &&
+      current.latestKey === next.latestKey &&
+      current.pendingTurnNumber === next.pendingTurnNumber &&
+      getTurnStartStatPresentationKey(current.presented) ===
+        getTurnStartStatPresentationKey(next.presented)
+    ? current
+    : next;
+}
+
+function createNeutralTurnStartMetricPair(
+  turnNumber: number,
+): ThisTurnMetricPairVm {
+  return {
+    current: {
+      state: 'zero',
+      turnNumber,
+      source: 'turn_start_baseline',
+      total: 0,
+      rows: [],
+    },
+    last: {
+      state: 'zero',
+      turnNumber: Math.max(0, turnNumber - 1),
+      source: 'last_actual',
+      total: 0,
+      rows: [],
+    },
+  };
+}
+
+export function createNeutralTurnStartStatPresentation(args: {
+  gameId: string;
+  turnNumber: number;
+  latest: ThisTurnPresentationVm;
+}): ThisTurnPresentationVm {
+  const makePlayer = (playerId: string | null) => ({
+    playerId,
+    damage: createNeutralTurnStartMetricPair(args.turnNumber),
+    healing: createNeutralTurnStartMetricPair(args.turnNumber),
+  });
+
+  return {
+    turnNumber: args.turnNumber,
+    phaseKey: args.latest.phaseKey,
+    liveLog: null,
+    me: makePlayer(args.latest.me.playerId),
+    opponent: makePlayer(args.latest.opponent.playerId),
+    archiveHandoff: null,
+    mobile: {
+      pairKey: `${args.gameId}::${args.turnNumber}::neutral`,
+      opponentDetail: 'this_turn',
+    },
+  };
+}
+
+export function createTurnStartStatPresentationState(args: {
+  gameId: string | null;
+  orientationKey: string | null;
+  turnNumber: number | null;
+  presentation: ThisTurnPresentationVm | null;
+  firstTurnRollPresentationActive: boolean;
+  resolvedPresentationTurnNumber?: number | null;
+}): TurnStartStatPresentationState {
+  const resolvedPresentationTurnNumber =
+    args.resolvedPresentationTurnNumber != null &&
+      args.presentation?.turnNumber === args.resolvedPresentationTurnNumber
+      ? args.resolvedPresentationTurnNumber
+      : null;
+  const shouldUseNeutralFirstTurn =
+    resolvedPresentationTurnNumber == null &&
+    args.gameId != null &&
+    args.turnNumber === 1 &&
+    args.presentation != null &&
+    args.firstTurnRollPresentationActive;
+  const presented = shouldUseNeutralFirstTurn
+    ? createNeutralTurnStartStatPresentation({
+        gameId: args.gameId!,
+        turnNumber: args.turnNumber!,
+        latest: args.presentation!,
+      })
+    : args.presentation;
+
+  return {
+    gameId: args.gameId,
+    orientationKey: args.orientationKey,
+    authoritativeTurnNumber:
+      resolvedPresentationTurnNumber ?? args.turnNumber,
+    latestKey: getTurnStartStatPresentationKey(args.presentation),
+    latest: args.presentation,
+    presented,
+    pendingTurnNumber: shouldUseNeutralFirstTurn ? 1 : null,
+  };
+}
+
+export function syncTurnStartStatPresentation(
+  state: TurnStartStatPresentationState,
+  args: {
+    gameId: string | null;
+    orientationKey: string | null;
+    turnNumber: number | null;
+    presentation: ThisTurnPresentationVm | null;
+    settledTurnNumber: number | null;
+    firstTurnRollPresentationActive: boolean;
+    resolvedPresentationTurnNumber?: number | null;
+  },
+): TurnStartStatPresentationState {
+  if (
+    state.gameId !== args.gameId ||
+    state.orientationKey !== args.orientationKey ||
+    args.gameId == null ||
+    args.orientationKey == null ||
+    args.turnNumber == null ||
+    args.presentation == null ||
+    state.authoritativeTurnNumber == null ||
+    args.turnNumber < state.authoritativeTurnNumber
+  ) {
+    return reuseEquivalentTurnStartStatPresentationState(
+      state,
+      createTurnStartStatPresentationState(args),
+    );
+  }
+
+  const latestKey = getTurnStartStatPresentationKey(args.presentation);
+  const isSettled = args.settledTurnNumber === args.turnNumber;
+  const resolvedPresentationTurnNumber =
+    args.resolvedPresentationTurnNumber != null &&
+      args.presentation.turnNumber === args.resolvedPresentationTurnNumber
+      ? args.resolvedPresentationTurnNumber
+      : null;
+
+  if (resolvedPresentationTurnNumber != null) {
+    return reuseEquivalentTurnStartStatPresentationState(state, {
+      ...state,
+      authoritativeTurnNumber: resolvedPresentationTurnNumber,
+      latestKey,
+      latest: args.presentation,
+      presented: args.presentation,
+      pendingTurnNumber: null,
+    });
+  }
+
+  if (
+    args.turnNumber === 1 &&
+    args.firstTurnRollPresentationActive &&
+    !isSettled
+  ) {
+    const neutralPairKey = `${args.gameId}::${args.turnNumber}::neutral`;
+    const presented =
+      state.pendingTurnNumber === args.turnNumber &&
+        state.presented?.mobile.pairKey === neutralPairKey
+        ? state.presented
+        : createNeutralTurnStartStatPresentation({
+            gameId: args.gameId,
+            turnNumber: args.turnNumber,
+            latest: args.presentation,
+          });
+    return reuseEquivalentTurnStartStatPresentationState(state, {
+      ...state,
+      authoritativeTurnNumber: args.turnNumber,
+      latestKey,
+      latest: args.presentation,
+      presented,
+      pendingTurnNumber: args.turnNumber,
+    });
+  }
+
+  if (args.turnNumber > state.authoritativeTurnNumber) {
+    if (state.presented == null || isSettled) {
+      return reuseEquivalentTurnStartStatPresentationState(state, {
+        ...state,
+        authoritativeTurnNumber: args.turnNumber,
+        latestKey,
+        latest: args.presentation,
+        presented: args.presentation,
+        pendingTurnNumber: null,
+      });
+    }
+
+    return reuseEquivalentTurnStartStatPresentationState(state, {
+      ...state,
+      authoritativeTurnNumber: args.turnNumber,
+      latestKey,
+      latest: args.presentation,
+      pendingTurnNumber: args.turnNumber,
+    });
+  }
+
+  if (state.pendingTurnNumber === args.turnNumber) {
+    const latest = latestKey === state.latestKey && state.latest != null
+      ? state.latest
+      : args.presentation;
+    return reuseEquivalentTurnStartStatPresentationState(state, {
+      ...state,
+      latestKey,
+      latest,
+      presented: isSettled ? latest : state.presented,
+      pendingTurnNumber: isSettled ? null : state.pendingTurnNumber,
+    });
+  }
+
+  if (latestKey === state.latestKey) {
+    return state;
+  }
+
+  return {
+    ...state,
+    latestKey,
+    latest: args.presentation,
+    presented: args.presentation,
+  };
 }
 
 export function shouldHoldTurnStartFleetMaterialisation(args: {

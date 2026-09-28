@@ -17,6 +17,11 @@ import {
   MOBILE_STATUS_STAT_ORDER,
   toggleMobilePopoverPair,
 } from '../../mobile/mobileStatPresentation';
+import {
+  createTurnStartStatPresentationState,
+  getTurnStartStatOrientationKey,
+  syncTurnStartStatPresentation,
+} from '../../../client/gameSession/clienteffects/turnStartPresentationGates';
 
 function assertEquals(actual: unknown, expected: unknown): void {
   const actualJson = JSON.stringify(actual);
@@ -79,6 +84,83 @@ function presentation(overrides: Partial<ThisTurnPresentationVm> = {}): ThisTurn
     ...overrides,
   };
 }
+
+Deno.test('mobile HUD and popovers show resolved actuals through next-turn dice settlement', () => {
+  const orientationKey = getTurnStartStatOrientationKey({
+    viewerRole: 'player', leftPlayerId: 'p1', rightPlayerId: 'p2',
+  });
+  const prior = presentation();
+  const resolvedMetrics = playerMetrics(
+    pair(availableMetric(14, 'held_actual', 4, [{
+      rowKind: 'ship', label: 'Centaur charge', count: 1, amount: 14, amountText: '+14',
+    }]), availableMetric(3, 'last_actual', 3)),
+    pair(availableMetric(6, 'held_actual', 4), availableMetric(1, 'last_actual', 3)),
+  );
+  const resolved = presentation({
+    me: resolvedMetrics,
+    opponent: { ...resolvedMetrics, playerId: 'p2' },
+    mobile: { pairKey: 'game-1::4::held', opponentDetail: 'this_turn' },
+  });
+  const nextMetrics = playerMetrics(
+    pair(availableMetric(12, 'estimated', 5), availableMetric(9, 'last_actual', 4)),
+    pair(availableMetric(7, 'estimated', 5), availableMetric(4, 'last_actual', 4)),
+  );
+  const next = presentation({
+    turnNumber: 5,
+    me: nextMetrics,
+    opponent: { ...nextMetrics, playerId: 'p2' },
+    mobile: { pairKey: 'game-1::5', opponentDetail: 'this_turn' },
+  });
+  let state = createTurnStartStatPresentationState({
+    gameId: 'game-1', orientationKey, turnNumber: 4,
+    presentation: prior, firstTurnRollPresentationActive: false,
+  });
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: resolved, settledTurnNumber: 4,
+    firstTurnRollPresentationActive: false,
+    resolvedPresentationTurnNumber: 4,
+  });
+
+  assertEquals(buildMobileHudMetricPair(state.presented?.me.damage), {
+    currentText: '14', lastText: '3',
+  });
+  assertEquals(
+    buildMobileMetricBreakdownGroups({ presentation: state.presented, side: 'opponent' })
+      .primary.map((section) => [section.title, section.totalText]),
+    [['This turn damage', '14'], ['This turn healing', '6']],
+  );
+
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: next, settledTurnNumber: 4,
+    firstTurnRollPresentationActive: false,
+    resolvedPresentationTurnNumber: null,
+  });
+  assertEquals(buildMobileHudMetricPair(state.presented?.me.damage), {
+    currentText: '14', lastText: '3',
+  });
+  assertEquals(
+    buildMobileMetricBreakdownGroups({ presentation: state.presented, side: 'me' })
+      .primary[0]?.rows.map((row) => row.label),
+    ['Centaur charge'],
+  );
+
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: next, settledTurnNumber: 5,
+    firstTurnRollPresentationActive: false,
+    resolvedPresentationTurnNumber: null,
+  });
+  assertEquals(buildMobileHudMetricPair(state.presented?.me.damage), {
+    currentText: '12', lastText: '9',
+  });
+  assertEquals(
+    buildMobileMetricBreakdownGroups({ presentation: state.presented, side: 'opponent' })
+      .primary.map((section) => [section.title, section.totalText]),
+    [['This turn damage', '~12'], ['This turn healing', '~7']],
+  );
+});
 
 Deno.test('mobile HUD fixes stat order and uses desktop value-state formatting', () => {
   assertEquals(MOBILE_STATUS_STAT_ORDER, ['saved', 'bonus', 'damage', 'healing']);
