@@ -1,6 +1,16 @@
-import type { RefObject } from 'react';
-import type { BoardStatBreakdownRowVm, BoardViewModel } from '../../client/useGameSession';
+import { useRef, type PointerEvent, type RefObject } from 'react';
+import type {
+  BoardStatBreakdownRowVm,
+  BoardViewModel,
+  GameSessionViewModel,
+} from '../../client/useGameSession';
 import { toSpeciesKey } from '../layout/boardStage/FleetArea';
+import {
+  buildMobileMetricBreakdownGroups,
+  formatMobileBreakdownAmount,
+  isMobilePopoverTapGesture,
+  type MobileMetricBreakdownSectionVm,
+} from './mobileStatPresentation';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 type PopoverSide = 'top' | 'bottom';
@@ -17,19 +27,22 @@ export interface MobileStatAnchorRect {
 
 interface MobileStatBreakdownPopoversProps {
   boardVm: MobileBoardViewModel;
+  thisTurn: GameSessionViewModel['thisTurn'];
   topAnchorRect: MobileStatAnchorRect;
   bottomAnchorRect: MobileStatAnchorRect;
   topPopoverRef?: RefObject<HTMLDivElement | null>;
   bottomPopoverRef?: RefObject<HTMLDivElement | null>;
+  onDismiss: () => void;
 }
 
 interface StatSectionVm {
   key: string;
   title: string;
-  total: number;
+  totalText: string;
   tone: SectionTone;
   rows: BoardStatBreakdownRowVm[];
   secondaryRows?: Array<{ label: string; amountText: string }>;
+  signlessContributions?: boolean;
 }
 
 const HORIZONTAL_MARGIN_PX = 16;
@@ -37,10 +50,12 @@ const CARD_GAP_PX = 10;
 
 export function MobileStatBreakdownPopovers({
   boardVm,
+  thisTurn,
   topAnchorRect,
   bottomAnchorRect,
   topPopoverRef,
   bottomPopoverRef,
+  onDismiss,
 }: MobileStatBreakdownPopoversProps) {
   const myDisplayedBonus =
     toSpeciesKey(boardVm.mySpeciesId) === 'centaur'
@@ -51,27 +66,33 @@ export function MobileStatBreakdownPopovers({
       ? boardVm.opponentBonusLinesOnEven
       : boardVm.opponentBonusLines;
 
-  const topSections: StatSectionVm[] = buildSections({
-    healing: boardVm.opponentLastTurnHeal,
-    healingRows: boardVm.opponentLastHealingBreakdownRows,
-    damage: boardVm.opponentLastTurnDamage,
-    damageRows: boardVm.opponentLastDamageBreakdownRows,
-    bonus: opponentDisplayedBonus,
-    bonusRows: boardVm.opponentBonusBreakdownRows,
-    savedLines: boardVm.opponentDisplayedSavedLines,
-    savedJoiningLines: boardVm.opponentDisplayedSavedJoiningLines,
+  const topMetricGroups = buildMobileMetricBreakdownGroups({
+    presentation: thisTurn,
+    side: 'opponent',
   });
-
-  const bottomSections: StatSectionVm[] = buildSections({
-    healing: boardVm.myLastTurnHeal,
-    healingRows: boardVm.myLastHealingBreakdownRows,
-    damage: boardVm.myLastTurnDamage,
-    damageRows: boardVm.myLastDamageBreakdownRows,
-    bonus: myDisplayedBonus,
-    bonusRows: boardVm.myBonusBreakdownRows,
-    savedLines: boardVm.myDisplayedSavedLines,
-    savedJoiningLines: boardVm.myDisplayedSavedJoiningLines,
+  const bottomMetricGroups = buildMobileMetricBreakdownGroups({
+    presentation: thisTurn,
+    side: 'me',
   });
+  const topSections: StatSectionVm[] = [
+    ...buildEconomySections({
+      bonus: opponentDisplayedBonus,
+      bonusRows: boardVm.opponentBonusBreakdownRows,
+      savedLines: boardVm.opponentDisplayedSavedLines,
+      savedJoiningLines: boardVm.opponentDisplayedSavedJoiningLines,
+    }),
+    ...topMetricGroups.primary.map(toStatSection),
+  ];
+  const bottomSections: StatSectionVm[] = [
+    ...buildEconomySections({
+      bonus: myDisplayedBonus,
+      bonusRows: boardVm.myBonusBreakdownRows,
+      savedLines: boardVm.myDisplayedSavedLines,
+      savedJoiningLines: boardVm.myDisplayedSavedJoiningLines,
+    }),
+    ...bottomMetricGroups.primary.map(toStatSection),
+  ];
+  const bottomLastSections = bottomMetricGroups.last.map(toStatSection);
 
   return (
     <div className="fixed inset-0 z-[52] pointer-events-none">
@@ -79,32 +100,28 @@ export function MobileStatBreakdownPopovers({
         refEl={topPopoverRef}
         side="top"
         anchorRect={topAnchorRect}
-        sections={topSections}
+        primarySections={topSections}
+        lastSections={[]}
+        onDismiss={onDismiss}
       />
       <MobileStatBreakdownCard
         refEl={bottomPopoverRef}
         side="bottom"
         anchorRect={bottomAnchorRect}
-        sections={bottomSections}
+        primarySections={bottomSections}
+        lastSections={bottomLastSections}
+        onDismiss={onDismiss}
       />
     </div>
   );
 }
 
-function buildSections({
-  healing,
-  healingRows,
-  damage,
-  damageRows,
+function buildEconomySections({
   bonus,
   bonusRows,
   savedLines,
   savedJoiningLines,
 }: {
-  healing: number;
-  healingRows: BoardStatBreakdownRowVm[];
-  damage: number;
-  damageRows: BoardStatBreakdownRowVm[];
   bonus: number;
   bonusRows: BoardStatBreakdownRowVm[];
   savedLines: number;
@@ -112,50 +129,52 @@ function buildSections({
 }): StatSectionVm[] {
   return [
     {
-      key: 'healing',
-      title: 'Last turn healing',
-      total: healing,
-      tone: 'healing',
-      rows: healing === 0 ? [] : healingRows,
-    },
-    {
-      key: 'damage',
-      title: 'Last turn damage',
-      total: damage,
-      tone: 'damage',
-      rows: damage === 0 ? [] : damageRows,
-    },
-    {
-      key: 'bonus',
-      title: 'Bonus',
-      total: bonus,
-      tone: 'bonus',
-      rows: bonusRows,
-    },
-    {
       key: 'saved',
       title: 'Saved lines',
-      total: savedLines,
+      totalText: String(savedLines),
       tone: 'saved',
       rows: [],
       secondaryRows: savedJoiningLines > 0
         ? [{ label: 'Saved joining lines', amountText: String(savedJoiningLines) }]
         : undefined,
     },
+    {
+      key: 'bonus',
+      title: 'Bonus lines',
+      totalText: String(bonus),
+      tone: 'bonus',
+      rows: bonusRows,
+    },
   ];
+}
+
+function toStatSection(section: MobileMetricBreakdownSectionVm): StatSectionVm {
+  return {
+    ...section,
+    signlessContributions: true,
+  };
 }
 
 function MobileStatBreakdownCard({
   refEl,
   side,
   anchorRect,
-  sections,
+  primarySections,
+  lastSections,
+  onDismiss,
 }: {
   refEl?: RefObject<HTMLDivElement | null>;
   side: PopoverSide;
   anchorRect: MobileStatAnchorRect;
-  sections: StatSectionVm[];
+  primarySections: StatSectionVm[];
+  lastSections: StatSectionVm[];
+  onDismiss: () => void;
 }) {
+  const pointerStartRef = useRef<{
+    pointerId: number;
+    clientX: number;
+    clientY: number;
+  } | null>(null);
   const viewportWidth = typeof window === 'undefined' ? 360 : window.innerWidth;
   const width = Math.max(0, viewportWidth - HORIZONTAL_MARGIN_PX * 2);
   const left = HORIZONTAL_MARGIN_PX;
@@ -168,10 +187,42 @@ function MobileStatBreakdownCard({
     ? Math.max(120, anchorRect.top - CARD_GAP_PX - 8)
     : Math.max(120, (typeof window === 'undefined' ? 800 : window.innerHeight) - top - 8);
 
+  function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (!event.isPrimary) {
+      return;
+    }
+
+    pointerStartRef.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    };
+  }
+
+  function handlePointerUp(event: PointerEvent<HTMLDivElement>) {
+    const start = pointerStartRef.current;
+    pointerStartRef.current = null;
+    if (
+      !event.isPrimary ||
+      !start ||
+      start.pointerId !== event.pointerId ||
+      !isMobilePopoverTapGesture(start, event)
+    ) {
+      return;
+    }
+
+    onDismiss();
+  }
+
   return (
     <div
       ref={refEl}
-      className="fixed pointer-events-auto"
+      className="fixed pointer-events-auto touch-pan-y"
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={() => {
+        pointerStartRef.current = null;
+      }}
       style={{
         left,
         top,
@@ -190,25 +241,43 @@ function MobileStatBreakdownCard({
           style={{ left: tailLeft }}
         />
         <div
-          className="overflow-y-auto rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[16px] py-[12px] shadow-[0_0_60px_20px_rgba(0,0,0,1)]"
+          className="overflow-y-auto overscroll-contain rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] shadow-[0_0_60px_20px_rgba(0,0,0,1)]"
           style={{ maxHeight }}
         >
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-y-[16px]">
-            {sections.map((section, index) => {
-              const isLastOdd = sections.length % 2 === 1 && index === sections.length - 1;
-
-              return (
-                <BreakdownSection
-                  key={section.key}
-                  section={section}
-                  isRightColumn={index % 2 === 1 && !isLastOdd}
-                  spanFull={isLastOdd}
-                />
-              );
-            })}
-          </div>
+          <SectionGrid sections={primarySections} className="px-[16px] py-[12px]" />
+          {lastSections.length > 0 ? (
+            <SectionGrid
+              sections={lastSections}
+              className="border-t border-[var(--shapeships-grey-70)] bg-[#101010] px-[16px] py-[12px]"
+            />
+          ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+function SectionGrid({
+  sections,
+  className,
+}: {
+  sections: StatSectionVm[];
+  className: string;
+}) {
+  return (
+    <div className={`grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-y-[16px] ${className}`}>
+      {sections.map((section, index) => {
+        const isLastOdd = sections.length % 2 === 1 && index === sections.length - 1;
+
+        return (
+          <BreakdownSection
+            key={section.key}
+            section={section}
+            isRightColumn={index % 2 === 1 && !isLastOdd}
+            spanFull={isLastOdd}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -237,7 +306,7 @@ function BreakdownSection({
           {section.title}
         </h3>
         <span className={`shrink-0 text-[15px] font-black leading-[16px] ${getToneClassName(section.tone)}`}>
-          {section.total}
+          {section.totalText}
         </span>
       </div>
 
@@ -247,6 +316,7 @@ function BreakdownSection({
             <BreakdownRow
               key={`${row.rowKind}:${row.label}:${row.amount}:${'count' in row ? row.count ?? index : index}`}
               row={row}
+              signlessContribution={section.signlessContributions === true}
             />
           ))}
           {section.secondaryRows?.map((row) => (
@@ -261,7 +331,13 @@ function BreakdownSection({
   );
 }
 
-function BreakdownRow({ row }: { row: BoardStatBreakdownRowVm }) {
+function BreakdownRow({
+  row,
+  signlessContribution,
+}: {
+  row: BoardStatBreakdownRowVm;
+  signlessContribution: boolean;
+}) {
   return (
     <div className="flex items-start justify-between gap-[8px] text-[12px] leading-[15px]">
       {row.rowKind === 'ship' || row.rowKind === 'solar_power' ? (
@@ -273,7 +349,9 @@ function BreakdownRow({ row }: { row: BoardStatBreakdownRowVm }) {
       ) : (
         <span className="min-w-0 flex-1 truncate text-[var(--shapeships-grey-20)]">{row.label}</span>
       )}
-      <span className="shrink-0 font-bold text-white">{row.amountText}</span>
+      <span className="shrink-0 font-bold text-white">
+        {formatMobileBreakdownAmount(row, signlessContribution)}
+      </span>
     </div>
   );
 }

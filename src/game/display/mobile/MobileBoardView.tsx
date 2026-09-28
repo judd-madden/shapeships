@@ -2,6 +2,7 @@ import type { RefObject } from 'react';
 import type {
   BoardViewModel,
   GameSessionActions,
+  GameSessionViewModel,
   HudViewModel,
   LeftRailViewModel,
   TurnPhasePresentationVm,
@@ -25,6 +26,7 @@ interface MobileBoardViewProps {
   leftRailVm: LeftRailViewModel;
   turnPhasesVm: TurnPhaseVm;
   turnPhasePresentation: TurnPhasePresentationVm;
+  thisTurn: GameSessionViewModel['thisTurn'];
   isBattleReveal: boolean;
   matchupIntro?: MatchupIntroViewModel | null;
   firstTurnBuildHelperEligible?: boolean;
@@ -55,6 +57,7 @@ export function MobileBoardView({
   leftRailVm,
   turnPhasesVm,
   turnPhasePresentation,
+  thisTurn,
   isBattleReveal,
   matchupIntro = null,
   firstTurnBuildHelperEligible = false,
@@ -134,6 +137,7 @@ export function MobileBoardView({
           leftRailVm={leftRailVm}
           turnPhasesVm={turnPhasesVm}
           turnPhasePresentation={turnPhasePresentation}
+          thisTurn={thisTurn}
           mobileDiceModifierSlots={boardVm.mobileDiceModifierSlots}
           firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
           firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}

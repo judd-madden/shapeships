@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type RefO
 import { Dice } from '../../../components/ui/primitives';
 import type {
   BoardViewModel,
+  GameSessionViewModel,
   HudStatusTone,
   HudViewModel,
   LeftRailViewModel,
@@ -12,6 +13,11 @@ import { toSpeciesKey } from '../layout/boardStage/FleetArea';
 import { MobileDiceModifierSlots } from './MobileDiceModifierSlots';
 import { TurnPhaseStatusStrip } from '../shared/TurnPhaseStatusStrip';
 import { ClockWithIncrement } from '../shared/ClockWithIncrement';
+import {
+  buildMobileHudMetricPair,
+  MOBILE_STATUS_STAT_ORDER,
+  type MobileHudMetricPairVm,
+} from './mobileStatPresentation';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 type MobileRowPosition = 'top' | 'bottom';
@@ -22,6 +28,7 @@ interface MobileStatusRailProps {
   leftRailVm: LeftRailViewModel;
   turnPhasesVm: TurnPhaseVm;
   turnPhasePresentation: TurnPhasePresentationVm;
+  thisTurn: GameSessionViewModel['thisTurn'];
   mobileDiceModifierSlots: MobileBoardViewModel['mobileDiceModifierSlots'];
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
@@ -40,8 +47,8 @@ export interface MobileStatusRailRowData {
   isOnline: boolean;
   health?: number;
   netDelta?: number;
-  healing?: number;
-  damage?: number;
+  healing?: MobileHudMetricPairVm;
+  damage?: MobileHudMetricPairVm;
   bonus?: number;
   joiningBonus?: number;
   savedLines?: number;
@@ -86,6 +93,7 @@ export function MobileStatusRail({
   leftRailVm,
   turnPhasesVm,
   turnPhasePresentation,
+  thisTurn,
   mobileDiceModifierSlots,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
@@ -112,8 +120,8 @@ export function MobileStatusRail({
     isOnline: hudVm.p2IsOnline,
     health: boardVm.opponentHealth,
     netDelta: boardVm.opponentLastTurnNet,
-    healing: boardVm.opponentLastTurnHeal,
-    damage: boardVm.opponentLastTurnDamage,
+    healing: buildMobileHudMetricPair(thisTurn?.opponent.healing),
+    damage: buildMobileHudMetricPair(thisTurn?.opponent.damage),
     bonus: boardVm.showTurnStartEconomyPresentation
       ? opponentDisplayedBonus
       : undefined,
@@ -135,8 +143,8 @@ export function MobileStatusRail({
     isOnline: hudVm.p1IsOnline,
     health: boardVm.myHealth,
     netDelta: boardVm.myLastTurnNet,
-    healing: boardVm.myLastTurnHeal,
-    damage: boardVm.myLastTurnDamage,
+    healing: buildMobileHudMetricPair(thisTurn?.me.healing),
+    damage: buildMobileHudMetricPair(thisTurn?.me.damage),
     bonus: boardVm.showTurnStartEconomyPresentation
       ? myDisplayedBonus
       : undefined,
@@ -482,24 +490,43 @@ function MobilePlayerStatusRow({
 
         <div
           ref={statsAnchorRef}
-          className="grid shrink-0 grid-cols-[28px_28px_24px_24px] items-start gap-[3px] text-center font-bold whitespace-nowrap"
+          className="grid shrink-0 grid-cols-[24px_24px_28px_28px] items-start gap-[3px] text-center font-bold whitespace-nowrap"
         >
-          <span className={`text-[15px] ${row.healing === undefined ? 'text-transparent' : 'text-[var(--shapeships-pastel-green)]'}`}>
-            {row.healing ?? 0}
-          </span>
-          <span className={`text-[15px] ${row.damage === undefined ? 'text-transparent' : 'text-[var(--shapeships-pastel-red)]'}`}>
-            {row.damage ?? 0}
-          </span>
-          <MobileStackedStat
-            value={row.bonus}
-            joiningValue={row.joiningBonus}
-            toneClassName="text-[var(--shapeships-pastel-blue)]"
-          />
-          <MobileStackedStat
-            value={row.savedLines}
-            joiningValue={row.savedJoiningLines}
-            toneClassName="text-white"
-          />
+          {MOBILE_STATUS_STAT_ORDER.map((stat) => {
+            if (stat === 'saved') {
+              return (
+                <MobileStackedStat
+                  key={stat}
+                  value={row.savedLines}
+                  joiningValue={row.savedJoiningLines}
+                  toneClassName="text-white"
+                />
+              );
+            }
+
+            if (stat === 'bonus') {
+              return (
+                <MobileStackedStat
+                  key={stat}
+                  value={row.bonus}
+                  joiningValue={row.joiningBonus}
+                  toneClassName="text-[var(--shapeships-pastel-blue)]"
+                />
+              );
+            }
+
+            return (
+              <MobilePairedStat
+                key={stat}
+                value={stat === 'damage' ? row.damage : row.healing}
+                toneClassName={
+                  stat === 'damage'
+                    ? 'text-[var(--shapeships-pastel-red)]'
+                    : 'text-[var(--shapeships-pastel-green)]'
+                }
+              />
+            );
+          })}
         </div>
       </div>
     </div>
@@ -521,6 +548,23 @@ function MobileStackedStat({
     <span className={`flex flex-col items-center justify-end ${hasValue ? toneClassName : 'text-transparent'}`}>
       <span className="text-[15px]">{value ?? 0}</span>
       <span className="text-[10px] leading-[10px]">{joiningValue && joiningValue > 0 ? `${joiningValue}j` : ''}</span>
+    </span>
+  );
+}
+
+function MobilePairedStat({
+  value,
+  toneClassName,
+}: {
+  value?: MobileHudMetricPairVm;
+  toneClassName: string;
+}) {
+  const hasValue = value !== undefined;
+
+  return (
+    <span className={`flex flex-col items-center justify-end ${hasValue ? toneClassName : 'text-transparent'}`}>
+      <span className="text-[15px]">{value?.currentText ?? 0}</span>
+      <span className="text-[10px] leading-[10px] opacity-80">{value?.lastText ?? 0}</span>
     </span>
   );
 }

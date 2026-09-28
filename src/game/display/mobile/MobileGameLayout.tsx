@@ -52,6 +52,7 @@ interface MobileGameLayoutProps {
   turnPhasePresentation: TurnPhasePresentationVm;
   bottomActionRailVm: BottomActionRailViewModel;
   actionPanelVm: ActionPanelViewModel;
+  thisTurn: GameSessionViewModel['thisTurn'];
   gameStats: GameSessionViewModel['gameStats'];
   viewer: GameSessionViewModel['viewer'];
   matchupIntro: GameSessionViewModel['matchupIntro'];
@@ -110,6 +111,7 @@ export function MobileGameLayout({
   turnPhasePresentation,
   bottomActionRailVm,
   actionPanelVm,
+  thisTurn,
   gameStats,
   viewer,
   matchupIntro,
@@ -847,6 +849,7 @@ export function MobileGameLayout({
               leftRailVm={leftRailVm}
               turnPhasesVm={turnPhasesVm}
               turnPhasePresentation={turnPhasePresentation}
+              thisTurn={thisTurn}
               isBattleReveal={isBattleReveal}
               matchupIntro={matchupIntro}
               firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
@@ -1014,10 +1017,12 @@ export function MobileGameLayout({
       {!isMissionInteractionLocked && activeTakeover === null && boardVm.mode === 'board' && statPopoverAnchors ? (
         <MobileStatBreakdownPopovers
           boardVm={boardVm}
+          thisTurn={thisTurn}
           topAnchorRect={statPopoverAnchors.top}
           bottomAnchorRect={statPopoverAnchors.bottom}
           topPopoverRef={topStatPopoverRef}
           bottomPopoverRef={bottomStatPopoverRef}
+          onDismiss={handleCloseStatPopovers}
         />
       ) : null}
 
