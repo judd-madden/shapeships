@@ -121,15 +121,15 @@ function HealthSection({ card }: { card: HealthBreakdownCardVm }) {
       </h3>
       <div className="my-[8px] h-px bg-[var(--shapeships-grey-70)]" />
       <div className="flex items-center justify-between gap-[16px] text-[14px] leading-[20px]">
-        <span className="min-w-0 text-white">{card.healingLabel}</span>
-        <span className="shrink-0 font-bold text-[var(--shapeships-pastel-green)]">
-          {card.healingText}
-        </span>
-      </div>
-      <div className="flex items-center justify-between gap-[16px] text-[14px] leading-[20px]">
         <span className="min-w-0 text-white">{card.damageLabel}</span>
         <span className="shrink-0 font-bold text-[var(--shapeships-pastel-red)]">
           {card.damageText}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-[16px] text-[14px] leading-[20px]">
+        <span className="min-w-0 text-white">{card.healingLabel}</span>
+        <span className="shrink-0 font-bold text-[var(--shapeships-pastel-green)]">
+          {card.healingText}
         </span>
       </div>
       <div className="my-[8px] h-px bg-[var(--shapeships-grey-70)]" />
