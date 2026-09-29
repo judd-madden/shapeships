@@ -212,12 +212,12 @@ Deno.test('mobile Autocast qualifier appears below each current estimate only', 
   })), [
     {
       title: 'This turn damage',
-      estimateLabel: 'ESTIMATE WITH AUTOCAST',
+      estimateLabel: 'AUTOCAST ESTIMATE',
       totalText: '~8',
     },
     {
       title: 'This turn healing',
-      estimateLabel: 'ESTIMATE WITH AUTOCAST',
+      estimateLabel: 'AUTOCAST ESTIMATE',
       totalText: '~0',
     },
   ]);

@@ -44,7 +44,7 @@ interface StatSectionVm {
   rows: BoardStatBreakdownRowVm[];
   secondaryRows?: Array<{ label: string; amountText: string }>;
   signlessContributions?: boolean;
-  estimateLabel?: 'ESTIMATE WITH AUTOCAST';
+  estimateLabel?: 'AUTOCAST ESTIMATE';
 }
 
 const HORIZONTAL_MARGIN_PX = 16;

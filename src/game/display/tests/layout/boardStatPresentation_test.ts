@@ -116,7 +116,7 @@ Deno.test('Autocast estimates qualify only the estimated breakdown and keep rest
       kind: 'this_turn_estimate',
       heading: 'THIS TURN',
       showEstimateQualifier: true,
-      estimateQualifierText: 'ESTIMATE WITH AUTOCAST',
+      estimateQualifierText: 'AUTOCAST ESTIMATE',
       totalText: '~8',
       rows,
     },
