@@ -215,8 +215,8 @@ Deno.test('generic maximum quantity builds three Spirals and skips an over-cap a
   );
 });
 
-Deno.test('Spiral Drawing eligibility records only the exact successful two-to-three creation', () => {
-  for (const startingCount of [0, 1]) {
+Deno.test('Spiral Drawing eligibility records only the exact successful one-to-two creation', () => {
+  for (const startingCount of [0, 2]) {
     const state = createResolutionState({
       lines: 6,
       ships: Array.from({ length: startingCount }, (_, index) => ({
@@ -234,24 +234,22 @@ Deno.test('Spiral Drawing eligibility records only the exact successful two-to-t
 
   const state = createResolutionState({
     lines: 6,
-    ships: [
-      { instanceId: 'existing-1', shipDefId: 'SPI' },
-      { instanceId: 'existing-2', shipDefId: 'SPI' },
-    ],
+    ships: [{ instanceId: 'existing-1', shipDefId: 'SPI' }],
     payload: { builds: [{ shipDefId: 'SPI', count: 1 }] },
   });
   resolve(state);
-  const createdThird = state.gameData.ships.p1[2];
+  const createdSecond = state.gameData.ships.p1[1];
   assert.deepEqual(
     state.gameData.turnData.thirdSpiralFirstStrikeEligibilityByPlayerId,
-    { p1: { sourceInstanceId: createdThird.instanceId, turnNumber: 1 } },
+    { p1: { sourceInstanceId: createdSecond.instanceId, turnNumber: 1 } },
   );
 });
 
-Deno.test('multi-Spiral Drawing records only the ordered threshold-crossing instance', () => {
+Deno.test('multi-Spiral Drawing records the second and the third grants no new action', () => {
   for (const scenario of [
-    { startingCount: 1, buildCount: 2, expectedIndex: 2 },
-    { startingCount: 0, buildCount: 3, expectedIndex: 2 },
+    { startingCount: 1, buildCount: 2, expectedIndex: 1 },
+    { startingCount: 0, buildCount: 2, expectedIndex: 1 },
+    { startingCount: 0, buildCount: 3, expectedIndex: 1 },
   ]) {
     const state = createResolutionState({
       lines: scenario.buildCount * 6,
@@ -271,10 +269,7 @@ Deno.test('multi-Spiral Drawing records only the ordered threshold-crossing inst
 Deno.test('failed and over-cap Spiral attempts do not create or replace eligibility', () => {
   const insufficient = createResolutionState({
     lines: 0,
-    ships: [
-      { instanceId: 'existing-1', shipDefId: 'SPI' },
-      { instanceId: 'existing-2', shipDefId: 'SPI' },
-    ],
+    ships: [{ instanceId: 'existing-1', shipDefId: 'SPI' }],
     payload: { builds: [{ shipDefId: 'SPI', count: 1 }] },
   });
   resolve(insufficient);
@@ -299,13 +294,10 @@ Deno.test('failed and over-cap Spiral attempts do not create or replace eligibil
   );
 });
 
-Deno.test('build retry preserves the third-Spiral marker and a later replacement gets fresh eligibility', () => {
+Deno.test('build retry preserves the second-Spiral marker and a later replacement gets fresh eligibility', () => {
   const state = createResolutionState({
     lines: 6,
-    ships: [
-      { instanceId: 'existing-1', shipDefId: 'SPI' },
-      { instanceId: 'existing-2', shipDefId: 'SPI' },
-    ],
+    ships: [{ instanceId: 'existing-1', shipDefId: 'SPI' }],
     payload: { builds: [{ shipDefId: 'SPI', count: 1 }] },
   });
   resolve(state);
@@ -322,17 +314,14 @@ Deno.test('build retry preserves the third-Spiral marker and a later replacement
   const replacementState = createResolutionState({
     turnNumber: 4,
     lines: 6,
-    ships: [
-      { instanceId: 'surviving-1', shipDefId: 'SPI' },
-      { instanceId: 'surviving-2', shipDefId: 'SPI' },
-    ],
+    ships: [{ instanceId: 'surviving-1', shipDefId: 'SPI' }],
     payload: { builds: [{ shipDefId: 'SPI', count: 1 }] },
   });
   replacementState.gameData.powerMemory = {
     onceOnlyFired: { [`${firstMarker.sourceInstanceId}::SPI#0`]: true },
   };
   resolve(replacementState);
-  const replacement = replacementState.gameData.ships.p1[2];
+  const replacement = replacementState.gameData.ships.p1[1];
   assert.deepEqual(
     replacementState.gameData.turnData.thirdSpiralFirstStrikeEligibilityByPlayerId.p1,
     { sourceInstanceId: replacement.instanceId, turnNumber: 4 },

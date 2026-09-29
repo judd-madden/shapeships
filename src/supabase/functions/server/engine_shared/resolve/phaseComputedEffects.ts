@@ -1179,7 +1179,7 @@ export function computePhaseComputedEffects(
     }
   }
 
-  // === CUBE (CUB): retained Cube selection makes each live controlled Cube deal 3 ===
+  // === CUBE (CUB): retained Cube selection makes each live controlled Cube deal 4 ===
   for (const player of activePlayers) {
     const ownerPlayerId = player.id;
     if (!hasCoherentRetainedCubeSelection(state, ownerPlayerId)) continue;
@@ -1199,11 +1199,11 @@ export function computePhaseComputedEffects(
         survivability: SurvivabilityRule.DiesWithSource,
         target: { playerId: opponentId },
         kind: EffectKind.Damage,
-        amount: 3,
+        amount: 4,
       });
 
       debugLog(
-        `[computePhaseComputedEffects] Cube automatic: controller=${ownerPlayerId} instance=${ship.instanceId} damage=3 target=${opponentId}`
+        `[computePhaseComputedEffects] Cube automatic: controller=${ownerPlayerId} instance=${ship.instanceId} damage=4 target=${opponentId}`
       );
     }
   }

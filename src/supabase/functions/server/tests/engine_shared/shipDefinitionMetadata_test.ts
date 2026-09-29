@@ -11,6 +11,7 @@ import { getShipDefinitionOrThrow } from '../../engine_shared/defs/ShipDefinitio
 import { getShipPowerTagLabels } from '../../../../../game/data/ShipPowerTags.ts';
 
 interface ParsedClientPower {
+  readonly text?: string;
   readonly tags?: readonly string[];
   readonly activationTiming?: string;
 }
@@ -90,6 +91,17 @@ Deno.test('server and client raw definitions, metadata, and versions have exact 
   assert.equal(SHIP_DEFS_VERSION_SERVER, parseClientVersion(clientSource));
   assert.deepEqual(clientDefinitions, SHIP_DEFINITIONS_CORE_SERVER);
   assert.deepEqual(clientRows, serverRows);
+});
+
+Deno.test('Ancient balance descriptions expose the updated Star Birth, Cube, and Spiral values', () => {
+  for (const [shipDefId, rawPowerIndex, expectedText] of [
+    ['SSTA', 0, 'Heal equal to the dice roll +4.'],
+    ['CUB', 1, 'If you do, each of your Cubes deals 4 damage.'],
+    ['SPI', 2, 'Once only on the turn the second Spiral is built, you may destroy one basic enemy ship.'],
+  ] as const) {
+    assert.equal(getClientShip(clientDefinitions, shipDefId).powers[rawPowerIndex]?.text, expectedText);
+    assert.equal(getShipByIdOrThrow(shipDefId).powers[rawPowerIndex]?.text, expectedText);
+  }
 });
 
 Deno.test('raw power tag membership is exact and authoring invariants hold', () => {

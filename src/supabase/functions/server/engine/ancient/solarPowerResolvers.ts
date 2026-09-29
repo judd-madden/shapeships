@@ -176,11 +176,12 @@ function fixedHealthResolver(args: {
 function diceHealthResolver(args: {
   powerId: 'SSTA' | 'SSUP';
   kind: EffectKind.Heal | EffectKind.Damage;
+  diceBonus: number;
 }): ManualSolarResolverDescriptor {
   return {
     acceptedFields: {},
     resolve(context) {
-      const lockedAmount = requireEffectiveDice(context.state, context.playerId) + 3;
+      const lockedAmount = requireEffectiveDice(context.state, context.playerId) + args.diceBonus;
       const targetPlayerId = args.kind === EffectKind.Heal
         ? context.playerId
         : requireSolarOpponentPlayerId(context.state, context.playerId);
@@ -216,9 +217,9 @@ const convertResolver: ManualSolarResolverDescriptor = {
 export const PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS: Readonly<ManualSolarResolverRegistry> =
   Object.freeze({
     SLIF: fixedHealthResolver({ powerId: 'SLIF', kind: EffectKind.Heal }),
-    SSTA: diceHealthResolver({ powerId: 'SSTA', kind: EffectKind.Heal }),
+    SSTA: diceHealthResolver({ powerId: 'SSTA', kind: EffectKind.Heal, diceBonus: 4 }),
     SAST: fixedHealthResolver({ powerId: 'SAST', kind: EffectKind.Damage }),
-    SSUP: diceHealthResolver({ powerId: 'SSUP', kind: EffectKind.Damage }),
+    SSUP: diceHealthResolver({ powerId: 'SSUP', kind: EffectKind.Damage, diceBonus: 3 }),
     SCON: convertResolver,
   });
 

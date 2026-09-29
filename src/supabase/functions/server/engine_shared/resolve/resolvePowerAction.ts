@@ -220,7 +220,7 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
     shipDefId === 'SPI' &&
     !isThirdSpiralFirstStrikeEligible(state, playerId, sourceInstanceId)
   ) {
-    throw new Error('This Spiral is not the qualifying third Spiral for the current turn.');
+    throw new Error('This Spiral is not the qualifying second Spiral for the current turn.');
   }
 
   if (power.onceOnly === 'on_build_turn') {

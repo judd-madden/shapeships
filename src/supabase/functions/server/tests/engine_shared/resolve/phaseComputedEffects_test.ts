@@ -85,7 +85,7 @@ Deno.test('lower-health Defense Swarm branch emits an attributed Automatic Heal 
   ]);
 });
 
-Deno.test('coherent Cube selection emits one attributed Automatic Damage 3 per live Cube', () => {
+Deno.test('coherent Cube selection emits one attributed Automatic Damage 4 per live Cube', () => {
   const state = createState({
     p1Ships: [cub('cube-a'), cub('cube-b')],
     cubeSelectionByPlayerId: {
@@ -105,7 +105,7 @@ Deno.test('coherent Cube selection emits one attributed Automatic Damage 3 per l
       survivability: SurvivabilityRule.DiesWithSource,
       target: { playerId: 'p2' },
       kind: EffectKind.Damage,
-      amount: 3,
+      amount: 4,
     },
     {
       id: 'cube_damage_3_cube-b',
@@ -116,7 +116,7 @@ Deno.test('coherent Cube selection emits one attributed Automatic Damage 3 per l
       survivability: SurvivabilityRule.DiesWithSource,
       target: { playerId: 'p2' },
       kind: EffectKind.Damage,
-      amount: 3,
+      amount: 4,
     },
   ]);
 });
@@ -157,7 +157,7 @@ Deno.test('equal main and Cube values still trigger from the coherent retained s
   const effects = computePhaseComputedEffects(state, 'battle.end_of_turn_resolution').effects
     .filter((effect) => (effect.source as any).shipDefId === 'CUB');
   assert.equal(effects.length, 1);
-  assert.equal((effects[0] as any).amount, 3);
+  assert.equal((effects[0] as any).amount, 4);
 });
 
 Deno.test('only current live Cubes emit when the selected source is already VOID', () => {
@@ -248,23 +248,23 @@ Deno.test('Cube damage participates in Automatic modifiers, breakdown, and idemp
   });
 
   const first = resolvePhase(state, 'battle.end_of_turn_resolution');
-  assert.equal(first.state.players.find((player: any) => player.id === 'p2')?.health, 14);
-  assert.equal(first.state.gameData.lastTurnDamageByPlayerId?.p2, 6);
+  assert.equal(first.state.players.find((player: any) => player.id === 'p2')?.health, 12);
+  assert.equal(first.state.gameData.lastTurnDamageByPlayerId?.p2, 8);
   assert.equal(
     first.state.gameData.lastTurnDamageDealtBreakdownByPlayerId?.p1?.some(
-      (row: any) => row.label === 'Cube' && row.count === 1 && row.amount === 3,
+      (row: any) => row.label === 'Cube' && row.count === 1 && row.amount === 4,
     ),
     true,
   );
   assert.equal(
     first.state.gameData.lastTurnDamageDealtBreakdownByPlayerId?.p1?.some(
-      (row: any) => row.label === 'Science Vessel' && row.amount === 3,
+      (row: any) => row.label === 'Science Vessel' && row.amount === 4,
     ),
     true,
   );
 
   const second = resolvePhase(first.state, 'battle.end_of_turn_resolution');
-  assert.equal(second.state.players.find((player: any) => player.id === 'p2')?.health, 14);
+  assert.equal(second.state.players.find((player: any) => player.id === 'p2')?.health, 12);
   assert.deepEqual(second.events, []);
 });
 

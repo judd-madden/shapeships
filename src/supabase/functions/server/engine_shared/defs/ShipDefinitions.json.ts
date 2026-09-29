@@ -18,7 +18,7 @@
  * - → ShipDefinitions.withStructuredPowers.ts (join layer)
  * - → engine_shared resolution logic
  * 
- * VERSION: 2026-08-25
+ * VERSION: 2026-09-29
  * Last synced with: /game/data/ShipDefinitions.json.ts
  * 
  */
@@ -1374,7 +1374,7 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "First Strike",
-        "text": "Once only on the turn the third Spiral is built, you may destroy one basic enemy ship.",
+        "text": "Once only on the turn the second Spiral is built, you may destroy one basic enemy ship.",
         "tags": ["targets_ships"]
       }
     ],
@@ -1447,7 +1447,7 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "Automatic",
-        "text": "If you do, each of your Cubes deals 3 damage."
+        "text": "If you do, each of your Cubes deals 4 damage."
       }
     ],
     "energyCost": null,
@@ -1494,7 +1494,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charges",
-        "text": "Heal equal to the dice roll +3."
+        "text": "Heal equal to the dice roll +4."
       }
     ],
     "energyCost": {
@@ -1706,7 +1706,7 @@ export const SHIP_DEFINITIONS_JSON = [
  * IMPORTANT: This version should match the client-side version when synced.
  * Client version is in: /game/data/ShipDefinitions.json.ts
  */
-export const SHIP_DEFS_VERSION = '2026-08-25';
+export const SHIP_DEFS_VERSION = '2026-09-29';
 
 // ============================================================================
 // TYPE INFERENCE HELPERS

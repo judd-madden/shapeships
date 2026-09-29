@@ -99,7 +99,7 @@ function instanceIds(targets: Array<{ instanceId: string }>): string[] {
   return targets.map((target) => target.instanceId);
 }
 
-function markThirdSpiral(state: GameState, sourceInstanceId: string, turnNumber = 2): void {
+function markSecondSpiral(state: GameState, sourceInstanceId: string, turnNumber = 2): void {
   const turnData = state.gameData?.turnData ?? (state.gameData!.turnData = {});
   turnData.thirdSpiralFirstStrikeEligibilityByPlayerId = {
     p1: { sourceInstanceId, turnNumber },
@@ -412,12 +412,11 @@ Deno.test('qualifying Spiral dry-run prepares one legal enemy-basic destroy effe
   const state = createState({
     ownFleet: [
       ship('spi-1', 'SPI', { createdTurn: 1 }),
-      ship('spi-2', 'SPI', { createdTurn: 1 }),
-      ship('spi-3', 'SPI', { createdTurn: 2 }),
+      ship('spi-2', 'SPI', { createdTurn: 2 }),
     ],
     opponentFleet: [ship('ordinary-def', 'DEF')],
   });
-  markThirdSpiral(state, 'spi-3');
+  markSecondSpiral(state, 'spi-2');
   const before = structuredClone(state);
 
   const outcome = resolvePowerAction({
@@ -425,14 +424,14 @@ Deno.test('qualifying Spiral dry-run prepares one legal enemy-basic destroy effe
     playerId: 'p1',
     phaseKey: 'battle.first_strike',
     actionId: 'SPI#0',
-    sourceInstanceId: 'spi-3',
+    sourceInstanceId: 'spi-2',
     choiceId: 'destroy',
     targetInstanceId: 'ordinary-def',
     apply: false,
   });
 
   assert.equal(outcome.effects.length, 1);
-  assert.deepEqual(outcome.onceOnlyFiredKeys, ['spi-3::SPI#0']);
+  assert.deepEqual(outcome.onceOnlyFiredKeys, ['spi-2::SPI#0']);
   assert.deepEqual(state, before);
 });
 
@@ -444,36 +443,36 @@ Deno.test('forged Spiral sources are rejected atomically before mutation', () =>
       configure: (_state: GameState) => {},
     },
     {
-      name: 'second Spiral',
+      name: 'unmarked second Spiral',
       sourceInstanceId: 'spi-2',
-      configure: (_state: GameState) => {},
-    },
-    {
-      name: 'unmarked third Spiral',
-      sourceInstanceId: 'spi-3',
       configure: (state: GameState) => {
         delete state.gameData?.turnData?.thirdSpiralFirstStrikeEligibilityByPlayerId;
       },
     },
     {
-      name: 'stolen Spiral',
+      name: 'third Spiral',
       sourceInstanceId: 'spi-3',
+      configure: (_state: GameState) => {},
+    },
+    {
+      name: 'stolen Spiral',
+      sourceInstanceId: 'spi-2',
       configure: (state: GameState) => {
         state.gameData!.turnData!.thirdSpiralFirstStrikeEligibilityByPlayerId = {
-          p2: { sourceInstanceId: 'spi-3', turnNumber: 2 },
+          p2: { sourceInstanceId: 'spi-2', turnNumber: 2 },
         };
       },
     },
     {
       name: 'prior-turn source',
-      sourceInstanceId: 'spi-3',
-      configure: (state: GameState) => markThirdSpiral(state, 'spi-3', 1),
+      sourceInstanceId: 'spi-2',
+      configure: (state: GameState) => markSecondSpiral(state, 'spi-2', 1),
     },
     {
       name: 'already-fired source',
-      sourceInstanceId: 'spi-3',
+      sourceInstanceId: 'spi-2',
       configure: (state: GameState) => {
-        state.gameData!.powerMemory!.onceOnlyFired!['spi-3::SPI#0'] = true;
+        state.gameData!.powerMemory!.onceOnlyFired!['spi-2::SPI#0'] = true;
       },
     },
   ];
@@ -487,7 +486,7 @@ Deno.test('forged Spiral sources are rejected atomically before mutation', () =>
       ],
       opponentFleet: [ship('ordinary-def', 'DEF')],
     });
-    markThirdSpiral(state, 'spi-3');
+    markSecondSpiral(state, 'spi-2');
     scenario.configure(state);
     const before = structuredClone(state);
     assert.throws(
@@ -501,7 +500,7 @@ Deno.test('forged Spiral sources are rejected atomically before mutation', () =>
         targetInstanceId: 'ordinary-def',
         apply: false,
       }),
-      /qualifying third Spiral|already been used/,
+      /qualifying second Spiral|already been used/,
       scenario.name,
     );
     assert.deepEqual(state, before, scenario.name);
@@ -511,10 +510,13 @@ Deno.test('forged Spiral sources are rejected atomically before mutation', () =>
 Deno.test('qualifying Spiral rejects protected and upgraded targets atomically', () => {
   for (const target of [ship('protected-core', 'PLU'), ship('upgraded-guardian', 'GUA')]) {
     const state = createState({
-      ownFleet: [ship('spi-3', 'SPI', { createdTurn: 2 })],
+      ownFleet: [
+        ship('spi-1', 'SPI', { createdTurn: 1 }),
+        ship('spi-2', 'SPI', { createdTurn: 2 }),
+      ],
       opponentFleet: [target, ship('ordinary-def', 'DEF')],
     });
-    markThirdSpiral(state, 'spi-3');
+    markSecondSpiral(state, 'spi-2');
     const before = structuredClone(state);
     assert.throws(
       () => resolvePowerAction({
@@ -522,7 +524,7 @@ Deno.test('qualifying Spiral rejects protected and upgraded targets atomically',
         playerId: 'p1',
         phaseKey: 'battle.first_strike',
         actionId: 'SPI#0',
-        sourceInstanceId: 'spi-3',
+        sourceInstanceId: 'spi-2',
         choiceId: 'destroy',
         targetInstanceId: target.instanceId,
         apply: false,

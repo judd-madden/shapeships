@@ -215,13 +215,13 @@ Deno.test("Ancient requester receives complete canonical Base and Autocast varia
 
   const result = estimateTurnStart(state);
   assert.ok(result.withAutocast);
-  assert.equal(result.withAutocast.healing.total - result.healing, 8);
+  assert.equal(result.withAutocast.healing.total - result.healing, 9);
   assert.equal(result.withAutocast.damage.total - result.damage, 8);
   assert.deepEqual(
     result.withAutocast.healing.rows
       .filter((row) => row.rowKind === "solar_power")
       .map((row) => [row.label, row.amount]),
-    [["Star Birth", 7], ["Life", 1]],
+    [["Star Birth", 8], ["Life", 1]],
   );
   assert.deepEqual(
     result.withAutocast.damage.rows
@@ -263,7 +263,7 @@ Deno.test("Drawing draft Autocast energy includes newly built MER PLU and charge
     ],
   });
   assert.ok(result.withAutocast);
-  assert.equal(result.withAutocast.healing.total - result.healing, 7);
+  assert.equal(result.withAutocast.healing.total - result.healing, 8);
   assert.equal(result.withAutocast.damage.total - result.damage, 7);
   assert.equal(
     result.withAutocast.healing.rows.some((row) => row.rowKind === "solar_power"),
@@ -291,7 +291,7 @@ Deno.test("post-Reveal private Autocast uses recorded own Reveal energy", () => 
   if (result.status === "unavailable") return;
   assert.ok(result.withAutocast);
   assert.equal(result.healing, 2);
-  assert.equal(result.withAutocast.healing.total, 9);
+  assert.equal(result.withAutocast.healing.total, 10);
   assert.equal(result.withAutocast.damage.total, 7);
 
   const publicOnly = estimateCurrentTurnForPlayer({

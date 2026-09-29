@@ -1208,7 +1208,9 @@ Deno.test('production Autocast follows the exact fixed category order and exhaus
     assert.deepEqual(result.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.solarCasts, []);
     assert.equal(
       entries.filter((entry: any) => entry.solarPowerId === 'SSTA' || entry.solarPowerId === 'SSUP')
-        .every((entry: any) => entry.lockedAmount === 6),
+        .every((entry: any) =>
+          entry.lockedAmount === (entry.solarPowerId === 'SSTA' ? 7 : 6)
+        ),
       true,
     );
   }
@@ -1252,7 +1254,7 @@ Deno.test('manual casts remain first and Autocast continues with deterministic i
     { solarPowerId: 'SCON' },
   ]);
   assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, { green: 0, red: 0, blue: 0 });
-  assert.deepEqual(result.state.gameData.pendingTurn.healByPlayerId, { p1: 9 });
+  assert.deepEqual(result.state.gameData.pendingTurn.healByPlayerId, { p1: 10 });
   assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 8 });
   assert.equal(result.state.players[0].lines, 0);
   assert.equal(
@@ -1483,10 +1485,10 @@ Deno.test('multiple Cubes do not repeat manual mono-colour Solar outcomes or pay
     {
       solarPowerId: 'SSTA',
       energy: { green: 3, red: 0, blue: 0 },
-      expectedHeal: 6,
+      expectedHeal: 7,
       expectedDamage: 0,
       expectedLines: 0,
-      expectedLockedAmount: 6,
+      expectedLockedAmount: 7,
     },
     {
       solarPowerId: 'SAST',

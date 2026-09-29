@@ -5,7 +5,7 @@ export function recordThirdSpiralFirstStrikeEligibility(args: {
   turnNumber: number;
   controlledSpiralCountBeforeCreation: number;
 }): void {
-  if (args.controlledSpiralCountBeforeCreation !== 2) return;
+  if (args.controlledSpiralCountBeforeCreation !== 1) return;
 
   const gameData = args.state?.gameData ?? (args.state.gameData = {});
   const turnData = gameData.turnData ?? (gameData.turnData = {});

@@ -96,7 +96,7 @@ Deno.test('all mono-colour resolvers use deterministic Solar system effects and 
   ], { green: 4, red: 4, blue: 2 });
 
   assert.deepEqual(result.remainingEnergy, { green: 0, red: 0, blue: 0 });
-  assert.deepEqual(result.state.gameData.pendingTurn.healByPlayerId, { p1: 6 });
+  assert.deepEqual(result.state.gameData.pendingTurn.healByPlayerId, { p1: 7 });
   assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 6 });
   assert.equal(result.state.players[0].health, 20);
   assert.equal(result.state.players[1].health, 20);
@@ -104,7 +104,7 @@ Deno.test('all mono-colour resolvers use deterministic Solar system effects and 
   assert.equal(result.state.players[0].joiningLines, 7);
   assert.equal(result.ledgerEntries.length, 6);
   assert.deepEqual(result.ledgerEntries.map((entry) => entry.lockedAmount), [
-    undefined, 5, undefined, 5, undefined, undefined,
+    undefined, 6, undefined, 5, undefined, undefined,
   ]);
   assert.deepEqual(
     result.ledgerEntries
@@ -149,15 +149,32 @@ Deno.test('mono-colour production powers reject every irrelevant client field', 
 });
 
 Deno.test('dice-derived powers use per-player effective dice boundaries and reject invalid values atomically', () => {
-  const lowState = createMonoColourState();
-  lowState.gameData.turnData.effectiveDiceRollByPlayerId.p1 = 1;
-  assert.equal(resolveMonoColour(lowState, [{ solarPowerId: 'SSTA' }], { green: 3, red: 0, blue: 0 })
-    .ledgerEntries[0].lockedAmount, 4);
+  for (const boundary of [
+    { dice: 1, starBirth: 5, supernova: 4 },
+    { dice: 6, starBirth: 10, supernova: 9 },
+  ]) {
+    const starBirthState = createMonoColourState();
+    starBirthState.gameData.turnData.effectiveDiceRollByPlayerId.p1 = boundary.dice;
+    assert.equal(
+      resolveMonoColour(
+        starBirthState,
+        [{ solarPowerId: 'SSTA' }],
+        { green: 3, red: 0, blue: 0 },
+      ).ledgerEntries[0].lockedAmount,
+      boundary.starBirth,
+    );
 
-  const highState = createMonoColourState();
-  highState.gameData.turnData.effectiveDiceRollByPlayerId.p1 = 6;
-  assert.equal(resolveMonoColour(highState, [{ solarPowerId: 'SSUP' }], { green: 0, red: 3, blue: 0 })
-    .ledgerEntries[0].lockedAmount, 9);
+    const supernovaState = createMonoColourState();
+    supernovaState.gameData.turnData.effectiveDiceRollByPlayerId.p1 = boundary.dice;
+    assert.equal(
+      resolveMonoColour(
+        supernovaState,
+        [{ solarPowerId: 'SSUP' }],
+        { green: 0, red: 3, blue: 0 },
+      ).ledgerEntries[0].lockedAmount,
+      boundary.supernova,
+    );
+  }
 
   for (const dice of [undefined, 0, 7, 1.5, Number.NaN]) {
     const state = createMonoColourState();
@@ -209,7 +226,7 @@ Deno.test('healing powers do not require an opposing active player seat', () => 
         ? { green: 1, red: 0, blue: 0 }
         : { green: 3, red: 0, blue: 0 },
     );
-    assert.equal(result.state.gameData.pendingTurn.healByPlayerId.p1, solarPowerId === 'SLIF' ? 1 : 5);
+    assert.equal(result.state.gameData.pendingTurn.healByPlayerId.p1, solarPowerId === 'SLIF' ? 1 : 6);
   }
 });
 

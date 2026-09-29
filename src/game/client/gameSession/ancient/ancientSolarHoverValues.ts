@@ -32,7 +32,7 @@ export function deriveAncientSolarHoverValues(args: {
     values.SAST = { damage: 1 };
   }
   if (canCast.SSTA) {
-    values.SSTA = { healing: args.effectiveDiceValue + 3 };
+    values.SSTA = { healing: args.effectiveDiceValue + 4 };
   }
   if (canCast.SSUP) {
     values.SSUP = { damage: args.effectiveDiceValue + 3 };
