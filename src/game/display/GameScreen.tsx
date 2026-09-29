@@ -173,7 +173,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
   // ============================================================================
 
   return (
-    <div className="ss-playerRoot relative w-full h-full min-h-0 overflow-hidden">
+    <div className="ss-playerRoot ss-gameboardRoot relative w-full h-full min-h-0 overflow-hidden">
       {/* Stars background layer (behind everything in this screen) */}
       <div className="absolute inset-0 z-0">
         <StarsBackground celebrateOnFinish={celebrateOnFinish} celebrationSeed={gameId} />

@@ -325,6 +325,16 @@ html:not(.app-ready) #root {
     background-color: #000000;
 }
 
+.ss-gameboardRoot {
+  scrollbar-color: var(--shapeships-grey-50) var(--shapeships-grey-90);
+}
+
+@supports not (scrollbar-color: #888888 #212121) {
+  .ss-gameboardRoot {
+    color-scheme: dark;
+  }
+}
+
 /* Toast notification animations */
 @keyframes slideDown {
   0% {
