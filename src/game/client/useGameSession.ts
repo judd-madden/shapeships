@@ -148,6 +148,10 @@ import {
   type CurrentTurnPreviewCandidateInput,
   type CurrentTurnPreviewTransport,
 } from './gameSession/currentTurnPreview';
+import {
+  serializeOrdinaryChargeActions,
+  type ChargeDeclarationPayload,
+} from './gameSession/chargeDeclaration';
 import { useCurrentTurnPreview } from './gameSession/clienteffects/useCurrentTurnPreview';
 import {
   buildResolvedThisTurnSnapshot,
@@ -4079,21 +4083,107 @@ useEffect(() => {
     turnNumber,
     canonicalBuildDraft,
   ]);
+  const requesterChargeProjection = rawState?.requester?.thisTurn?.currentProjection;
+  const requesterChargeIdentityFingerprint =
+    requesterChargeProjection?.identity?.declarationFingerprint;
+  const requesterChargeVariantFingerprint =
+    requesterChargeProjection?.withChargeDeclaration?.declarationFingerprint;
+  const hasRecoveredChargeDeclaration =
+    phaseKey === 'battle.charge_declaration' &&
+    typeof requesterChargeIdentityFingerprint === 'string' &&
+    requesterChargeIdentityFingerprint.length > 0 &&
+    requesterChargeIdentityFingerprint === requesterChargeVariantFingerprint;
+  const chargeDeclarationBuild = useMemo<
+    | { ok: true; payload: ChargeDeclarationPayload }
+    | { ok: false; reason: string }
+  >(() => {
+    if (
+      phaseKey !== 'battle.charge_declaration' ||
+      myRole !== 'player' ||
+      !effectiveGameId ||
+      !previewRequesterPlayerId ||
+      !Array.isArray(availableActions)
+    ) {
+      return { ok: false, reason: 'charge_declaration_unavailable' };
+    }
+    if (activeAncientChargeDeclarationAttempt) {
+      return { ok: true, payload: activeAncientChargeDeclarationAttempt.body.payload };
+    }
+
+    const declarationId =
+      `${effectiveGameId}:${previewRequesterPlayerId}:${turnNumber}:battle.charge_declaration:preview`;
+    if (mySpecies === 'ancient') {
+      if (!activeAncientChargeDeclarationWorkflow || !ancientManualSolarCastReplay.valid) {
+        return { ok: false, reason: 'incomplete_solar_declaration' };
+      }
+      const built = buildAncientChargeDeclarationPayload({
+        declarationId,
+        actions: ancientDeclarationActions,
+        selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
+        allocatedTargetIdsBySourceInstanceId: allocatedDestroyTargetIdsBySourceInstanceId,
+        allocatedTargetIdBySourceInstanceId: allocatedDestroyTargetIdBySourceInstanceId,
+        localManualSolarCasts: activeAncientChargeDeclarationWorkflow.localManualSolarCasts,
+        autocastEnabled: ancientAutocastEnabled,
+      });
+      return built.ok
+        ? { ok: true, payload: built.payload }
+        : { ok: false, reason: built.reason };
+    }
+
+    const ordinary = serializeOrdinaryChargeActions({
+      actions: getRenderableServerChoiceActions(
+        'battle.charge_declaration',
+        availableActions,
+      ),
+      selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
+      allocatedTargetIdsBySourceInstanceId: allocatedDestroyTargetIdsBySourceInstanceId,
+      allocatedTargetIdBySourceInstanceId: allocatedDestroyTargetIdBySourceInstanceId,
+    });
+    if (!ordinary.ok) return { ok: false, reason: ordinary.reason };
+    return {
+      ok: true,
+      payload: {
+        contractVersion: 1,
+        declarationId,
+        ordinaryChargeActions: ordinary.actions,
+        solarCasts: [],
+        autocastEnabled: false,
+      },
+    };
+  }, [
+    phaseKey,
+    myRole,
+    mySpecies,
+    effectiveGameId,
+    previewRequesterPlayerId,
+    availableActions,
+    activeAncientChargeDeclarationAttempt,
+    activeAncientChargeDeclarationWorkflow,
+    ancientManualSolarCastReplay.valid,
+    ancientDeclarationActions,
+    shipChoiceSelectionByInstanceId,
+    allocatedDestroyTargetIdsBySourceInstanceId,
+    allocatedDestroyTargetIdBySourceInstanceId,
+    ancientAutocastEnabled,
+    turnNumber,
+  ]);
   const chargeCurrentTurnPreviewCandidate = useMemo<CurrentTurnPreviewCandidateInput | null>(() => {
     const eligible =
       !!effectiveGameId &&
       !!previewRequesterPlayerId &&
       phaseKey === 'battle.charge_declaration' &&
       myRole === 'player' &&
-      mySpecies === 'ancient' &&
       !isFinished &&
       !ancientPlayerReady &&
-      ancientSolarEstimateSelection !== null;
-    if (!eligible || !effectiveGameId || !previewRequesterPlayerId || !ancientSolarEstimateSelection) {
+      !hasRecoveredChargeDeclaration &&
+      chargeDeclarationBuild.ok;
+    if (
+      !eligible || !effectiveGameId || !previewRequesterPlayerId ||
+      !chargeDeclarationBuild.ok
+    ) {
       return null;
     }
-    const serverSourceContextKey =
-      rawState?.requester?.thisTurn?.currentProjection?.identity?.sourceContextKey;
+    const serverSourceContextKey = requesterChargeProjection?.identity?.sourceContextKey;
     return {
       gameId: effectiveGameId,
       playerId: previewRequesterPlayerId,
@@ -4103,18 +4193,18 @@ useEffect(() => {
         typeof serverSourceContextKey === 'string'
           ? serverSourceContextKey
           : `${effectiveGameId}::${turnNumber}::battle.charge_declaration`,
-      solarSelection: ancientSolarEstimateSelection,
+      declaration: chargeDeclarationBuild.payload,
     };
   }, [
     effectiveGameId,
     previewRequesterPlayerId,
     phaseKey,
     myRole,
-    mySpecies,
     isFinished,
     ancientPlayerReady,
-    ancientSolarEstimateSelection,
-    rawState?.requester?.thisTurn?.currentProjection?.identity?.sourceContextKey,
+    hasRecoveredChargeDeclaration,
+    chargeDeclarationBuild,
+    requesterChargeProjection?.identity?.sourceContextKey,
     turnNumber,
   ]);
   const currentTurnPreviewCandidate =
@@ -4124,10 +4214,10 @@ useEffect(() => {
       const route = envelope.observed.phaseKey === 'battle.charge_declaration'
         ? `/charge-declaration-preview/${gameId}`
         : `/build-preview/${gameId}`;
-      const requestBody = envelope.observed.phaseKey === 'battle.charge_declaration'
+      const requestBody = 'declaration' in envelope
         ? {
             observed: envelope.observed,
-            solarSelection: envelope.solarSelection,
+            declaration: envelope.declaration,
             requestToken: envelope.requestToken,
           }
         : envelope;
@@ -4145,8 +4235,12 @@ useEffect(() => {
     },
     [],
   );
-  const currentTurnPreviewPausedReason = phaseKey !== 'build.drawing'
-    ? null
+  const currentTurnPreviewPausedReason = phaseKey === 'battle.charge_declaration'
+    ? readyUxForCurrentPhase.sendingNow
+      ? 'submission_pending'
+      : null
+    : phaseKey !== 'build.drawing'
+      ? null
     : buildSubmissionRuntime.kind === 'submission_pending'
       ? 'submission_pending'
       : buildSubmissionRuntime.kind === 'uncertain'
@@ -4786,6 +4880,19 @@ useEffect(() => {
           publicThisTurn: rawState?.publicState?.thisTurn,
           requesterThisTurn: rawState?.requester?.thisTurn,
           ownEstimateMode: ownCurrentTurnEstimateMode,
+          chargeDeclarationState:
+            phaseKey !== 'battle.charge_declaration' ||
+            healthResolutionViewerRole !== 'player'
+              ? { kind: 'none' }
+              : hasRecoveredChargeDeclaration
+                ? { kind: 'recovered' }
+                : chargeCurrentTurnPreviewCandidate
+                  ? { kind: 'editing' }
+                  : ancientPlayerReady
+                    ? { kind: 'awaiting_recovery' }
+                    : !chargeDeclarationBuild.ok
+                      ? { kind: 'incomplete', reason: chargeDeclarationBuild.reason }
+                      : { kind: 'none' },
           lastTurn: lastTurnPresentation,
           previousPresentation: lastPresentedThisTurnRef.current,
           resolutionSnapshot,
@@ -6705,7 +6812,7 @@ useEffect(() => {
         effectiveGameId != null &&
         !ancientAttemptForSubmission
       ) {
-        const payload = buildAncientChargeDeclarationPayload({
+        const builtDeclaration = buildAncientChargeDeclarationPayload({
           declarationId: generateNonce(),
           actions: ancientDeclarationActions,
           selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
@@ -6714,6 +6821,13 @@ useEffect(() => {
           localManualSolarCasts: activeAncientChargeDeclarationWorkflow.localManualSolarCasts,
           autocastEnabled: ancientAutocastEnabled,
         });
+        if (!builtDeclaration.ok) {
+          console.warn(
+            `[useGameSession] battle.charge_declaration: blocking Ancient Ready (${builtDeclaration.reason}) for ${builtDeclaration.sourceInstanceId}`,
+          );
+          return;
+        }
+        const payload = builtDeclaration.payload;
         ancientAutocastWillRunForSubmission =
           payload.autocastEnabled &&
           getAncientEnergyTotal(ancientManualSolarCastReplay.remainingEnergy) > 0;

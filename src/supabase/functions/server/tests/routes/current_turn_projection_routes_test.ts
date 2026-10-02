@@ -1080,6 +1080,14 @@ Deno.test("preferred Charge preview returns a distinct complete declaration vari
     state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId =
       structuredClone(state.gameData.ships);
     replaceChargeDeclarationVisibilityState(state);
+    const initial: any = await fullStateBody(state, "p1");
+    const initialProjection = initial.requester.thisTurn.currentProjection;
+    assert.equal("withChargeDeclaration" in initialProjection, false, faction);
+    assert.equal(
+      "declarationFingerprint" in initialProjection.identity,
+      false,
+      faction,
+    );
     const test = fixture(state);
     const declaration = {
       contractVersion: 1,
@@ -1112,6 +1120,25 @@ Deno.test("preferred Charge preview returns a distinct complete declaration vari
     assert.equal(body.withChargeDeclaration.autocastEnabled, false, faction);
     assert.equal(test.persistence.writes, 0, faction);
 
+    state.gameData.turnData.chargeDeclarationAcceptedOrdinaryActionsByPlayerId.p1 = {
+      schemaVersion: 1,
+      battleTurnNumber: 5,
+      playerId: "p1",
+      actions: structuredClone(declaration.ordinaryChargeActions),
+    };
+    const retained: any = await fullStateBody(state, "p1");
+    assert.equal(
+      retained.requester.thisTurn.currentProjection.identity.declarationFingerprint,
+      body.identity.declarationFingerprint,
+      faction,
+    );
+    assert.equal(
+      retained.requester.thisTurn.currentProjection.withChargeDeclaration
+        .declarationFingerprint,
+      body.identity.declarationFingerprint,
+      faction,
+    );
+
     state.gameData.turnData.acceptedChargeDeclarationsByPlayerId.p1 = {
       schemaVersion: 1,
       contractVersion: 1,
@@ -1134,6 +1161,45 @@ Deno.test("preferred Charge preview returns a distinct complete declaration vari
         faction,
       );
     }
+  }
+});
+
+Deno.test("full GET recovers an explicitly finalized empty Charge declaration", async () => {
+  const state: any = createState("battle.charge_declaration");
+  state.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 5;
+  state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
+    p1: [], p2: [],
+  };
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId =
+    structuredClone(state.gameData.ships);
+  replaceChargeDeclarationVisibilityState(state);
+  const fingerprint = JSON.stringify({
+    contractVersion: 1,
+    ordinaryChargeActions: [],
+    solarCasts: [],
+    autocastEnabled: false,
+  });
+  state.gameData.turnData.acceptedChargeDeclarationsByPlayerId.p1 = {
+    schemaVersion: 1,
+    contractVersion: 1,
+    battleTurnNumber: 5,
+    declarationId: "ordinary:5:p1",
+    declarationFingerprint: fingerprint,
+    playerId: "p1",
+    ordinaryChargeActions: [],
+    solarCasts: [],
+    autocastEnabled: false,
+  };
+
+  for (const recoveredState of [state, JSON.parse(JSON.stringify(state))]) {
+    const body: any = await fullStateBody(recoveredState, "p1");
+    const projection = body.requester.thisTurn.currentProjection;
+    assert.equal(projection.identity.declarationFingerprint, fingerprint);
+    assert.equal(
+      projection.withChargeDeclaration.declarationFingerprint,
+      fingerprint,
+    );
+    assert.equal(projection.withChargeDeclaration.damage.total >= 0, true);
   }
 });
 

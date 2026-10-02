@@ -375,6 +375,11 @@ export type ThisTurnMetricVm =
         | 'last_actual'
         | 'final_actual';
       estimateMode?: 'base' | 'with_autocast';
+      chargeDeclarationUncertain?: boolean;
+      chargeDeclarationIdentity?: {
+        declarationFingerprint: string;
+        sourceContextKey: string;
+      };
       total: number;
       rows: BoardStatBreakdownRowVm[];
     };

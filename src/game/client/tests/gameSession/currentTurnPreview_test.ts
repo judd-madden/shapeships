@@ -67,7 +67,8 @@ function estimate(envelope: CurrentTurnPreviewEnvelope, sourceContextKey: string
       phaseKey: 'build.drawing',
       sourceContextKey,
       draftKey: 'server-draft',
-      ...(envelope.observed.ownBuildCaptureIdentity
+      ...('ownBuildCaptureIdentity' in envelope.observed &&
+        envelope.observed.ownBuildCaptureIdentity
         ? { ownBuildCaptureIdentity: envelope.observed.ownBuildCaptureIdentity }
         : {}),
     },
@@ -169,7 +170,11 @@ Deno.test('unchanged draft refetches its complete ledger when own capture identi
     clock,
     onStateChange: () => {},
     transport: async (_gameId, envelope) => {
-      seenCaptures.push(envelope.observed.ownBuildCaptureIdentity ?? 'missing');
+      seenCaptures.push(
+        'ownBuildCaptureIdentity' in envelope.observed
+          ? envelope.observed.ownBuildCaptureIdentity ?? 'missing'
+          : 'missing',
+      );
       const result = estimate(envelope, `route-${seenCaptures.length}`);
       result.build.lines = seenCaptures.length === 1
         ? ['1 x DEF']
@@ -230,10 +235,43 @@ Deno.test('production scheduler debounces, coalesces, and accepts only its newes
   requests[0].result.resolve({ status: 200, body: estimate(requests[0].envelope, 'route-a') });
   await flush();
   assert(requests.length === 2, 'newest queued candidate did not launch');
-  assert(requests[1].envelope.draft.builds[0]?.count === 2, 'queued draft was not newest');
+  assert(
+    'draft' in requests[1].envelope &&
+      requests[1].envelope.draft.builds[0]?.count === 2,
+    'queued draft was not newest',
+  );
   requests[1].result.resolve({ status: 200, body: estimate(requests[1].envelope, 'route-b') });
   await flush();
   assert(scheduler.getState().kind === 'estimated', 'newest response not accepted');
+});
+
+Deno.test('equivalent Charge or Drawing reapplication preserves the original deadline and in-flight token', async () => {
+  const clock = new FakeClock();
+  const pending = deferred<{ status: number; body: unknown }>();
+  const envelopes: CurrentTurnPreviewEnvelope[] = [];
+  const scheduler = createCurrentTurnPreviewScheduler({
+    clock,
+    transport: async (_gameId, envelope) => {
+      envelopes.push(envelope);
+      return pending.promise;
+    },
+    onStateChange: () => {},
+  });
+
+  scheduler.setCandidate(candidate(1));
+  clock.advance(100);
+  scheduler.setCandidate(candidate(1));
+  clock.advance(124);
+  assert(envelopes.length === 0, 'equivalent input changed the original deadline');
+  clock.advance(1);
+  assert(envelopes.length === 1, 'original debounce deadline did not fire');
+  const token = envelopes[0].requestToken;
+  scheduler.setCandidate(candidate(1));
+  assert(envelopes.length === 1, 'equivalent input queued a second request');
+  assert(envelopes[0].requestToken === token, 'equivalent input replaced the request token');
+  pending.resolve({ status: 200, body: estimate(envelopes[0], 'route-a') });
+  await flush();
+  assert(scheduler.getState().kind === 'estimated');
 });
 
 Deno.test('scheduler reuses cached A after A to B to A without rewriting its response token', async () => {
@@ -428,7 +466,7 @@ Deno.test('preview accepts a complete paired Autocast variant and rejects malfor
   assert(scheduler.getState().kind === 'unavailable');
 });
 
-Deno.test('Charge Solar candidates fingerprint ordered casts and reject outdated responses', async () => {
+Deno.test('Charge declaration candidates fingerprint complete declarations and reject outdated responses', async () => {
   const clock = new FakeClock();
   const first = deferred<{ status: number; body: unknown }>();
   let calls = 0;
@@ -441,15 +479,19 @@ Deno.test('Charge Solar candidates fingerprint ordered casts and reject outdated
     turnNumber: 4,
     phaseKey: 'battle.charge_declaration',
     safeContextFingerprint: 'charge-safe',
-    solarSelection: {
+    declaration: {
+      contractVersion: 1,
+      declarationId: `preview-${solarPowerId}`,
+      ordinaryChargeActions: [],
       solarCasts: [{ solarPowerId }],
       autocastEnabled,
     },
   });
   const response = (envelope: CurrentTurnPreviewEnvelope) => {
+    if (!('declaration' in envelope)) throw new Error('expected Charge envelope');
     const input = chargeCandidate(
-      envelope.solarSelection!.solarCasts[0].solarPowerId as 'SLIF' | 'SAST',
-      envelope.solarSelection!.autocastEnabled,
+      envelope.declaration.solarCasts[0].solarPowerId as 'SLIF' | 'SAST',
+      envelope.declaration.autocastEnabled,
     );
     const identity = getCurrentTurnPreviewCandidateIdentity(input);
     return {
@@ -461,15 +503,16 @@ Deno.test('Charge Solar candidates fingerprint ordered casts and reject outdated
         phaseKey: 'battle.charge_declaration',
         sourceContextKey: 'charge-route',
         draftKey: 'null-draft',
-        solarSelectionKey: identity.solarSelectionFingerprint,
+        declarationFingerprint: identity.declarationFingerprint,
       },
       playerId: 'p1',
       damage: { total: 0, rows: [] },
       healing: { total: 0, rows: [] },
-      withSolarSelection: {
-        damage: { total: input.solarSelection!.solarCasts[0].solarPowerId === 'SAST' ? 1 : 0, rows: [] },
-        healing: { total: input.solarSelection!.solarCasts[0].solarPowerId === 'SLIF' ? 1 : 0, rows: [] },
-        autocastEnabled: input.solarSelection!.autocastEnabled,
+      withChargeDeclaration: {
+        damage: { total: input.declaration!.solarCasts[0].solarPowerId === 'SAST' ? 1 : 0, rows: [] },
+        healing: { total: input.declaration!.solarCasts[0].solarPowerId === 'SLIF' ? 1 : 0, rows: [] },
+        autocastEnabled: input.declaration!.autocastEnabled,
+        declarationFingerprint: identity.declarationFingerprint,
       },
       build: { lines: [], skipped: [], remainingOrdinaryLines: 0, remainingJoiningLines: 0 },
     };
@@ -497,8 +540,9 @@ Deno.test('Charge Solar candidates fingerprint ordered casts and reject outdated
   clock.advance(225);
   const firstEnvelope: CurrentTurnPreviewEnvelope = {
     observed: { turnNumber: 4, phaseKey: 'battle.charge_declaration' },
-    draft: { builds: [] },
-    solarSelection: life.solarSelection,
+    declaration: life.phaseKey === 'battle.charge_declaration'
+      ? life.declaration
+      : (() => { throw new Error('expected Charge candidate'); })(),
     requestToken: '4.1',
   };
   first.resolve({ status: 200, body: response(firstEnvelope) });
@@ -507,8 +551,60 @@ Deno.test('Charge Solar candidates fingerprint ordered casts and reject outdated
   const state = scheduler.getState();
   assert(state.kind === 'estimated');
   if (state.kind === 'estimated') {
-    assert(state.candidate.solarSelection?.solarCasts[0].solarPowerId === 'SAST');
-    assert(state.estimate.withSolarSelection?.damage.total === 1);
-    assert(state.estimate.withSolarSelection?.autocastEnabled === false);
+    assert(
+      state.candidate.phaseKey === 'battle.charge_declaration' &&
+        state.candidate.declaration.solarCasts[0].solarPowerId === 'SAST',
+    );
+    assert(state.estimate.withChargeDeclaration?.damage.total === 1);
+    assert(state.estimate.withChargeDeclaration?.autocastEnabled === false);
   }
+});
+
+Deno.test('Charge preview requires matching identity and variant fingerprints while accepting zero totals', async () => {
+  const run = async (variantMatches: boolean) => {
+    const clock = new FakeClock();
+    const input: CurrentTurnPreviewCandidateInput = {
+      gameId: 'game-1', playerId: 'p1', turnNumber: 4,
+      phaseKey: 'battle.charge_declaration', safeContextFingerprint: 'charge-safe',
+      declaration: {
+        contractVersion: 1, declarationId: 'preview-zero',
+        ordinaryChargeActions: [], solarCasts: [], autocastEnabled: false,
+      },
+    };
+    const fingerprint = getCurrentTurnPreviewCandidateIdentity(input).declarationFingerprint!;
+    const scheduler = createCurrentTurnPreviewScheduler({
+      clock,
+      onStateChange: () => {},
+      transport: async (_gameId, envelope) => ({
+        status: 200,
+        body: {
+          status: 'estimated', requestToken: envelope.requestToken,
+          identity: {
+            gameId: 'game-1', turnNumber: 4,
+            phaseKey: 'battle.charge_declaration', sourceContextKey: 'charge-safe',
+            draftKey: 'null', declarationFingerprint: fingerprint,
+          },
+          playerId: 'p1',
+          damage: { total: 1, rows: [] }, healing: { total: 1, rows: [] },
+          withChargeDeclaration: {
+            damage: { total: 0, rows: [] }, healing: { total: 0, rows: [] },
+            autocastEnabled: false,
+            declarationFingerprint: variantMatches ? fingerprint : 'wrong',
+          },
+          build: { lines: [], skipped: [], remainingOrdinaryLines: 0, remainingJoiningLines: 0 },
+        },
+      }),
+    });
+    scheduler.setCandidate(input);
+    clock.advance(225);
+    await flush();
+    return scheduler.getState();
+  };
+
+  const matched = await run(true);
+  assert(matched.kind === 'estimated');
+  if (matched.kind === 'estimated') {
+    assert(matched.estimate.withChargeDeclaration?.damage.total === 0);
+  }
+  assert((await run(false)).kind === 'unavailable');
 });

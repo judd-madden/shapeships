@@ -7,7 +7,6 @@ import { validateBuildSubmitPayload } from "../engine/intent/buildSubmitValidati
 import {
   ChargeDeclarationConflictError,
   fingerprintChargeDeclaration,
-  getRetainedOrdinaryChargeActions,
   mergeRetainedOrdinaryChargeActions,
   normalizeChargeDeclarationPayload,
   type NormalizedChargeDeclaration,
@@ -291,7 +290,7 @@ function getSupportedAcceptedSolarSelection(
 function getRecoveredChargeDeclaration(
   state: any,
   playerId: string,
-): NormalizedChargeDeclaration {
+): NormalizedChargeDeclaration | null {
   const turnNumber = getTurnNumber(state);
   const generic = state?.gameData?.turnData
     ?.acceptedChargeDeclarationsByPlayerId?.[playerId];
@@ -314,10 +313,18 @@ function getRecoveredChargeDeclaration(
       autocastEnabled: ancient.autocastEnabled,
     });
   }
+  const retained = state?.gameData?.turnData
+    ?.chargeDeclarationAcceptedOrdinaryActionsByPlayerId?.[playerId];
+  if (
+    retained?.battleTurnNumber !== turnNumber ||
+    !Array.isArray(retained.actions)
+  ) {
+    return null;
+  }
   return normalizeChargeDeclarationPayload({
     contractVersion: 1,
     declarationId: `current-turn-recovery:${turnNumber}:${playerId}`,
-    ordinaryChargeActions: getRetainedOrdinaryChargeActions(state, playerId),
+    ordinaryChargeActions: retained.actions,
     solarCasts: [],
     autocastEnabled: false,
   });

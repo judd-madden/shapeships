@@ -1,10 +1,14 @@
 import {
-  getAllocatedTargetIdsForRenderableAction,
   getRenderableServerChoiceActions,
-  getSelectedChoiceIdForRenderableAction,
   type RenderableServerAction,
 } from '../availableActions';
-import { buildPowerAction } from '../powerIntents';
+import {
+  serializeOrdinaryChargeActions,
+  serializeChargeDeclarationSolarCasts,
+  type ChargeDeclarationPayload,
+  type NormalizedSolarCast,
+  type OrdinaryChargeSerializationResult,
+} from '../chargeDeclaration';
 import type { AncientEnergyPool } from '../selectors';
 import {
   ANCIENT_SIPHON_MINIMUM_SPEND,
@@ -59,11 +63,7 @@ export type AncientManualSolarCast =
       };
     };
 
-export type AncientChargeDeclarationSolarCastPayload =
-  | { solarPowerId: FixedAncientManualSolarPowerId }
-  | { solarPowerId: 'SSIP'; lockedAmount: number }
-  | { solarPowerId: 'SBLA'; targetInstanceIds: string[] }
-  | { solarPowerId: 'SSIM'; targetInstanceId: string };
+export type AncientChargeDeclarationSolarCastPayload = NormalizedSolarCast;
 
 export type SupportedAncientSolarEstimatePowerId =
   | 'SLIF'
@@ -109,13 +109,11 @@ export type AncientChargeDeclarationWorkflow = {
   rejectionRecoveryPending: boolean;
 };
 
-export type AncientChargeDeclarationPayload = {
-  contractVersion: 1;
-  declarationId: string;
-  ordinaryChargeActions: ReturnType<typeof buildPowerAction>[];
-  solarCasts: AncientChargeDeclarationSolarCastPayload[];
-  autocastEnabled: boolean;
-};
+export type AncientChargeDeclarationPayload = ChargeDeclarationPayload;
+
+export type AncientChargeDeclarationBuildResult =
+  | { ok: true; payload: AncientChargeDeclarationPayload }
+  | Extract<OrdinaryChargeSerializationResult, { ok: false }>;
 
 export type FrozenAncientChargeDeclarationAttempt = {
   workflowKey: string;
@@ -399,59 +397,23 @@ export function buildAncientChargeDeclarationPayload(args: {
   allocatedTargetIdBySourceInstanceId: Record<string, string>;
   localManualSolarCasts: readonly AncientManualSolarCast[];
   autocastEnabled: boolean;
-}): AncientChargeDeclarationPayload {
-  const ordinaryActions = args.actions.flatMap((action) => {
-    const choiceId = getSelectedChoiceIdForRenderableAction(
-      action,
-      args.selectedChoiceIdBySourceInstanceId
-    );
-    if (!choiceId || choiceId === 'hold') return [];
-
-    if (action.kind === 'destroy_target' || action.kind === 'paired_destroy_target') {
-      const targetInstanceIds = getAllocatedTargetIdsForRenderableAction(
-        action,
-        args.allocatedTargetIdsBySourceInstanceId,
-        args.allocatedTargetIdBySourceInstanceId
-      );
-      if (targetInstanceIds.length === 0) return [];
-      return [buildPowerAction({
-        actionId: action.actionId,
-        sourceInstanceId: action.sourceInstanceId,
-        choiceId,
-        targetInstanceId: targetInstanceIds[0],
-        targetInstanceIds,
-      })];
-    }
-
-    return [buildPowerAction({
-      actionId: action.actionId,
-      sourceInstanceId: action.sourceInstanceId,
-      choiceId,
-    })];
+}): AncientChargeDeclarationBuildResult {
+  const ordinary = serializeOrdinaryChargeActions({
+    actions: args.actions,
+    selectedChoiceIdBySourceInstanceId: args.selectedChoiceIdBySourceInstanceId,
+    allocatedTargetIdsBySourceInstanceId: args.allocatedTargetIdsBySourceInstanceId,
+    allocatedTargetIdBySourceInstanceId: args.allocatedTargetIdBySourceInstanceId,
   });
+  if (!ordinary.ok) return ordinary;
 
   return {
-    contractVersion: 1,
-    declarationId: args.declarationId,
-    ordinaryChargeActions: ordinaryActions,
-    solarCasts: args.localManualSolarCasts.map((cast) => {
-      if (cast.solarPowerId === 'SSIP') {
-        return { solarPowerId: 'SSIP', lockedAmount: cast.lockedAmount };
-      }
-      if (cast.solarPowerId === 'SBLA') {
-        return {
-          solarPowerId: 'SBLA',
-          targetInstanceIds: [...cast.targetInstanceIds].sort((a, b) => a.localeCompare(b)),
-        };
-      }
-      if (cast.solarPowerId === 'SSIM') {
-        return {
-          solarPowerId: 'SSIM',
-          targetInstanceId: cast.targetInstanceId,
-        };
-      }
-      return { solarPowerId: cast.solarPowerId };
-    }),
-    autocastEnabled: args.autocastEnabled,
+    ok: true,
+    payload: {
+      contractVersion: 1,
+      declarationId: args.declarationId,
+      ordinaryChargeActions: ordinary.actions,
+      solarCasts: serializeChargeDeclarationSolarCasts(args.localManualSolarCasts),
+      autocastEnabled: args.autocastEnabled,
+    },
   };
 }

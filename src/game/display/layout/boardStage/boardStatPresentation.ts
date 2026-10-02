@@ -65,7 +65,9 @@ export function formatBoardStatMetric(
       return '0';
     case 'zero':
     case 'value':
-      return String(metric.total);
+      return `${metric.total}${
+        slot === 'current' && metric.chargeDeclarationUncertain ? ' ?' : ''
+      }`;
   }
 }
 
@@ -98,7 +100,9 @@ export function buildBoardStatHoverSections(
       ...(isEstimate && current.estimateMode === 'with_autocast'
         ? { estimateQualifierText: 'AUTOCAST ESTIMATE' as const }
         : {}),
-      totalText: `${isEstimate ? '~' : ''}${current.total}`,
+      totalText: `${isEstimate ? '~' : ''}${current.total}${
+        current.chargeDeclarationUncertain ? ' ?' : ''
+      }`,
       rows: current.rows,
     });
   }

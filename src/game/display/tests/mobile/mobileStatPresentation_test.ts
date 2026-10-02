@@ -189,6 +189,22 @@ Deno.test('mobile HUD fixes stat order and uses desktop value-state formatting',
   assertEquals(buildMobileHudMetricPair(null), { currentText: '0', lastText: '0' });
 });
 
+Deno.test('mobile HUD and breakdown retain public Charge uncertainty markers', () => {
+  const uncertain = {
+    ...availableMetric(13, 'privacy_frozen'),
+    chargeDeclarationUncertain: true,
+  } as ThisTurnMetricVm;
+  const vm = presentation();
+  vm.opponent.damage.current = uncertain;
+  vm.mobile.opponentDetail = 'this_turn';
+  assertEquals(buildMobileHudMetricPair(vm.opponent.damage).currentText, '13 ?');
+  assertEquals(
+    buildMobileMetricBreakdownGroups({ presentation: vm, side: 'opponent' })
+      .primary[0]?.totalText,
+    '~13 ?',
+  );
+});
+
 Deno.test('mobile estimate qualifier distinguishes Base and Autocast current estimates', () => {
   const autocastMetrics = playerMetrics(
     pair(

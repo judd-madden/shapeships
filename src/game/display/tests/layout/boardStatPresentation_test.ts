@@ -78,6 +78,25 @@ Deno.test('resting board metric formatting never adds estimate decoration', () =
   assertEquals(formatBoardStatMetric(null, 'current'), '0');
 });
 
+Deno.test('public Charge uncertainty appends a marker without changing numeric totals', () => {
+  const uncertain = {
+    ...valueMetric(13, 'privacy_frozen'),
+    chargeDeclarationUncertain: true,
+  } as ThisTurnMetricVm;
+  const uncertainZero = {
+    ...valueMetric(0, 'privacy_frozen', 4, []),
+    chargeDeclarationUncertain: true,
+  } as ThisTurnMetricVm;
+  assertEquals(formatBoardStatMetric(uncertain, 'current'), '13 ?');
+  assertEquals(formatBoardStatMetric(uncertainZero, 'current'), '0 ?');
+  assertEquals(formatBoardStatMetric(uncertain, 'last'), '13');
+  assertEquals(buildBoardStatHoverSections(pair(uncertain))[0]?.totalText, '~13 ?');
+  assertEquals(
+    uncertain.state === 'value' || uncertain.state === 'zero' ? uncertain.total : null,
+    13,
+  );
+});
+
 Deno.test('estimated and privacy-frozen metrics use estimate hover totals', () => {
   assertEquals(
     buildBoardStatHoverSections(pair(valueMetric(8, 'estimated'))).map((section) => ({

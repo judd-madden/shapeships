@@ -31,6 +31,7 @@ import {
   isCommitmentRevealed,
 } from './selectors';
 import type { FrozenAncientChargeDeclarationAttempt } from './ancient/ancientChargeDeclaration';
+import { serializeOrdinaryChargeActions } from './chargeDeclaration';
 import {
   canSubmitDrawingBuild,
   constructCarrierPreludeBatch,
@@ -831,86 +832,86 @@ export async function runReadyToggleFlow(args: {
               )
             : choiceActions;
 
-        const incompleteTargetedAction = submissionChoiceActions.find((action) =>
-          isRenderableTargetedAction(action) &&
-          args.destroyTargetSatisfiedBySourceInstanceId[action.sourceInstanceId] !== true
-        );
-
-        if (incompleteTargetedAction) {
-          console.warn(
-            `[useGameSession] ${phaseKey}: blocking ready because targeted action is incomplete for ${incompleteTargetedAction.sourceInstanceId}`
-          );
-          return;
-        }
-        
         console.log(`[useGameSession] Found ${submissionChoiceActions.length} renderable server actions to process`);
-        
-        // Build batch actions array (skip 'hold')
-        const actions: any[] = [];
-        
-        for (const action of submissionChoiceActions) {
-          const { sourceInstanceId, actionId } = action;
-          
-          // Determine selected choiceId
-          const selectedChoiceId = args.selectedChoiceIdBySourceInstanceId[sourceInstanceId];
-          const availableChoiceIds = getRenderableActionChoiceIds(action);
-          const choiceId =
-            phaseKey === 'build.dice_roll' &&
-            actionId === 'CUB#0' &&
-            action.shipDefId === 'CUB'
-              ? (
-                  selectedChoiceId && availableChoiceIds.includes(selectedChoiceId)
-                    ? selectedChoiceId
-                    : getDefaultCubeDiceChoiceId(action)
-                )
-              : selectedChoiceId || availableChoiceIds[0];
+        let actions: any[] = [];
 
-          if (!choiceId) {
-            console.error(
-              `[useGameSession] ${phaseKey}: blocking ready because no valid choice is available for actionKey=${actionId}`
+        if (phaseKey === 'battle.charge_declaration') {
+          const serialized = serializeOrdinaryChargeActions({
+            actions: submissionChoiceActions,
+            selectedChoiceIdBySourceInstanceId: args.selectedChoiceIdBySourceInstanceId,
+            allocatedTargetIdsBySourceInstanceId:
+              args.allocatedDestroyTargetIdsBySourceInstanceId,
+            allocatedTargetIdBySourceInstanceId:
+              args.allocatedDestroyTargetIdBySourceInstanceId,
+          });
+          if (!serialized.ok) {
+            console.warn(
+              `[useGameSession] ${phaseKey}: blocking ready (${serialized.reason}) for ${serialized.sourceInstanceId}`,
             );
             return;
           }
-          
-          // KNO hold is stateful because it stops later reroll passes; ordinary hold means "submit no action".
-          const shouldSubmitHold =
-            phaseKey === 'build.dice_roll' &&
-            actionId === 'KNO#0' &&
-            choiceId === 'hold';
+          actions = serialized.actions;
+        } else {
+          const incompleteTargetedAction = submissionChoiceActions.find((action) =>
+            isRenderableTargetedAction(action) &&
+            args.destroyTargetSatisfiedBySourceInstanceId[action.sourceInstanceId] !== true
+          );
 
-          if (choiceId === 'hold' && !shouldSubmitHold) {
-            continue;
+          if (incompleteTargetedAction) {
+            console.warn(
+              `[useGameSession] ${phaseKey}: blocking ready because targeted action is incomplete for ${incompleteTargetedAction.sourceInstanceId}`
+            );
+            return;
           }
 
-          if (isRenderableTargetedAction(action)) {
-            const targetInstanceIds = getAllocatedTargetIdsForRenderableAction(
-              action,
-              args.allocatedDestroyTargetIdsBySourceInstanceId,
-              args.allocatedDestroyTargetIdBySourceInstanceId
-            );
-            if (targetInstanceIds.length === 0) {
-              console.log(
-                `[useGameSession] Skipping incomplete targeted first-strike action for ${sourceInstanceId}: no allocated target available`
+          // Preserve the existing Dice Roll and First Strike serialization.
+          for (const action of submissionChoiceActions) {
+            const { sourceInstanceId, actionId } = action;
+            const selectedChoiceId = args.selectedChoiceIdBySourceInstanceId[sourceInstanceId];
+            const availableChoiceIds = getRenderableActionChoiceIds(action);
+            const choiceId =
+              phaseKey === 'build.dice_roll' &&
+              actionId === 'CUB#0' &&
+              action.shipDefId === 'CUB'
+                ? (
+                    selectedChoiceId && availableChoiceIds.includes(selectedChoiceId)
+                      ? selectedChoiceId
+                      : getDefaultCubeDiceChoiceId(action)
+                  )
+                : selectedChoiceId || availableChoiceIds[0];
+
+            if (!choiceId) {
+              console.error(
+                `[useGameSession] ${phaseKey}: blocking ready because no valid choice is available for actionKey=${actionId}`
               );
+              return;
+            }
+
+            const shouldSubmitHold =
+              phaseKey === 'build.dice_roll' &&
+              actionId === 'KNO#0' &&
+              choiceId === 'hold';
+            if (choiceId === 'hold' && !shouldSubmitHold) continue;
+
+            if (isRenderableTargetedAction(action)) {
+              const targetInstanceIds = getAllocatedTargetIdsForRenderableAction(
+                action,
+                args.allocatedDestroyTargetIdsBySourceInstanceId,
+                args.allocatedDestroyTargetIdBySourceInstanceId
+              );
+              if (targetInstanceIds.length === 0) continue;
+              actions.push(buildPowerAction({
+                actionId,
+                sourceInstanceId,
+                choiceId,
+                targetInstanceId: targetInstanceIds[0],
+                targetInstanceIds,
+              }));
               continue;
             }
 
-            actions.push(buildPowerAction({
-              actionId,
-              sourceInstanceId,
-              choiceId,
-              targetInstanceId: targetInstanceIds[0],
-              targetInstanceIds,
-            }));
-            continue;
+            actions.push(buildPowerAction({ actionId, sourceInstanceId, choiceId }));
           }
-          
-          // Add to batch
-          actions.push(buildPowerAction({
-            actionId,
-            sourceInstanceId,
-            choiceId,
-          }));
         }
         
         // Submit batch if any actions exist

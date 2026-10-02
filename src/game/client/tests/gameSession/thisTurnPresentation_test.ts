@@ -98,6 +98,7 @@ function base(
       capturedBuildLines: ['Intervention: 1 x FIG'], committedProjection: null,
     },
     ownEstimateMode: overrides.ownEstimateMode ?? 'base',
+    chargeDeclarationState: overrides.chargeDeclarationState ?? { kind: 'none' },
     lastTurn: overrides.lastTurn ?? {
       turnNumber: 3,
       me: { damage: { total: 0, rows: [] }, healing: null },
@@ -197,10 +198,11 @@ Deno.test('matching canonical preview replaces the complete own ledger without s
   assert(!units.some((unit) => unit.source === 'requester_capture'), 'requester rows were concatenated with a complete ledger');
   const card = mapBattleLogThisTurn(canonical);
   assert(card !== null);
+  const mappedLines = lineText(card.me.buildLines);
   assert(
-    JSON.stringify(lineText(card.me.buildLines)) ===
-      JSON.stringify(['EVO', 'Intervention: 1 x FIG', 'FIG (DEF)']),
-    'display mapping did not preserve the composed unit order',
+    JSON.stringify(mappedLines) ===
+      JSON.stringify(['EVO', 'Intervention: 1 x FIG', 'FIG (1 DEF)']),
+    `display mapping did not preserve the composed unit order: ${JSON.stringify(mappedLines)}`,
   );
   assert(canonical.me.damage.current.state === 'value');
   assert(canonical.me.damage.last.state === 'zero');
@@ -1163,13 +1165,13 @@ Deno.test('same-turn pending handoffs retain the complete latest safe metric', (
   });
   const pollingHandoff = base({ kind: 'idle' }, 'battle.charge_declaration', 'player', false, {
     previousPresentation: previousEntry,
+    chargeDeclarationState: { kind: 'awaiting_recovery' },
   });
 
   for (const presentation of [
     pendingDraft,
     submissionHandoff,
     revealHandoff,
-    pollingHandoff,
   ]) {
     assert(
       presentation.me.damage.current === previous.me.damage.current,
@@ -1180,6 +1182,8 @@ Deno.test('same-turn pending handoffs retain the complete latest safe metric', (
       'retention was not metric-complete',
     );
   }
+  assert(pollingHandoff.me.damage.current.state === 'pending');
+  assert(pollingHandoff.me.healing.current.state === 'pending');
 });
 
 Deno.test('fresh metrics replace retention without leaking across game, turn, player, or metric', () => {
@@ -1345,7 +1349,7 @@ Deno.test('authoritative unavailable and privacy frozen statuses remain explicit
   assert(bothUnavailable.me.healing.current.state === 'unavailable');
   assert(bothUnavailable.opponent.healing.current.state === 'unavailable');
 
-  const frozen = base({ kind: 'idle' }, 'battle.charge_declaration', 'player', false, {
+  const frozen = base({ kind: 'idle' }, 'battle.charge_declaration', 'spectator', false, {
     publicThisTurn: {
       ...publicBase,
       estimatesByPlayerId: {
@@ -1840,14 +1844,17 @@ Deno.test('own Ancient metrics select complete Base or Autocast variants without
   }
 });
 
-Deno.test('manual Solar selection uses one matching server pair and never retains another selection', () => {
+Deno.test('complete Charge declaration uses one matching server pair and never retains another declaration', () => {
   const selectionInput: CurrentTurnPreviewCandidateInput = {
     gameId: 'game-1',
     playerId: 'p1',
     turnNumber: 4,
     phaseKey: 'battle.charge_declaration',
     safeContextFingerprint: 'charge-safe',
-    solarSelection: {
+    declaration: {
+      contractVersion: 1,
+      declarationId: 'preview-a',
+      ordinaryChargeActions: [],
       solarCasts: [{ solarPowerId: 'SLIF' }, { solarPowerId: 'SAST' }],
       autocastEnabled: true,
     },
@@ -1863,23 +1870,24 @@ Deno.test('manual Solar selection uses one matching server pair and never retain
         gameId: 'game-1',
         turnNumber: 4,
         phaseKey: 'battle.charge_declaration',
-        sourceContextKey: 'charge-route',
+        sourceContextKey: 'charge-safe',
         draftKey: candidate.draftFingerprint,
-        solarSelectionKey: candidate.solarSelectionFingerprint,
+        declarationFingerprint: candidate.declarationFingerprint,
       },
       playerId: 'p1',
       damage: { total: 2, rows: [] },
       healing: { total: 1, rows: [] },
-      withSolarSelection: {
+      withChargeDeclaration: {
         damage: { total: 9, rows: [{ rowKind: 'solar_power', label: 'Asteroid', amount: 7 }] },
         healing: { total: 4, rows: [{ rowKind: 'solar_power', label: 'Life', amount: 3 }] },
         autocastEnabled: true,
+        declarationFingerprint: candidate.declarationFingerprint!,
       },
       build: { lines: [], skipped: [], remainingOrdinaryLines: 0, remainingJoiningLines: 0 },
     },
   }, 'battle.charge_declaration', 'player', false, {
     activePreviewCandidate: selectionInput,
-    ownEstimateMode: 'solar_selection',
+    chargeDeclarationState: { kind: 'editing' },
   });
   assert(estimated.me.damage.current.state === 'value');
   assert(estimated.me.healing.current.state === 'value');
@@ -1894,7 +1902,9 @@ Deno.test('manual Solar selection uses one matching server pair and never retain
 
   const changedInput: CurrentTurnPreviewCandidateInput = {
     ...selectionInput,
-    solarSelection: {
+    declaration: {
+      ...selectionInput.declaration,
+      declarationId: 'preview-b',
       solarCasts: [{ solarPowerId: 'SSTA' }],
       autocastEnabled: false,
     },
@@ -1904,11 +1914,111 @@ Deno.test('manual Solar selection uses one matching server pair and never retain
     candidate: schedulerCandidate(changedInput, 4),
   }, 'battle.charge_declaration', 'player', false, {
     activePreviewCandidate: changedInput,
-    ownEstimateMode: 'solar_selection',
+    chargeDeclarationState: { kind: 'editing' },
     previousPresentation: { gameId: 'game-1', presentation: estimated },
   });
   assert(changed.me.damage.current.state === 'pending');
   assert(changed.me.healing.current.state === 'pending');
+});
+
+Deno.test('recovered Charge declaration wins before Ready while incomplete drafts never fall back to public Base', () => {
+  const input: CurrentTurnPreviewCandidateInput = {
+    gameId: 'game-1', playerId: 'p1', turnNumber: 4,
+    phaseKey: 'battle.charge_declaration', safeContextFingerprint: 'charge-safe',
+    declaration: {
+      contractVersion: 1, declarationId: 'local-draft',
+      ordinaryChargeActions: [], solarCasts: [], autocastEnabled: false,
+    },
+  };
+  const fingerprint = getCurrentTurnPreviewCandidateIdentity(input).declarationFingerprint!;
+  const publicThisTurn = {
+    identity: { gameId: 'game-1', turnNumber: 4 },
+    battleLog: {
+      turnNumber: 4, diceValue: 2,
+      buildLinesByPlayerId: {}, battleLinesByPlayerId: {}, concealedBuildPlayerIds: [],
+    },
+    estimatesByPlayerId: {
+      p1: {
+        status: 'privacy_frozen', damage: { total: 2, rows: [] },
+        healing: { total: 1, rows: [] }, chargeDeclarationUncertain: true,
+      },
+      p2: {
+        status: 'privacy_frozen', damage: { total: 13, rows: [] },
+        healing: { total: 0, rows: [] }, chargeDeclarationUncertain: true,
+      },
+    },
+  };
+  const requesterThisTurn = {
+    currentProjection: {
+      status: 'estimated',
+      identity: {
+        gameId: 'game-1', turnNumber: 4, phaseKey: 'battle.charge_declaration',
+        sourceContextKey: 'charge-safe', draftKey: 'null',
+        declarationFingerprint: fingerprint,
+      },
+      damage: { total: 2, rows: [] }, healing: { total: 1, rows: [] },
+      withChargeDeclaration: {
+        damage: { total: 9, rows: [{ rowKind: 'ship', label: 'Intervention', amount: 7 }] },
+        healing: { total: 4, rows: [] }, autocastEnabled: false,
+        declarationFingerprint: fingerprint,
+      },
+    },
+  };
+  const recovered = base({
+    kind: 'pending', candidate: schedulerCandidate(input),
+  }, 'battle.charge_declaration', 'player', false, {
+    activePreviewCandidate: input,
+    chargeDeclarationState: { kind: 'recovered' },
+    requesterThisTurn,
+    publicThisTurn,
+  });
+  assert(recovered.me.damage.current.state === 'value');
+  assert(recovered.opponent.damage.current.state === 'value');
+  if (
+    recovered.me.damage.current.state === 'value' &&
+    recovered.opponent.damage.current.state === 'value'
+  ) {
+    assert(recovered.me.damage.current.total === 9);
+    assert(recovered.me.damage.current.chargeDeclarationUncertain !== true);
+    assert(recovered.opponent.damage.current.total === 13);
+    assert(recovered.opponent.damage.current.chargeDeclarationUncertain === true);
+  }
+
+  const incomplete = base({ kind: 'idle' }, 'battle.charge_declaration', 'player', false, {
+    activePreviewCandidate: null,
+    chargeDeclarationState: { kind: 'incomplete', reason: 'incomplete_targeting' },
+    publicThisTurn,
+  });
+  assert(incomplete.me.damage.current.state === 'unavailable');
+});
+
+Deno.test('spectator Charge uncertainty is independent for both public sides', () => {
+  const vm = base({ kind: 'idle' }, 'battle.charge_declaration', 'spectator', false, {
+    chargeDeclarationState: { kind: 'none' },
+    publicThisTurn: {
+      identity: { gameId: 'game-1', turnNumber: 4 },
+      battleLog: {
+        turnNumber: 4, diceValue: 2,
+        buildLinesByPlayerId: {}, battleLinesByPlayerId: {}, concealedBuildPlayerIds: [],
+      },
+      estimatesByPlayerId: {
+        p1: {
+          status: 'privacy_frozen', damage: { total: 0, rows: [] },
+          healing: { total: 1, rows: [] }, chargeDeclarationUncertain: true,
+        },
+        p2: {
+          status: 'privacy_frozen', damage: { total: 13, rows: [] },
+          healing: { total: 2, rows: [] }, chargeDeclarationUncertain: false,
+        },
+      },
+    },
+  });
+  assert(vm.me.damage.current.state === 'zero');
+  assert(vm.opponent.damage.current.state === 'value');
+  if (vm.me.damage.current.state === 'zero' && vm.opponent.damage.current.state === 'value') {
+    assert(vm.me.damage.current.chargeDeclarationUncertain === true);
+    assert(vm.opponent.damage.current.chargeDeclarationUncertain !== true);
+  }
 });
 
 Deno.test('mode changes discard cross-mode retention while same-mode pending retains', () => {

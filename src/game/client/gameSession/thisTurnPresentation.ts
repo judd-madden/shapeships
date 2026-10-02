@@ -50,6 +50,12 @@ export interface ThisTurnPresentationArgs {
   publicThisTurn: unknown;
   requesterThisTurn: unknown;
   ownEstimateMode?: 'base' | 'with_autocast' | 'solar_selection';
+  chargeDeclarationState?:
+    | { kind: 'none' }
+    | { kind: 'editing' }
+    | { kind: 'incomplete'; reason: string }
+    | { kind: 'recovered' }
+    | { kind: 'awaiting_recovery' };
   lastTurn: LastTurnPresentationInput;
   previousPresentation: {
     gameId: string;
@@ -107,6 +113,11 @@ function metric(
   fallback: 'pending' | 'unavailable' | 'concealed' = 'unavailable',
   unavailableReason?: string,
   estimateMode?: 'base' | 'with_autocast',
+  chargeDeclarationUncertain = false,
+  chargeDeclarationIdentity?: {
+    declarationFingerprint: string;
+    sourceContextKey: string;
+  },
 ): ThisTurnMetricVm {
   if (!input) {
     return fallback === 'unavailable' && unavailableReason
@@ -118,6 +129,8 @@ function metric(
     turnNumber,
     source,
     ...(estimateMode ? { estimateMode } : {}),
+    ...(chargeDeclarationUncertain ? { chargeDeclarationUncertain: true } : {}),
+    ...(chargeDeclarationIdentity ? { chargeDeclarationIdentity } : {}),
     total: input.total,
     rows: input.rows,
   };
@@ -128,6 +141,11 @@ type NormalizedEstimate =
       status: 'estimated' | 'privacy_frozen';
       source: 'estimated' | 'turn_start_baseline' | 'privacy_frozen';
       estimateMode: 'base' | 'with_autocast';
+      chargeDeclarationUncertain: boolean;
+      chargeDeclarationIdentity?: {
+        declarationFingerprint: string;
+        sourceContextKey: string;
+      };
       damage: MetricInput;
       healing: MetricInput;
     }
@@ -136,7 +154,7 @@ type NormalizedEstimate =
 function estimateFor(
   value: unknown,
   sourceOverride?: 'turn_start_baseline',
-  selectedMode: 'base' | 'with_autocast' | 'solar_selection' = 'base',
+  selectedMode: 'base' | 'with_autocast' | 'solar_selection' | 'charge_declaration' = 'base',
 ): NormalizedEstimate | null {
   if (!isRecord(value)) return null;
   if (value.status === 'unavailable') {
@@ -167,11 +185,32 @@ function estimateFor(
       typeof value.withSolarSelection.autocastEnabled === 'boolean'
     ? value.withSolarSelection
     : null;
+  const withChargeDeclaration = isRecord(value.withChargeDeclaration) &&
+      isRecord(value.withChargeDeclaration.damage) &&
+      isRecord(value.withChargeDeclaration.healing) &&
+      typeof value.withChargeDeclaration.damage.total === 'number' &&
+      typeof value.withChargeDeclaration.healing.total === 'number' &&
+      Array.isArray(value.withChargeDeclaration.damage.rows) &&
+      Array.isArray(value.withChargeDeclaration.healing.rows) &&
+      typeof value.withChargeDeclaration.autocastEnabled === 'boolean' &&
+      typeof value.withChargeDeclaration.declarationFingerprint === 'string' &&
+      isRecord(value.identity) &&
+      typeof value.identity.declarationFingerprint === 'string' &&
+      value.identity.declarationFingerprint ===
+        value.withChargeDeclaration.declarationFingerprint &&
+      typeof value.identity.sourceContextKey === 'string'
+    ? value.withChargeDeclaration
+    : null;
+  if (selectedMode === 'charge_declaration' && !withChargeDeclaration) return null;
+  const useChargeDeclaration =
+    selectedMode === 'charge_declaration' && withChargeDeclaration !== null;
   const useSolarSelection =
     selectedMode === 'solar_selection' && withSolarSelection !== null;
   const useAutocast =
     selectedMode === 'with_autocast' && withAutocast !== null;
-  const selected = useSolarSelection
+  const selected = useChargeDeclaration
+    ? withChargeDeclaration
+    : useSolarSelection
     ? withSolarSelection
     : useAutocast
       ? withAutocast
@@ -180,9 +219,21 @@ function estimateFor(
     status: value.status,
     source: sourceOverride ?? value.status,
     estimateMode:
-      useAutocast || (useSolarSelection && withSolarSelection.autocastEnabled)
+      useAutocast ||
+        (useSolarSelection && withSolarSelection.autocastEnabled) ||
+        (useChargeDeclaration && withChargeDeclaration.autocastEnabled)
         ? 'with_autocast'
         : 'base',
+    chargeDeclarationUncertain:
+      !useChargeDeclaration && value.chargeDeclarationUncertain === true,
+    ...(useChargeDeclaration
+      ? {
+          chargeDeclarationIdentity: {
+            declarationFingerprint: withChargeDeclaration.declarationFingerprint,
+            sourceContextKey: value.identity.sourceContextKey,
+          },
+        }
+      : {}),
     damage: { total: selected.damage.total, rows: normalizeRows(selected.damage.rows) },
     healing: { total: selected.healing.total, rows: normalizeRows(selected.healing.rows) },
   };
@@ -509,6 +560,7 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
     };
   }
   const isDrawing = args.phaseKey === 'build.drawing';
+  const isChargeDeclaration = args.phaseKey === 'battle.charge_declaration';
   const concealBeforeReveal =
     isDrawing || args.phaseKey === 'build.dice_roll';
   const ownEstimateMode = args.ownEstimateMode ?? 'base';
@@ -539,10 +591,25 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
   const publicOwn = estimateFor(
     args.mePlayerId ? publicEstimates[args.mePlayerId] : null,
   );
+  const chargePreview = activePreview?.kind === 'estimated'
+    ? estimateFor(activePreview.estimate, undefined, 'charge_declaration')
+    : null;
+  const recoveredCharge = args.chargeDeclarationState?.kind === 'recovered'
+    ? estimateFor(requester?.currentProjection, undefined, 'charge_declaration')
+    : null;
+  const chargeOwn = args.viewerRole !== 'player'
+    ? publicOwn
+    : args.chargeDeclarationState?.kind === 'recovered'
+      ? recoveredCharge
+      : args.chargeDeclarationState?.kind === 'editing'
+        ? chargePreview
+        : null;
   const own = concealBeforeReveal && args.viewerRole !== 'player'
     ? null
     : isDrawing
     ? args.viewerRole === 'player' ? committed ?? preview ?? turnStart : null
+    : isChargeDeclaration
+      ? chargeOwn
     : args.viewerRole === 'player' && ownEstimateMode === 'solar_selection'
       ? preview ?? requesterCurrent
     : args.viewerRole === 'player' && ownEstimateMode === 'with_autocast'
@@ -558,8 +625,15 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
     opponent?.status === 'estimated' || opponent?.status === 'privacy_frozen'
       ? opponent
       : null;
+  const chargeUnavailableReason = args.chargeDeclarationState?.kind === 'incomplete'
+    ? args.chargeDeclarationState.reason
+    : args.chargeDeclarationState?.kind === 'recovered' && !recoveredCharge
+      ? 'invalid_recovered_charge_declaration'
+      : undefined;
   const ownFallback = concealBeforeReveal && args.viewerRole !== 'player'
     ? 'concealed'
+    : isChargeDeclaration && args.viewerRole === 'player' && chargeUnavailableReason
+      ? 'unavailable'
     : own?.status === 'unavailable' || activePreview?.kind === 'unavailable'
       ? 'unavailable'
       : 'pending';
@@ -572,6 +646,8 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
   const opponentSource = opponentAvailable?.source ?? 'estimated';
   const ownUnavailableReason = own?.status === 'unavailable'
     ? own.reason
+    : chargeUnavailableReason
+      ? chargeUnavailableReason
     : activePreview?.kind === 'unavailable'
       ? activePreview.reason
       : undefined;
@@ -587,6 +663,8 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         ownFallback,
         ownUnavailableReason,
         ownAvailable?.estimateMode,
+        isChargeDeclaration && ownAvailable?.chargeDeclarationUncertain === true,
+        ownAvailable?.chargeDeclarationIdentity,
       ),
       healing: metric(
         ownAvailable?.healing ?? null,
@@ -595,6 +673,8 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         ownFallback,
         ownUnavailableReason,
         ownAvailable?.estimateMode,
+        isChargeDeclaration && ownAvailable?.chargeDeclarationUncertain === true,
+        ownAvailable?.chargeDeclarationIdentity,
       ),
     },
     opponent: {
@@ -605,6 +685,8 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         opponentFallback,
         opponentUnavailableReason,
         opponentAvailable?.estimateMode,
+        isChargeDeclaration && opponentAvailable?.chargeDeclarationUncertain === true,
+        opponentAvailable?.chargeDeclarationIdentity,
       ),
       healing: metric(
         opponentAvailable?.healing ?? null,
@@ -613,6 +695,8 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         opponentFallback,
         opponentUnavailableReason,
         opponentAvailable?.estimateMode,
+        isChargeDeclaration && opponentAvailable?.chargeDeclarationUncertain === true,
+        opponentAvailable?.chargeDeclarationIdentity,
       ),
     },
   };
@@ -624,14 +708,14 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         args.mePlayerId,
         'damage',
         fresh.me.damage,
-        ownEstimateMode,
+        isChargeDeclaration ? 'charge_declaration' : ownEstimateMode,
       ),
       healing: retainSafeCurrentMetric(
         args,
         args.mePlayerId,
         'healing',
         fresh.me.healing,
-        ownEstimateMode,
+        isChargeDeclaration ? 'charge_declaration' : ownEstimateMode,
       ),
     },
     opponent: {
@@ -658,7 +742,7 @@ function retainSafeCurrentMetric(
   playerId: string | null,
   metricKey: 'damage' | 'healing',
   fresh: ThisTurnMetricVm,
-  selectedMode: 'base' | 'with_autocast' | 'solar_selection',
+  selectedMode: 'base' | 'with_autocast' | 'solar_selection' | 'charge_declaration',
 ): ThisTurnMetricVm {
   if (
     fresh.state === 'zero' ||
@@ -685,6 +769,41 @@ function retainSafeCurrentMetric(
   const previousMetric = previousPlayer?.[metricKey].current;
 
   if (
+    previousMetric &&
+    (previousMetric.state === 'zero' || previousMetric.state === 'value') &&
+    previousMetric.chargeDeclarationUncertain === true &&
+    args.phaseKey !== 'battle.charge_declaration'
+  ) {
+    return fresh;
+  }
+
+  if (selectedMode === 'charge_declaration') {
+    if (
+      !args.activePreviewCandidate ||
+      args.activePreviewCandidate.phaseKey !== 'battle.charge_declaration'
+    ) {
+      return fresh;
+    }
+    const activeIdentity = getCurrentTurnPreviewCandidateIdentity(
+      args.activePreviewCandidate,
+    );
+    const previousIdentity =
+      previousMetric &&
+      (previousMetric.state === 'zero' || previousMetric.state === 'value')
+        ? previousMetric.chargeDeclarationIdentity
+        : undefined;
+    if (
+      previousIdentity?.declarationFingerprint !==
+        activeIdentity.declarationFingerprint ||
+      previousIdentity?.sourceContextKey !==
+        args.activePreviewCandidate.safeContextFingerprint
+    ) {
+      return fresh;
+    }
+  }
+
+  if (
+    selectedMode !== 'charge_declaration' &&
     previousMetric &&
     (previousMetric.state === 'zero' || previousMetric.state === 'value') &&
     (previousMetric.estimateMode ?? 'base') !== selectedMode
