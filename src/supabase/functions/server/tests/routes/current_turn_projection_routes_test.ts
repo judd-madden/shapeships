@@ -246,6 +246,13 @@ function previewRequest(
   );
 }
 
+function chargePreviewRequest(app: Hono, gameId: string, body: any) {
+  return app.request(
+    `/make-server-825e19ab/charge-declaration-preview/${gameId}`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
 async function fullStateBody(state: any, viewer = "p1") {
   const test = fixture(state);
   test.setSession(viewer);
@@ -940,6 +947,126 @@ Deno.test("battle paired estimates are Ancient-requester-only in both orientatio
       false,
     );
   }
+});
+
+Deno.test("Charge Solar preview is requester-only, canonical, stale-safe, and nonmutating", async () => {
+  const state: any = createState("battle.charge_declaration");
+  configureAncientProjectionPlayer(state, "p1");
+  state.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 5;
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId = {
+    p1: structuredClone(state.gameData.ships.p1),
+    p2: structuredClone(state.gameData.ships.p2),
+  };
+  replaceChargeDeclarationVisibilityState(state);
+  const test = fixture(state);
+  const before = structuredClone(test.persistence.store.get(test.key));
+  const envelope = {
+    observed: { turnNumber: 5, phaseKey: "battle.charge_declaration" },
+    solarSelection: {
+      solarCasts: [{ solarPowerId: "SLIF" }],
+      autocastEnabled: true,
+    },
+    requestToken: "solar-1",
+  };
+
+  const response = await chargePreviewRequest(test.app, state.gameId, envelope);
+  assert.equal(response.status, 200);
+  const body: any = await response.json();
+  assert.equal(body.status, "estimated");
+  assert.equal(body.requestToken, "solar-1");
+  assert.equal(body.playerId, "p1");
+  assert.equal(body.withSolarSelection.healing.total, 3);
+  assert.equal(body.withSolarSelection.damage.total, 7);
+  assert.equal(body.withSolarSelection.autocastEnabled, true);
+  assert.equal(typeof body.identity.solarSelectionKey, "string");
+  assert.deepEqual(test.persistence.store.get(test.key), before);
+  assert.equal(test.persistence.writes, 0);
+  assert.equal(test.kvWrites, 0);
+
+  test.setSession("p2");
+  const other = await chargePreviewRequest(test.app, state.gameId, envelope);
+  assert.equal(other.status, 403);
+
+  test.setSession("p1");
+  const unsupported = await chargePreviewRequest(test.app, state.gameId, {
+    ...envelope,
+    solarSelection: {
+      solarCasts: [{ solarPowerId: "SVOR" }],
+      autocastEnabled: true,
+    },
+  });
+  assert.equal(unsupported.status, 400);
+
+  const stale = await chargePreviewRequest(test.app, state.gameId, {
+    ...envelope,
+    observed: {
+      ...envelope.observed,
+      sourceContextKey: "stale-context",
+    },
+  });
+  assert.equal(stale.status, 409);
+  const staleBody: any = await stale.json();
+  assert.equal(staleBody.reason, "source_context_changed");
+  assert.equal(staleBody.retry.allowed, true);
+});
+
+Deno.test("accepted Charge Solar projection replays captured initial energy, not spent live energy", async () => {
+  const state: any = createState("battle.charge_declaration");
+  configureAncientProjectionPlayer(state, "p1");
+  state.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 5;
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId = {
+    p1: structuredClone(state.gameData.ships.p1),
+    p2: structuredClone(state.gameData.ships.p2),
+  };
+  replaceChargeDeclarationVisibilityState(state);
+  state.gameData.ancient.energyByPlayerId.p1.pool = {
+    green: 0,
+    red: 0,
+    blue: 0,
+  };
+  state.gameData.ancient.acceptedDeclarationByPlayerId.p1 = {
+    schemaVersion: 1,
+    contractVersion: 1,
+    declarationId: "accepted-solar",
+    declarationFingerprint: "normalized-on-load",
+    playerId: "p1",
+    context: {
+      contextVersion: 1,
+      battleTurnNumber: 5,
+      initialEnergy: { green: 3, red: 3, blue: 0 },
+      energySourceIds: [],
+    },
+    ordinaryChargeActions: [],
+    solarCasts: [{ solarPowerId: "SLIF" }],
+    autocastEnabled: true,
+  };
+
+  const body: any = await fullStateBody(state, "p1");
+  const selected = body.requester.thisTurn.currentProjection.withSolarSelection;
+  assert.equal(selected.healing.total, 3);
+  assert.equal(selected.damage.total, 7);
+  assert.equal(selected.autocastEnabled, true);
+  const publicOwn = body.publicState.thisTurn.estimatesByPlayerId.p1;
+  assert.equal("withSolarSelection" in publicOwn, false);
+  const otherBody: any = await fullStateBody(state, "p2");
+  assert.equal(JSON.stringify(otherBody).includes("withSolarSelection"), false);
+
+  const acceptedFixture = fixture(state);
+  const alreadyAccepted = await chargePreviewRequest(
+    acceptedFixture.app,
+    state.gameId,
+    {
+      observed: { turnNumber: 5, phaseKey: "battle.charge_declaration" },
+      solarSelection: {
+        solarCasts: [{ solarPowerId: "SLIF" }],
+        autocastEnabled: true,
+      },
+      requestToken: "accepted-retry",
+    },
+  );
+  assert.equal(alreadyAccepted.status, 409);
+  assert.equal((await alreadyAccepted.json()).reason, "already_submitted");
+  assert.equal(acceptedFixture.persistence.writes, 0);
 });
 
 Deno.test("preview bounds, roles, and expired clocks fail without persistence", async () => {

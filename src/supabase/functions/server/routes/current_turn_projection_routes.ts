@@ -4,6 +4,12 @@ import { peekCommitRecord } from "../engine/intent/CommitStore.ts";
 import { getBuildCommitKey } from "../engine/intent/IntentTypes.ts";
 import type { BuildSubmitPayload } from "../engine/intent/IntentTypes.ts";
 import { validateBuildSubmitPayload } from "../engine/intent/buildSubmitValidation.ts";
+import {
+  normalizeChargeDeclarationPayload,
+} from "../engine/intent/chargeDeclarationResolution.ts";
+import {
+  getAcceptedDeclarationForCurrentBattle,
+} from "../engine/intent/chargeDeclarationEligibility.ts";
 import { syncPhaseFields } from "../engine/phase/syncPhaseFields.ts";
 import { normalizeAncientGameState } from "../engine/state/ancientState.ts";
 import {
@@ -25,6 +31,13 @@ const MAX_PREVIEW_BUILD_ENTRIES = 64;
 const MAX_PREVIEW_ATTEMPTS = 200;
 const MAX_PREVIEW_SELECTION_ENTRIES = 200;
 const MAX_PREVIEW_REQUEST_TOKEN_LENGTH = 128;
+const SUPPORTED_SOLAR_PREVIEW_POWER_IDS = new Set([
+  "SLIF",
+  "SSTA",
+  "SAST",
+  "SSUP",
+  "SCON",
+]);
 
 type PreviewPersistence = Pick<IntentPersistence, "load">;
 
@@ -49,6 +62,19 @@ type PreviewRequest = {
     ownBuildCaptureIdentity?: string;
   };
   draft: BuildSubmitPayload;
+  requestToken?: string;
+};
+
+type ChargePreviewRequest = {
+  observed: {
+    turnNumber: number;
+    phaseKey: "battle.charge_declaration";
+    sourceContextKey?: string;
+  };
+  solarSelection: {
+    solarCasts: Array<{ solarPowerId: string }>;
+    autocastEnabled: boolean;
+  };
   requestToken?: string;
 };
 
@@ -115,6 +141,9 @@ function toEstimateIdentityDto(
     phaseKey: identity.sourcePhase,
     sourceContextKey: identity.sourceContextKey,
     draftKey: identity.draftKey,
+    ...(identity.solarSelectionKey
+      ? { solarSelectionKey: identity.solarSelectionKey }
+      : {}),
     ...(ownBuildCaptureIdentity ? { ownBuildCaptureIdentity } : {}),
   };
 }
@@ -174,10 +203,15 @@ function toRequesterEstimateDto(
     includeBuild,
     ownBuildCaptureIdentity,
   );
-  if (result.status === "unavailable" || !result.withAutocast) return base;
-  return {
+  if (
+    result.status === "unavailable" ||
+    (!result.withAutocast && !result.withSolarSelection)
+  ) return base;
+  const withVariants: Record<string, unknown> = {
     ...base,
-    withAutocast: {
+  };
+  if (result.withAutocast) {
+    withVariants.withAutocast = {
       damage: {
         total: result.withAutocast.damage.total,
         rows: structuredClone(result.withAutocast.damage.rows),
@@ -186,13 +220,52 @@ function toRequesterEstimateDto(
         total: result.withAutocast.healing.total,
         rows: structuredClone(result.withAutocast.healing.rows),
       },
-    },
-  };
+    };
+  }
+  if (result.withSolarSelection) {
+    withVariants.withSolarSelection = {
+      damage: {
+        total: result.withSolarSelection.damage.total,
+        rows: structuredClone(result.withSolarSelection.damage.rows),
+      },
+      healing: {
+        total: result.withSolarSelection.healing.total,
+        rows: structuredClone(result.withSolarSelection.healing.rows),
+      },
+      autocastEnabled: result.withSolarSelection.autocastEnabled,
+    };
+  }
+  return withVariants;
 }
 
 function isAncientPlayer(player: Readonly<any>): boolean {
   const species = player?.faction ?? player?.species;
   return typeof species === "string" && species.toLowerCase() === "ancient";
+}
+
+function getSupportedAcceptedSolarSelection(
+  state: any,
+  playerId: string,
+) {
+  const accepted = getAcceptedDeclarationForCurrentBattle(state, playerId);
+  if (
+    !accepted ||
+    !Array.isArray(accepted.solarCasts) ||
+    accepted.solarCasts.length === 0 ||
+    accepted.solarCasts.some((cast: any) =>
+      !isObject(cast) ||
+      !SUPPORTED_SOLAR_PREVIEW_POWER_IDS.has(cast.solarPowerId)
+    ) ||
+    typeof accepted.autocastEnabled !== "boolean" ||
+    !isObject(accepted.context?.initialEnergy)
+  ) {
+    return undefined;
+  }
+  return {
+    solarCasts: structuredClone(accepted.solarCasts),
+    autocastEnabled: accepted.autocastEnabled,
+    initialEnergy: structuredClone(accepted.context.initialEnergy),
+  };
 }
 
 function validatePreviewEnvelope(value: unknown):
@@ -280,6 +353,62 @@ function validatePreviewEnvelope(value: unknown):
     return { ok: false, reason: "preview_bounds_exceeded" };
   }
   return { ok: true, value: value as PreviewRequest };
+}
+
+function validateChargePreviewEnvelope(value: unknown):
+  | { ok: true; value: ChargePreviewRequest }
+  | { ok: false; reason: string } {
+  if (
+    !isObject(value) ||
+    !isObject(value.observed) ||
+    !isObject(value.solarSelection)
+  ) {
+    return { ok: false, reason: "invalid_payload" };
+  }
+  if (
+    !hasOnlyKeys(value, ["observed", "solarSelection", "requestToken"]) ||
+    !hasOnlyKeys(value.observed, [
+      "turnNumber",
+      "phaseKey",
+      "sourceContextKey",
+    ]) ||
+    !hasOnlyKeys(value.solarSelection, ["solarCasts", "autocastEnabled"])
+  ) {
+    return { ok: false, reason: "invalid_payload" };
+  }
+  if (
+    !Number.isInteger(value.observed.turnNumber) ||
+    value.observed.phaseKey !== "battle.charge_declaration" ||
+    (value.observed.sourceContextKey !== undefined &&
+      typeof value.observed.sourceContextKey !== "string") ||
+    typeof value.solarSelection.autocastEnabled !== "boolean" ||
+    !Array.isArray(value.solarSelection.solarCasts)
+  ) {
+    return { ok: false, reason: "invalid_payload" };
+  }
+  if (
+    value.solarSelection.solarCasts.length === 0 ||
+    value.solarSelection.solarCasts.length > MAX_PREVIEW_SELECTION_ENTRIES
+  ) {
+    return { ok: false, reason: "preview_bounds_exceeded" };
+  }
+  if (
+    value.solarSelection.solarCasts.some((cast: unknown) =>
+      !isObject(cast) ||
+      !hasOnlyKeys(cast, ["solarPowerId"]) ||
+      !SUPPORTED_SOLAR_PREVIEW_POWER_IDS.has(cast.solarPowerId)
+    )
+  ) {
+    return { ok: false, reason: "unsupported_solar_selection" };
+  }
+  if (
+    value.requestToken !== undefined &&
+    (typeof value.requestToken !== "string" ||
+      value.requestToken.length > MAX_PREVIEW_REQUEST_TOKEN_LENGTH)
+  ) {
+    return { ok: false, reason: "preview_bounds_exceeded" };
+  }
+  return { ok: true, value: value as ChargePreviewRequest };
 }
 
 function unavailable(
@@ -510,6 +639,180 @@ export function registerCurrentTurnProjectionRoutes(args: {
       return unavailable(c, 500, "internal_error");
     }
   });
+
+  args.app.post(
+    "/make-server-825e19ab/charge-declaration-preview/:gameId",
+    async (c) => {
+      const totalStartedAt = performance.now();
+      try {
+        const authStartedAt = performance.now();
+        const session = await args.requireSession(c);
+        const authMs = performance.now() - authStartedAt;
+        if (session instanceof Response) return session;
+
+        const rawBody = await c.req.text();
+        if (
+          new TextEncoder().encode(rawBody).byteLength > MAX_PREVIEW_BODY_BYTES
+        ) {
+          return unavailable(c, 400, "preview_bounds_exceeded");
+        }
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(rawBody);
+        } catch {
+          return unavailable(c, 400, "invalid_payload");
+        }
+        const envelope = validateChargePreviewEnvelope(parsed);
+        if (!envelope.ok) return unavailable(c, 400, envelope.reason);
+        const { observed, solarSelection, requestToken } = envelope.value;
+
+        const gameId = c.req.param("gameId");
+        const loadStartedAt = performance.now();
+        const loaded = await args.persistence.load(`game_${gameId}`);
+        const loadMs = performance.now() - loadStartedAt;
+        if (loaded.status === "error") {
+          console.error("Charge-preview persistence error:", loaded.error);
+          return unavailable(c, 500, "persistence_error", requestToken);
+        }
+        if (loaded.status === "missing") {
+          return unavailable(c, 404, "game_not_found", requestToken);
+        }
+
+        let state = syncPhaseFields(structuredClone(loaded.value));
+        state = accrueClocks(state, Date.now());
+        state = normalizeAncientGameState(state).state;
+        const participant = state?.players?.find((candidate: any) =>
+          candidate?.id === session.sessionId
+        );
+        if (!participant || participant.role !== "player") {
+          return unavailable(c, 403, "player_role_required", requestToken);
+        }
+        if (!isAncientPlayer(participant)) {
+          return unavailable(c, 403, "ancient_player_required", requestToken);
+        }
+        if (state.status !== "active") {
+          return unavailable(c, 409, "game_unavailable", requestToken);
+        }
+
+        const phaseKey = getPhaseKey(state);
+        const turnNumber = getTurnNumber(state);
+        if (
+          observed.turnNumber !== turnNumber || observed.phaseKey !== phaseKey
+        ) {
+          return c.json({
+            status: "obsolete",
+            reason: "turn_or_phase_changed",
+            ...(requestToken !== undefined ? { requestToken } : {}),
+            retry: { allowed: false, turnNumber, phaseKey },
+          }, 409);
+        }
+        if (
+          getAcceptedDeclarationForCurrentBattle(state, session.sessionId)
+        ) {
+          return unavailable(c, 409, "already_submitted", requestToken);
+        }
+
+        let normalized;
+        try {
+          normalized = normalizeChargeDeclarationPayload({
+            contractVersion: 1,
+            declarationId: "current-turn-preview",
+            ordinaryChargeActions: [],
+            solarCasts: solarSelection.solarCasts,
+            autocastEnabled: solarSelection.autocastEnabled,
+          });
+        } catch {
+          return unavailable(c, 400, "invalid_payload", requestToken);
+        }
+
+        const estimatorStartedAt = performance.now();
+        let result: CurrentTurnEstimateResult;
+        try {
+          result = estimateCurrentTurnForPlayer({
+            state,
+            requestingParticipantId: session.sessionId,
+            playerId: session.sessionId,
+            draft: null,
+            expectedSourceContextKey: observed.sourceContextKey,
+            solarSelection: {
+              solarCasts: normalized.solarCasts,
+              autocastEnabled: normalized.autocastEnabled,
+            },
+          });
+        } catch {
+          return unavailable(c, 400, "invalid_solar_selection", requestToken);
+        }
+        const estimatorMs = performance.now() - estimatorStartedAt;
+        args.timingObserver?.({
+          route: "preview",
+          authMs,
+          loadMs,
+          estimatorMs,
+          estimateCount: 1,
+          totalMs: performance.now() - totalStartedAt,
+        });
+
+        if (
+          result.status === "unavailable" &&
+          result.reason === "source_context_changed"
+        ) {
+          const identity = toEstimateIdentityDto(result.identity);
+          return c.json({
+            status: "obsolete",
+            reason: "source_context_changed",
+            ...(requestToken !== undefined ? { requestToken } : {}),
+            identity,
+            retry: {
+              allowed: true,
+              turnNumber: identity.turnNumber,
+              phaseKey: identity.phaseKey,
+              sourceContextKey: identity.sourceContextKey,
+            },
+          }, 409);
+        }
+        if (result.status === "unavailable" || !result.withSolarSelection) {
+          return c.json({
+            status: "unavailable",
+            reason: result.status === "unavailable"
+              ? result.reason
+              : "invalid_solar_selection",
+            ...(requestToken !== undefined ? { requestToken } : {}),
+            identity: toEstimateIdentityDto(result.identity),
+          }, 409);
+        }
+
+        return c.json({
+          status: "estimated",
+          ...(requestToken !== undefined ? { requestToken } : {}),
+          identity: toEstimateIdentityDto(result.identity),
+          playerId: session.sessionId,
+          damage: {
+            total: result.damage,
+            rows: structuredClone(result.damageRows),
+          },
+          healing: {
+            total: result.healing,
+            rows: structuredClone(result.healingRows),
+          },
+          withSolarSelection: {
+            damage: {
+              total: result.withSolarSelection.damage.total,
+              rows: structuredClone(result.withSolarSelection.damage.rows),
+            },
+            healing: {
+              total: result.withSolarSelection.healing.total,
+              rows: structuredClone(result.withSolarSelection.healing.rows),
+            },
+            autocastEnabled: result.withSolarSelection.autocastEnabled,
+          },
+          build: toBuildDto(result),
+        });
+      } catch (error) {
+        console.error("Charge declaration preview error:", error);
+        return unavailable(c, 500, "internal_error");
+      }
+    },
+  );
 }
 
 export function projectCurrentTurnFieldsForFullState(args: {
@@ -634,11 +937,18 @@ export function projectCurrentTurnFieldsForFullState(args: {
       phaseKey === "battle.first_strike" ||
       phaseKey === "battle.charge_declaration")
   ) {
+    const acceptedSolarSelection = getSupportedAcceptedSolarSelection(
+      state,
+      requester.id,
+    );
     const estimate = estimateCurrentTurnForPlayer({
       state,
       requestingParticipantId: requester.id,
       playerId: requester.id,
       draft: null,
+      ...(acceptedSolarSelection
+        ? { solarSelection: acceptedSolarSelection }
+        : {}),
     });
     estimateCount++;
     requesterThisTurn = {

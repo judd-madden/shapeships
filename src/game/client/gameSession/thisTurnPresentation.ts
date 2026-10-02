@@ -49,7 +49,7 @@ export interface ThisTurnPresentationArgs {
   preview: CurrentTurnPreviewState;
   publicThisTurn: unknown;
   requesterThisTurn: unknown;
-  ownEstimateMode?: 'base' | 'with_autocast';
+  ownEstimateMode?: 'base' | 'with_autocast' | 'solar_selection';
   lastTurn: LastTurnPresentationInput;
   previousPresentation: {
     gameId: string;
@@ -136,7 +136,7 @@ type NormalizedEstimate =
 function estimateFor(
   value: unknown,
   sourceOverride?: 'turn_start_baseline',
-  selectedMode: 'base' | 'with_autocast' = 'base',
+  selectedMode: 'base' | 'with_autocast' | 'solar_selection' = 'base',
 ): NormalizedEstimate | null {
   if (!isRecord(value)) return null;
   if (value.status === 'unavailable') {
@@ -157,12 +157,32 @@ function estimateFor(
       Array.isArray(value.withAutocast.healing.rows)
     ? value.withAutocast
     : null;
-  const useAutocast = selectedMode === 'with_autocast' && withAutocast !== null;
-  const selected = useAutocast ? withAutocast : value;
+  const withSolarSelection = isRecord(value.withSolarSelection) &&
+      isRecord(value.withSolarSelection.damage) &&
+      isRecord(value.withSolarSelection.healing) &&
+      typeof value.withSolarSelection.damage.total === 'number' &&
+      typeof value.withSolarSelection.healing.total === 'number' &&
+      Array.isArray(value.withSolarSelection.damage.rows) &&
+      Array.isArray(value.withSolarSelection.healing.rows) &&
+      typeof value.withSolarSelection.autocastEnabled === 'boolean'
+    ? value.withSolarSelection
+    : null;
+  const useSolarSelection =
+    selectedMode === 'solar_selection' && withSolarSelection !== null;
+  const useAutocast =
+    selectedMode === 'with_autocast' && withAutocast !== null;
+  const selected = useSolarSelection
+    ? withSolarSelection
+    : useAutocast
+      ? withAutocast
+      : value;
   return {
     status: value.status,
     source: sourceOverride ?? value.status,
-    estimateMode: useAutocast ? 'with_autocast' : 'base',
+    estimateMode:
+      useAutocast || (useSolarSelection && withSolarSelection.autocastEnabled)
+        ? 'with_autocast'
+        : 'base',
     damage: { total: selected.damage.total, rows: normalizeRows(selected.damage.rows) },
     healing: { total: selected.healing.total, rows: normalizeRows(selected.healing.rows) },
   };
@@ -173,7 +193,8 @@ function matchingPreview(args: ThisTurnPresentationArgs): Extract<
   { kind: 'estimated' | 'unavailable' | 'pending' }
 > | null {
   if (
-    args.phaseKey !== 'build.drawing' ||
+    (args.phaseKey !== 'build.drawing' &&
+      args.phaseKey !== 'battle.charge_declaration') ||
     !args.activePreviewCandidate ||
     (args.preview.kind !== 'estimated' &&
       args.preview.kind !== 'unavailable' &&
@@ -376,7 +397,7 @@ function buildLiveLog(args: ThisTurnPresentationArgs): ThisTurnLiveLogVm | null 
         draftFingerprint === activePreview.candidate.draftFingerprint
           ? activePreview.estimate
           : null;
-      if (canonicalPreview) {
+      if (canonicalPreview?.build) {
         add(
           meUnits,
           rowUnit('canonical_preview', canonicalPreview.build.lines, draftFingerprint),
@@ -488,6 +509,8 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
     };
   }
   const isDrawing = args.phaseKey === 'build.drawing';
+  const concealBeforeReveal =
+    isDrawing || args.phaseKey === 'build.dice_roll';
   const ownEstimateMode = args.ownEstimateMode ?? 'base';
   const publicDto = validPublicThisTurn(args.publicThisTurn, args);
   const publicEstimates = isRecord(publicDto?.estimatesByPlayerId)
@@ -516,12 +539,16 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
   const publicOwn = estimateFor(
     args.mePlayerId ? publicEstimates[args.mePlayerId] : null,
   );
-  const own = isDrawing
+  const own = concealBeforeReveal && args.viewerRole !== 'player'
+    ? null
+    : isDrawing
     ? args.viewerRole === 'player' ? committed ?? preview ?? turnStart : null
+    : args.viewerRole === 'player' && ownEstimateMode === 'solar_selection'
+      ? preview ?? requesterCurrent
     : args.viewerRole === 'player' && ownEstimateMode === 'with_autocast'
       ? requesterCurrent
       : publicOwn;
-  const opponent = isDrawing ? null : estimateFor(
+  const opponent = concealBeforeReveal ? null : estimateFor(
     args.opponentPlayerId ? publicEstimates[args.opponentPlayerId] : null,
   );
   const ownAvailable = own?.status === 'estimated' || own?.status === 'privacy_frozen'
@@ -531,12 +558,12 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
     opponent?.status === 'estimated' || opponent?.status === 'privacy_frozen'
       ? opponent
       : null;
-  const ownFallback = isDrawing && args.viewerRole !== 'player'
+  const ownFallback = concealBeforeReveal && args.viewerRole !== 'player'
     ? 'concealed'
     : own?.status === 'unavailable' || activePreview?.kind === 'unavailable'
       ? 'unavailable'
       : 'pending';
-  const opponentFallback = isDrawing
+  const opponentFallback = concealBeforeReveal
     ? 'concealed'
     : opponent?.status === 'unavailable'
       ? 'unavailable'
@@ -631,7 +658,7 @@ function retainSafeCurrentMetric(
   playerId: string | null,
   metricKey: 'damage' | 'healing',
   fresh: ThisTurnMetricVm,
-  selectedMode: 'base' | 'with_autocast',
+  selectedMode: 'base' | 'with_autocast' | 'solar_selection',
 ): ThisTurnMetricVm {
   if (
     fresh.state === 'zero' ||
@@ -739,7 +766,10 @@ export function buildThisTurnPresentation(args: ThisTurnPresentationArgs): ThisT
     archiveHandoff: args.archiveRecovery,
     mobile: {
       pairKey: `${args.gameId}::${args.turnNumber}`,
-      opponentDetail: args.phaseKey === 'build.drawing' ? 'last' : 'this_turn',
+      opponentDetail:
+        args.phaseKey === 'build.drawing' || args.phaseKey === 'build.dice_roll'
+          ? 'last'
+          : 'this_turn',
     },
   };
 }

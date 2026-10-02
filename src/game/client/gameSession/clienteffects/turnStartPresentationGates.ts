@@ -132,15 +132,18 @@ function reuseEquivalentTurnStartStatPresentationState(
 
 function createNeutralTurnStartMetricPair(
   turnNumber: number,
+  latest: ThisTurnMetricPairVm,
 ): ThisTurnMetricPairVm {
   return {
-    current: {
-      state: 'zero',
-      turnNumber,
-      source: 'turn_start_baseline',
-      total: 0,
-      rows: [],
-    },
+    current: latest.current.state === 'concealed'
+      ? { state: 'concealed', turnNumber }
+      : {
+          state: 'zero',
+          turnNumber,
+          source: 'turn_start_baseline',
+          total: 0,
+          rows: [],
+        },
     last: {
       state: 'zero',
       turnNumber: Math.max(0, turnNumber - 1),
@@ -156,18 +159,18 @@ export function createNeutralTurnStartStatPresentation(args: {
   turnNumber: number;
   latest: ThisTurnPresentationVm;
 }): ThisTurnPresentationVm {
-  const makePlayer = (playerId: string | null) => ({
-    playerId,
-    damage: createNeutralTurnStartMetricPair(args.turnNumber),
-    healing: createNeutralTurnStartMetricPair(args.turnNumber),
+  const makePlayer = (latest: ThisTurnPresentationVm['me']) => ({
+    playerId: latest.playerId,
+    damage: createNeutralTurnStartMetricPair(args.turnNumber, latest.damage),
+    healing: createNeutralTurnStartMetricPair(args.turnNumber, latest.healing),
   });
 
   return {
     turnNumber: args.turnNumber,
     phaseKey: args.latest.phaseKey,
     liveLog: null,
-    me: makePlayer(args.latest.me.playerId),
-    opponent: makePlayer(args.latest.opponent.playerId),
+    me: makePlayer(args.latest.me),
+    opponent: makePlayer(args.latest.opponent),
     archiveHandoff: null,
     mobile: {
       pairKey: `${args.gameId}::${args.turnNumber}::neutral`,

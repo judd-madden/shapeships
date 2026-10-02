@@ -473,6 +473,109 @@ Deno.test("Charge Declaration freezes fleets and ignores acknowledgements, live 
   assert.equal(after.healing, 0);
 });
 
+Deno.test("Charge Declaration Solar selections resolve in order before Autocast without mutation", () => {
+  const state = createState({ phase: "charge_declaration" }) as any;
+  state.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 5;
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId = {
+    p1: [],
+    p2: [],
+  };
+  state.gameData.ancient.energyByPlayerId.p1 = {
+    battleTurnNumber: 5,
+    pool: { green: 3, red: 3, blue: 2 },
+    sources: [],
+  };
+  replaceChargeDeclarationVisibilityState(state);
+  const before = structuredClone(state);
+
+  const estimate = (
+    solarCasts: Array<{ solarPowerId: "SLIF" | "SSTA" | "SAST" | "SSUP" | "SCON" }>,
+    autocastEnabled: boolean,
+  ) => {
+    const result = estimateCurrentTurnForPlayer({
+      state,
+      requestingParticipantId: "p1",
+      playerId: "p1",
+      draft: null,
+      solarSelection: { solarCasts, autocastEnabled },
+    });
+    assert.notEqual(result.status, "unavailable");
+    if (result.status === "unavailable") throw new Error(result.reason);
+    assert.ok(result.withSolarSelection);
+    return result.withSolarSelection;
+  };
+
+  const life = estimate([{ solarPowerId: "SLIF" }], true);
+  assert.equal(life.healing.total, 3);
+  assert.equal(life.damage.total, 7);
+  assert.deepEqual(
+    life.healing.rows.map((row) => [
+      row.label,
+      row.rowKind === "adjustment" ? null : row.count,
+      row.amount,
+    ]),
+    [["Life", 3, 3]],
+  );
+
+  const asteroid = estimate([{ solarPowerId: "SAST" }], true);
+  assert.equal(asteroid.damage.total, 3);
+  assert.equal(asteroid.healing.total, 8);
+
+  const supernova = estimate([{ solarPowerId: "SSUP" }], true);
+  assert.equal(supernova.damage.total, 7);
+  assert.equal(supernova.healing.total, 8);
+  assert.equal(
+    supernova.damage.rows.filter((row) => row.label === "Supernova").length,
+    1,
+  );
+
+  const manualOnly = estimate([
+    { solarPowerId: "SLIF" },
+    { solarPowerId: "SAST" },
+    { solarPowerId: "SCON" },
+  ], false);
+  assert.equal(manualOnly.healing.total, 1);
+  assert.equal(manualOnly.damage.total, 1);
+  assert.equal(manualOnly.autocastEnabled, false);
+
+  const ordered = estimateCurrentTurnForPlayer({
+    state,
+    requestingParticipantId: "p1",
+    playerId: "p1",
+    draft: null,
+    solarSelection: {
+      solarCasts: [{ solarPowerId: "SLIF" }, { solarPowerId: "SAST" }],
+      autocastEnabled: false,
+    },
+  });
+  const reversed = estimateCurrentTurnForPlayer({
+    state,
+    requestingParticipantId: "p1",
+    playerId: "p1",
+    draft: null,
+    solarSelection: {
+      solarCasts: [{ solarPowerId: "SAST" }, { solarPowerId: "SLIF" }],
+      autocastEnabled: false,
+    },
+  });
+  assert.notEqual(
+    ordered.identity.solarSelectionKey,
+    reversed.identity.solarSelectionKey,
+  );
+
+  const repeated = estimate([
+    { solarPowerId: "SLIF" },
+    { solarPowerId: "SLIF" },
+    { solarPowerId: "SAST" },
+    { solarPowerId: "SAST" },
+    { solarPowerId: "SCON" },
+    { solarPowerId: "SCON" },
+  ], false);
+  assert.equal(repeated.healing.total, 2);
+  assert.equal(repeated.damage.total, 2);
+  assert.deepEqual(state, before);
+});
+
 Deno.test("speculative First Strike selections and pending totals do not enter the estimate", () => {
   const baseline: any = createState({
     phase: "first_strike",

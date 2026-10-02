@@ -381,7 +381,7 @@ Deno.test('pause invalidates in-flight acceptance and resume recovers the draft'
   scheduler.pause('submission_pending');
   pending.resolve({ status: 200, body: estimate({
     observed: { turnNumber: 4, phaseKey: 'build.drawing' },
-    draft: candidate(1).draft,
+    draft: candidate(1).draft!,
     requestToken: '4.1',
   }, 'route-a') });
   await flush();
@@ -426,4 +426,89 @@ Deno.test('preview accepts a complete paired Autocast variant and rejects malfor
   clock.advance(225);
   await flush();
   assert(scheduler.getState().kind === 'unavailable');
+});
+
+Deno.test('Charge Solar candidates fingerprint ordered casts and reject outdated responses', async () => {
+  const clock = new FakeClock();
+  const first = deferred<{ status: number; body: unknown }>();
+  let calls = 0;
+  const chargeCandidate = (
+    solarPowerId: 'SLIF' | 'SAST',
+    autocastEnabled: boolean,
+  ): CurrentTurnPreviewCandidateInput => ({
+    gameId: 'game-1',
+    playerId: 'p1',
+    turnNumber: 4,
+    phaseKey: 'battle.charge_declaration',
+    safeContextFingerprint: 'charge-safe',
+    solarSelection: {
+      solarCasts: [{ solarPowerId }],
+      autocastEnabled,
+    },
+  });
+  const response = (envelope: CurrentTurnPreviewEnvelope) => {
+    const input = chargeCandidate(
+      envelope.solarSelection!.solarCasts[0].solarPowerId as 'SLIF' | 'SAST',
+      envelope.solarSelection!.autocastEnabled,
+    );
+    const identity = getCurrentTurnPreviewCandidateIdentity(input);
+    return {
+      status: 'estimated',
+      requestToken: envelope.requestToken,
+      identity: {
+        gameId: 'game-1',
+        turnNumber: 4,
+        phaseKey: 'battle.charge_declaration',
+        sourceContextKey: 'charge-route',
+        draftKey: 'null-draft',
+        solarSelectionKey: identity.solarSelectionFingerprint,
+      },
+      playerId: 'p1',
+      damage: { total: 0, rows: [] },
+      healing: { total: 0, rows: [] },
+      withSolarSelection: {
+        damage: { total: input.solarSelection!.solarCasts[0].solarPowerId === 'SAST' ? 1 : 0, rows: [] },
+        healing: { total: input.solarSelection!.solarCasts[0].solarPowerId === 'SLIF' ? 1 : 0, rows: [] },
+        autocastEnabled: input.solarSelection!.autocastEnabled,
+      },
+      build: { lines: [], skipped: [], remainingOrdinaryLines: 0, remainingJoiningLines: 0 },
+    };
+  };
+  const scheduler = createCurrentTurnPreviewScheduler({
+    clock,
+    onStateChange: () => {},
+    transport: async (_gameId, envelope) => {
+      calls += 1;
+      return calls === 1
+        ? first.promise
+        : { status: 200, body: response(envelope) };
+    },
+  });
+
+  const life = chargeCandidate('SLIF', true);
+  const asteroid = chargeCandidate('SAST', false);
+  assert(
+    getCurrentTurnPreviewCandidateIdentity(life).identityKey !==
+      getCurrentTurnPreviewCandidateIdentity(asteroid).identityKey,
+  );
+  scheduler.setCandidate(life);
+  clock.advance(225);
+  scheduler.setCandidate(asteroid);
+  clock.advance(225);
+  const firstEnvelope: CurrentTurnPreviewEnvelope = {
+    observed: { turnNumber: 4, phaseKey: 'battle.charge_declaration' },
+    draft: { builds: [] },
+    solarSelection: life.solarSelection,
+    requestToken: '4.1',
+  };
+  first.resolve({ status: 200, body: response(firstEnvelope) });
+  await flush();
+  await flush();
+  const state = scheduler.getState();
+  assert(state.kind === 'estimated');
+  if (state.kind === 'estimated') {
+    assert(state.candidate.solarSelection?.solarCasts[0].solarPowerId === 'SAST');
+    assert(state.estimate.withSolarSelection?.damage.total === 1);
+    assert(state.estimate.withSolarSelection?.autocastEnabled === false);
+  }
 });

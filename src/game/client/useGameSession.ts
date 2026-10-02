@@ -312,6 +312,7 @@ import {
   ANCIENT_BLACK_HOLE_PREVIEW_COST,
   ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID,
   buildAncientChargeDeclarationPayload,
+  buildAncientSolarEstimateSelection,
   canAffordAncientEnergyCost,
   deriveAncientBlackHoleCastability,
   deriveAncientAutocastEntryDecision,
@@ -2878,12 +2879,22 @@ export function useGameSession(
     workflow: activeAncientChargeDeclarationWorkflow,
     frozenAttempt: activeAncientChargeDeclarationAttempt,
   });
+  const ancientSolarEstimateSelection = buildAncientSolarEstimateSelection({
+    casts: ancientSolarPresentationCasts,
+    autocastEnabled:
+      activeAncientChargeDeclarationAttempt?.body.payload.autocastEnabled ??
+      ancientAutocastEnabled,
+  });
   const publicAncientSolarLedgers =
     rawState?.publicState?.ancient?.solarLedgerByPlayerId as Record<string, unknown> | undefined;
   const ownCurrentTurnEstimateMode = deriveAncientCurrentTurnEstimateMode({
     viewerIsAncientPlayer: myRole === 'player' && mySpecies === 'ancient',
     autocastEnabled: ancientAutocastEnabled,
     hasLocalOrFrozenManualSolarCast: ancientSolarPresentationCasts.length > 0,
+    localOrFrozenManualSolarSelectionSupported:
+      ancientSolarEstimateSelection !== null,
+    hasRequesterSolarSelectionProjection:
+      rawState?.requester?.thisTurn?.currentProjection?.withSolarSelection != null,
     authoritativeLedger: me?.id ? publicAncientSolarLedgers?.[me.id] : null,
     turnNumber,
   });
@@ -4030,7 +4041,7 @@ useEffect(() => {
     ],
   );
   const previewRequesterPlayerId = meReadyKey ?? me?.id ?? null;
-  const currentTurnPreviewCandidate = useMemo<CurrentTurnPreviewCandidateInput | null>(() => {
+  const drawingCurrentTurnPreviewCandidate = useMemo<CurrentTurnPreviewCandidateInput | null>(() => {
     const eligible =
       !!effectiveGameId &&
       !!previewRequesterPlayerId &&
@@ -4068,9 +4079,59 @@ useEffect(() => {
     turnNumber,
     canonicalBuildDraft,
   ]);
+  const chargeCurrentTurnPreviewCandidate = useMemo<CurrentTurnPreviewCandidateInput | null>(() => {
+    const eligible =
+      !!effectiveGameId &&
+      !!previewRequesterPlayerId &&
+      phaseKey === 'battle.charge_declaration' &&
+      myRole === 'player' &&
+      mySpecies === 'ancient' &&
+      !isFinished &&
+      !ancientPlayerReady &&
+      ancientSolarEstimateSelection !== null;
+    if (!eligible || !effectiveGameId || !previewRequesterPlayerId || !ancientSolarEstimateSelection) {
+      return null;
+    }
+    const serverSourceContextKey =
+      rawState?.requester?.thisTurn?.currentProjection?.identity?.sourceContextKey;
+    return {
+      gameId: effectiveGameId,
+      playerId: previewRequesterPlayerId,
+      turnNumber,
+      phaseKey: 'battle.charge_declaration',
+      safeContextFingerprint:
+        typeof serverSourceContextKey === 'string'
+          ? serverSourceContextKey
+          : `${effectiveGameId}::${turnNumber}::battle.charge_declaration`,
+      solarSelection: ancientSolarEstimateSelection,
+    };
+  }, [
+    effectiveGameId,
+    previewRequesterPlayerId,
+    phaseKey,
+    myRole,
+    mySpecies,
+    isFinished,
+    ancientPlayerReady,
+    ancientSolarEstimateSelection,
+    rawState?.requester?.thisTurn?.currentProjection?.identity?.sourceContextKey,
+    turnNumber,
+  ]);
+  const currentTurnPreviewCandidate =
+    chargeCurrentTurnPreviewCandidate ?? drawingCurrentTurnPreviewCandidate;
   const currentTurnPreviewTransport = useCallback<CurrentTurnPreviewTransport>(
     async (gameId, envelope) => {
-      const response = await authenticatedPost(`/build-preview/${gameId}`, envelope);
+      const route = envelope.observed.phaseKey === 'battle.charge_declaration'
+        ? `/charge-declaration-preview/${gameId}`
+        : `/build-preview/${gameId}`;
+      const requestBody = envelope.observed.phaseKey === 'battle.charge_declaration'
+        ? {
+            observed: envelope.observed,
+            solarSelection: envelope.solarSelection,
+            requestToken: envelope.requestToken,
+          }
+        : envelope;
+      const response = await authenticatedPost(route, requestBody);
       const text = await response.text();
       let body: unknown = {};
       if (text) {
@@ -4084,8 +4145,9 @@ useEffect(() => {
     },
     [],
   );
-  const currentTurnPreviewPausedReason =
-    buildSubmissionRuntime.kind === 'submission_pending'
+  const currentTurnPreviewPausedReason = phaseKey !== 'build.drawing'
+    ? null
+    : buildSubmissionRuntime.kind === 'submission_pending'
       ? 'submission_pending'
       : buildSubmissionRuntime.kind === 'uncertain'
         ? 'submission_uncertain'

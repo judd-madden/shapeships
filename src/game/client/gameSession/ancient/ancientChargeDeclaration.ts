@@ -65,6 +65,26 @@ export type AncientChargeDeclarationSolarCastPayload =
   | { solarPowerId: 'SBLA'; targetInstanceIds: string[] }
   | { solarPowerId: 'SSIM'; targetInstanceId: string };
 
+export type SupportedAncientSolarEstimatePowerId =
+  | 'SLIF'
+  | 'SSTA'
+  | 'SAST'
+  | 'SSUP'
+  | 'SCON';
+
+export type AncientSolarEstimateSelection = {
+  solarCasts: Array<{ solarPowerId: SupportedAncientSolarEstimatePowerId }>;
+  autocastEnabled: boolean;
+};
+
+const SUPPORTED_ANCIENT_SOLAR_ESTIMATE_POWER_IDS = new Set<string>([
+  'SLIF',
+  'SSTA',
+  'SAST',
+  'SSUP',
+  'SCON',
+]);
+
 export const ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID = {
   SLIF: { green: 1, red: 0, blue: 0 },
   SSTA: { green: 3, red: 0, blue: 0 },
@@ -129,6 +149,26 @@ export function isFixedAncientManualSolarPowerId(
   value: unknown
 ): value is FixedAncientManualSolarPowerId {
   return typeof value === 'string' && FIXED_ANCIENT_MANUAL_SOLAR_POWER_IDS.has(value);
+}
+
+export function buildAncientSolarEstimateSelection(args: {
+  casts: readonly AncientManualSolarCast[];
+  autocastEnabled: boolean;
+}): AncientSolarEstimateSelection | null {
+  if (
+    args.casts.length === 0 ||
+    args.casts.some((cast) =>
+      !SUPPORTED_ANCIENT_SOLAR_ESTIMATE_POWER_IDS.has(cast.solarPowerId)
+    )
+  ) {
+    return null;
+  }
+  return {
+    solarCasts: args.casts.map((cast) => ({
+      solarPowerId: cast.solarPowerId as SupportedAncientSolarEstimatePowerId,
+    })),
+    autocastEnabled: args.autocastEnabled,
+  };
 }
 
 export function snapshotAncientManualSolarCastsForPresentation(

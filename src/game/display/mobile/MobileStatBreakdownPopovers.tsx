@@ -44,7 +44,7 @@ interface StatSectionVm {
   rows: BoardStatBreakdownRowVm[];
   secondaryRows?: Array<{ label: string; amountText: string }>;
   signlessContributions?: boolean;
-  estimateLabel?: 'AUTOCAST ESTIMATE';
+  estimateLabel?: 'ESTIMATE' | 'AUTOCAST ESTIMATE';
 }
 
 const HORIZONTAL_MARGIN_PX = 16;
@@ -315,15 +315,15 @@ function MobileHealthBreakdownCardContent({ card }: { card: HealthBreakdownCardV
       </h3>
       <div className="my-[6px] h-px bg-[var(--shapeships-grey-70)]" />
       <div className="flex items-center justify-between gap-[12px] text-[12px] leading-[17px]">
-        <span className="min-w-0 text-white">{card.healingLabel}</span>
-        <span className="shrink-0 font-bold text-[var(--shapeships-pastel-green)]">
-          {card.healingText}
-        </span>
-      </div>
-      <div className="flex items-center justify-between gap-[12px] text-[12px] leading-[17px]">
         <span className="min-w-0 text-white">{card.damageLabel}</span>
         <span className="shrink-0 font-bold text-[var(--shapeships-pastel-red)]">
           {card.damageText}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-[12px] text-[12px] leading-[17px]">
+        <span className="min-w-0 text-white">{card.healingLabel}</span>
+        <span className="shrink-0 font-bold text-[var(--shapeships-pastel-green)]">
+          {card.healingText}
         </span>
       </div>
       <div className="my-[6px] h-px bg-[var(--shapeships-grey-70)]" />

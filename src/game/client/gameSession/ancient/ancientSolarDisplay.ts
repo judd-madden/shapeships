@@ -71,9 +71,21 @@ export function deriveAncientCurrentTurnEstimateMode(args: {
   viewerIsAncientPlayer: boolean;
   autocastEnabled: boolean;
   hasLocalOrFrozenManualSolarCast: boolean;
+  localOrFrozenManualSolarSelectionSupported?: boolean;
+  hasRequesterSolarSelectionProjection?: boolean;
   authoritativeLedger: unknown;
   turnNumber: number | null;
-}): 'base' | 'with_autocast' {
+}): 'base' | 'with_autocast' | 'solar_selection' {
+  if (
+    args.viewerIsAncientPlayer &&
+    (
+      (args.hasLocalOrFrozenManualSolarCast &&
+        args.localOrFrozenManualSolarSelectionSupported === true) ||
+      args.hasRequesterSolarSelectionProjection === true
+    )
+  ) {
+    return 'solar_selection';
+  }
   if (
     !args.viewerIsAncientPlayer ||
     !args.autocastEnabled ||

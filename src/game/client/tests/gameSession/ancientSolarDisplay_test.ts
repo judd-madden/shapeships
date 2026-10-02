@@ -7,6 +7,7 @@ import {
   deriveAncientSolarDisplayEntries,
   hasCurrentTurnManualAncientSolarCast,
 } from '../../gameSession/ancient/ancientSolarDisplay';
+import { buildAncientSolarEstimateSelection } from '../../gameSession/ancient/ancientChargeDeclaration';
 
 Deno.test('manual Solar estimate fallback only recognizes current-turn manual ledger entries', () => {
   const ledger = {
@@ -52,6 +53,15 @@ Deno.test('Autocast estimate mode responds to preference, local selection, autho
   }), 'base');
   assertEquals(deriveAncientCurrentTurnEstimateMode({
     ...base,
+    hasLocalOrFrozenManualSolarCast: true,
+    localOrFrozenManualSolarSelectionSupported: true,
+  }), 'solar_selection');
+  assertEquals(deriveAncientCurrentTurnEstimateMode({
+    ...base,
+    hasRequesterSolarSelectionProjection: true,
+  }), 'solar_selection');
+  assertEquals(deriveAncientCurrentTurnEstimateMode({
+    ...base,
     authoritativeLedger: {
       battleTurnNumber: 5,
       entries: [{ sourceMode: 'manual' }],
@@ -75,6 +85,32 @@ Deno.test('Autocast estimate mode responds to preference, local selection, autho
     ...base,
     viewerIsAncientPlayer: false,
   }), 'base');
+});
+
+Deno.test('manual Solar preview candidates preserve order and fall back as a whole for unsupported powers', () => {
+  assertEquals(buildAncientSolarEstimateSelection({
+    casts: [
+      { solarPowerId: 'SLIF' },
+      { solarPowerId: 'SAST' },
+      { solarPowerId: 'SCON' },
+    ],
+    autocastEnabled: true,
+  }), {
+    solarCasts: [
+      { solarPowerId: 'SLIF' },
+      { solarPowerId: 'SAST' },
+      { solarPowerId: 'SCON' },
+    ],
+    autocastEnabled: true,
+  });
+  assertEquals(buildAncientSolarEstimateSelection({
+    casts: [{ solarPowerId: 'SLIF' }, { solarPowerId: 'SVOR' }],
+    autocastEnabled: false,
+  }), null, 'one unsupported cast must keep the entire selection on Base');
+  assertEquals(buildAncientSolarEstimateSelection({
+    casts: [],
+    autocastEnabled: true,
+  }), null, 'removing all manual casts must restore ordinary Base/Autocast selection');
 });
 import {
   buildPresentationFleetCountsByLiveRenderKey,

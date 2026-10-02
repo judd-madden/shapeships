@@ -27,9 +27,14 @@ const defaultDraft = {
   builds: [{ shipDefId: 'FIG', count: 1 }, { shipDefId: 'EVO', count: 1 }],
 };
 
+type DrawingPreviewCandidateInput = Extract<
+  CurrentTurnPreviewCandidateInput,
+  { phaseKey: 'build.drawing' }
+>;
+
 function previewCandidate(
-  overrides: Partial<CurrentTurnPreviewCandidateInput> = {},
-): CurrentTurnPreviewCandidateInput {
+  overrides: Partial<DrawingPreviewCandidateInput> = {},
+): DrawingPreviewCandidateInput {
   return {
     gameId: 'game-1',
     playerId: 'p1',
@@ -1548,6 +1553,61 @@ Deno.test('spectators stay concealed during Drawing and unresolved terminal data
   assert(terminal.me.damage.current.state === 'unavailable');
 });
 
+Deno.test('Dice Roll hydration conceals opponent Current while preserving own and Last values', () => {
+  const publicThisTurn = {
+    identity: { gameId: 'game-1', turnNumber: 4 },
+    battleLog: {
+      turnNumber: 4,
+      diceValue: 5,
+      buildLinesByPlayerId: {},
+      battleLinesByPlayerId: {},
+      concealedBuildPlayerIds: ['p1', 'p2'],
+    },
+    estimatesByPlayerId: {
+      p1: {
+        status: 'estimated',
+        damage: { total: 6, rows: [{ rowKind: 'ship', label: 'Fighter', amount: 6 }] },
+        healing: { total: 2, rows: [{ rowKind: 'ship', label: 'Defender', amount: 2 }] },
+      },
+      p2: {
+        status: 'estimated',
+        damage: { total: 99, rows: [{ rowKind: 'ship', label: 'Hidden damage', amount: 99 }] },
+        healing: { total: 88, rows: [{ rowKind: 'ship', label: 'Hidden healing', amount: 88 }] },
+      },
+    },
+  };
+  const player = base({ kind: 'idle' }, 'build.dice_roll', 'player', false, {
+    publicThisTurn,
+  });
+  assert(player.me.damage.current.state === 'value', 'player own Dice Current was not preserved');
+  assert(player.opponent.damage.current.state === 'concealed', 'opponent Dice damage was not concealed');
+  assert(player.opponent.healing.current.state === 'concealed', 'opponent Dice healing was not concealed');
+  const drawing = base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    activePreviewCandidate: null,
+    publicThisTurn,
+  });
+  assert(
+    JSON.stringify(player.opponent.damage.last) ===
+      JSON.stringify(drawing.opponent.damage.last),
+    'opponent Last damage changed between Dice Roll and Drawing',
+  );
+  assert(
+    JSON.stringify(player.opponent.healing.last) ===
+      JSON.stringify(drawing.opponent.healing.last),
+    'opponent Last healing changed between Dice Roll and Drawing',
+  );
+  assert(player.mobile.opponentDetail === 'last', 'Dice mobile detail did not match Drawing');
+
+  const spectator = base({ kind: 'idle' }, 'build.dice_roll', 'spectator', false, {
+    publicThisTurn,
+  });
+  assert(spectator.me.damage.current.state === 'concealed', 'spectator left Dice damage was visible');
+  assert(spectator.me.healing.current.state === 'concealed', 'spectator left Dice healing was visible');
+  assert(spectator.opponent.damage.current.state === 'concealed', 'spectator right Dice damage was visible');
+  assert(spectator.opponent.healing.current.state === 'concealed', 'spectator right Dice healing was visible');
+  assert(spectator.mobile.opponentDetail === 'last', 'spectator Dice mobile detail did not match Drawing');
+});
+
 Deno.test('resolved snapshot keeps previous Last while actual N replaces current estimates', () => {
   const previous = base({ kind: 'idle' });
   const snapshot = buildResolvedThisTurnSnapshot({
@@ -1778,6 +1838,77 @@ Deno.test('own Ancient metrics select complete Base or Autocast variants without
     assert(malformedVm.me.damage.current.total === 2);
     assert(malformedVm.me.damage.current.estimateMode === 'base');
   }
+});
+
+Deno.test('manual Solar selection uses one matching server pair and never retains another selection', () => {
+  const selectionInput: CurrentTurnPreviewCandidateInput = {
+    gameId: 'game-1',
+    playerId: 'p1',
+    turnNumber: 4,
+    phaseKey: 'battle.charge_declaration',
+    safeContextFingerprint: 'charge-safe',
+    solarSelection: {
+      solarCasts: [{ solarPowerId: 'SLIF' }, { solarPowerId: 'SAST' }],
+      autocastEnabled: true,
+    },
+  };
+  const candidate = schedulerCandidate(selectionInput, 3);
+  const estimated = base({
+    kind: 'estimated',
+    candidate,
+    estimate: {
+      status: 'estimated',
+      requestToken: candidate.requestToken,
+      identity: {
+        gameId: 'game-1',
+        turnNumber: 4,
+        phaseKey: 'battle.charge_declaration',
+        sourceContextKey: 'charge-route',
+        draftKey: candidate.draftFingerprint,
+        solarSelectionKey: candidate.solarSelectionFingerprint,
+      },
+      playerId: 'p1',
+      damage: { total: 2, rows: [] },
+      healing: { total: 1, rows: [] },
+      withSolarSelection: {
+        damage: { total: 9, rows: [{ rowKind: 'solar_power', label: 'Asteroid', amount: 7 }] },
+        healing: { total: 4, rows: [{ rowKind: 'solar_power', label: 'Life', amount: 3 }] },
+        autocastEnabled: true,
+      },
+      build: { lines: [], skipped: [], remainingOrdinaryLines: 0, remainingJoiningLines: 0 },
+    },
+  }, 'battle.charge_declaration', 'player', false, {
+    activePreviewCandidate: selectionInput,
+    ownEstimateMode: 'solar_selection',
+  });
+  assert(estimated.me.damage.current.state === 'value');
+  assert(estimated.me.healing.current.state === 'value');
+  if (estimated.me.damage.current.state === 'value' && estimated.me.healing.current.state === 'value') {
+    assert(estimated.me.damage.current.total === 9);
+    assert(estimated.me.healing.current.total === 4);
+    assert(estimated.me.damage.current.rows[0]?.label === 'Asteroid');
+    assert(estimated.me.healing.current.rows[0]?.label === 'Life');
+    assert(estimated.me.damage.current.estimateMode === 'with_autocast');
+    assert(estimated.me.healing.current.estimateMode === 'with_autocast');
+  }
+
+  const changedInput: CurrentTurnPreviewCandidateInput = {
+    ...selectionInput,
+    solarSelection: {
+      solarCasts: [{ solarPowerId: 'SSTA' }],
+      autocastEnabled: false,
+    },
+  };
+  const changed = base({
+    kind: 'pending',
+    candidate: schedulerCandidate(changedInput, 4),
+  }, 'battle.charge_declaration', 'player', false, {
+    activePreviewCandidate: changedInput,
+    ownEstimateMode: 'solar_selection',
+    previousPresentation: { gameId: 'game-1', presentation: estimated },
+  });
+  assert(changed.me.damage.current.state === 'pending');
+  assert(changed.me.healing.current.state === 'pending');
 });
 
 Deno.test('mode changes discard cross-mode retention while same-mode pending retains', () => {

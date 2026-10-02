@@ -107,7 +107,9 @@ function statPresentation(args: {
       damage: args.opponentConcealed
         ? { current: { state: 'concealed', turnNumber: args.turnNumber }, last }
         : pair(),
-      healing: pair(),
+      healing: args.opponentConcealed
+        ? { current: { state: 'concealed', turnNumber: args.turnNumber }, last }
+        : pair(),
     },
   };
 }
@@ -119,6 +121,8 @@ function chargeInclusivePresentation(args: {
   totals: [number, number, number, number];
   lastTotals: [number, number, number, number];
   label: string;
+  opponentConcealed?: boolean;
+  phaseKey?: string;
 }): ThisTurnPresentationVm {
   const pair = (
     total: number,
@@ -159,7 +163,7 @@ function chargeInclusivePresentation(args: {
     turnNumber: args.turnNumber,
     phaseKey: args.source === 'held_actual'
       ? 'battle.end_of_turn_resolution'
-      : 'build.drawing',
+      : args.phaseKey ?? 'build.drawing',
     liveLog: null,
     archiveHandoff: null,
     mobile: {
@@ -173,8 +177,18 @@ function chargeInclusivePresentation(args: {
     },
     opponent: {
       playerId: 'p2',
-      damage: pair(opponentDamage, lastOpponentDamage, 'Opponent damage'),
-      healing: pair(opponentHealing, lastOpponentHealing, 'Opponent healing'),
+      damage: args.opponentConcealed
+        ? {
+            current: { state: 'concealed', turnNumber: args.turnNumber },
+            last: statMetric(lastOpponentDamage, Math.max(0, args.turnNumber - 1), 'last_actual', 'Opponent damage prior'),
+          }
+        : pair(opponentDamage, lastOpponentDamage, 'Opponent damage'),
+      healing: args.opponentConcealed
+        ? {
+            current: { state: 'concealed', turnNumber: args.turnNumber },
+            last: statMetric(lastOpponentHealing, Math.max(0, args.turnNumber - 1), 'last_actual', 'Opponent healing prior'),
+          }
+        : pair(opponentHealing, lastOpponentHealing, 'Opponent healing'),
     },
   };
 }
@@ -527,6 +541,8 @@ Deno.test('resolved actual stats publish before the next-turn dice hold and rema
     totals: [2, 3, 4, 5],
     lastTotals: [14, 5, 11, 6],
     label: 'next',
+    opponentConcealed: true,
+    phaseKey: 'build.dice_roll',
   });
   state = syncTurnStartStatPresentation(state, {
     gameId: 'game-1', orientationKey, turnNumber: 5,
@@ -563,7 +579,7 @@ Deno.test('resolved actual stats publish before the next-turn dice hold and rema
   assertEquals(
     statPresentationSnapshot(state.presented),
     statPresentationSnapshot(nextTurn),
-    'dice settlement must release Turn 5 totals, rows, sources, Last fields, and mobile mode together',
+    'dice settlement must release Turn 5 own totals and opponent concealment together without a zero state',
   );
 });
 
@@ -704,7 +720,7 @@ Deno.test('null stat resets are idempotent while changed reset scope still creat
   assertNotSame(reorientedReset, repeatedScopedReset, 'changed reset orientation must create new state');
 });
 
-Deno.test('a locally presented first-turn roll uses neutral zero stats while settled hydration remains immediate', () => {
+Deno.test('a locally presented first-turn roll keeps own neutral zero and opponent concealment', () => {
   const orientationKey = getTurnStartStatOrientationKey({
     viewerRole: 'player', leftPlayerId: 'p1', rightPlayerId: 'p2',
   });
@@ -715,7 +731,9 @@ Deno.test('a locally presented first-turn roll uses neutral zero stats while set
     gameId: 'game-1', orientationKey, turnNumber: 0,
     presentation: setupPresentation, firstTurnRollPresentationActive: false,
   });
-  const firstEstimate = statPresentation({ turnNumber: 1, total: 7, label: 'Early estimate' });
+  const firstEstimate = statPresentation({
+    turnNumber: 1, total: 7, label: 'Early estimate', opponentConcealed: true,
+  });
   let rolling = syncTurnStartStatPresentation(setupState, {
     gameId: 'game-1', orientationKey, turnNumber: 1,
     presentation: firstEstimate, settledTurnNumber: 0,
@@ -740,12 +758,19 @@ Deno.test('a locally presented first-turn roll uses neutral zero stats while set
   });
   assertEquals(
     neutralMetricValues,
-    Array.from({ length: 4 }, () => ['zero', 0, 'zero', 0]),
-    'all first-turn Current and Last slots should begin at neutral zero',
+    [
+      ['zero', 0, 'zero', 0],
+      ['zero', 0, 'zero', 0],
+      ['concealed', null, 'zero', 0],
+      ['concealed', null, 'zero', 0],
+    ],
+    'first-turn own Current should be neutral while opponent Current remains concealed',
   );
   assertEquals(
     neutralMetrics.flatMap((pair) => [
-      pair?.current.state === 'zero' ? pair.current.rows : ['unexpected'],
+      pair?.current.state === 'zero'
+        ? pair.current.rows
+        : pair?.current.state === 'concealed' ? [] : ['unexpected'],
       pair?.last.state === 'zero' ? pair.last.rows : ['unexpected'],
     ]),
     Array.from({ length: 8 }, () => []),
@@ -756,7 +781,7 @@ Deno.test('a locally presented first-turn roll uses neutral zero stats while set
   rolling = syncTurnStartStatPresentation(rolling, {
     gameId: 'game-1', orientationKey, turnNumber: 1,
     presentation: statPresentation({
-      turnNumber: 1, total: 7, label: 'Early estimate',
+      turnNumber: 1, total: 7, label: 'Early estimate', opponentConcealed: true,
     }),
     settledTurnNumber: 0,
     firstTurnRollPresentationActive: true,
@@ -767,7 +792,9 @@ Deno.test('a locally presented first-turn roll uses neutral zero stats while set
     'an equivalent newly allocated Turn 1 estimate must reuse the neutral hold state',
   );
 
-  const latestEstimate = statPresentation({ turnNumber: 1, total: 11, label: 'Latest estimate' });
+  const latestEstimate = statPresentation({
+    turnNumber: 1, total: 11, label: 'Latest estimate', opponentConcealed: true,
+  });
   rolling = syncTurnStartStatPresentation(rolling, {
     gameId: 'game-1', orientationKey, turnNumber: 1,
     presentation: latestEstimate, settledTurnNumber: null,
@@ -775,12 +802,17 @@ Deno.test('a locally presented first-turn roll uses neutral zero stats while set
   });
   assertNotSame(rolling, initialRolling, 'a genuinely newer Turn 1 estimate must be retained');
   assertEquals(rolling.presented?.me.damage.current.state, 'zero', 'the neutral baseline must survive the roll');
+  assertEquals(
+    rolling.presented?.opponent.damage.current.state,
+    'concealed',
+    'opponent concealment must survive the entire first-turn roll',
+  );
   assertEquals(rolling.latest, latestEstimate, 'the newest Turn 1 estimate must be pending for release');
   const updatedRolling = rolling;
   rolling = syncTurnStartStatPresentation(rolling, {
     gameId: 'game-1', orientationKey, turnNumber: 1,
     presentation: statPresentation({
-      turnNumber: 1, total: 11, label: 'Latest estimate',
+      turnNumber: 1, total: 11, label: 'Latest estimate', opponentConcealed: true,
     }),
     settledTurnNumber: null,
     firstTurnRollPresentationActive: true,
@@ -790,7 +822,7 @@ Deno.test('a locally presented first-turn roll uses neutral zero stats while set
   rolling = syncTurnStartStatPresentation(rolling, {
     gameId: 'game-1', orientationKey, turnNumber: 1,
     presentation: statPresentation({
-      turnNumber: 1, total: 11, label: 'Latest estimate',
+      turnNumber: 1, total: 11, label: 'Latest estimate', opponentConcealed: true,
     }),
     settledTurnNumber: 1,
     firstTurnRollPresentationActive: false,
@@ -801,7 +833,7 @@ Deno.test('a locally presented first-turn roll uses neutral zero stats while set
   rolling = syncTurnStartStatPresentation(rolling, {
     gameId: 'game-1', orientationKey, turnNumber: 1,
     presentation: statPresentation({
-      turnNumber: 1, total: 11, label: 'Latest estimate',
+      turnNumber: 1, total: 11, label: 'Latest estimate', opponentConcealed: true,
     }),
     settledTurnNumber: 1,
     firstTurnRollPresentationActive: false,

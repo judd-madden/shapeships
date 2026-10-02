@@ -189,7 +189,7 @@ Deno.test('mobile HUD fixes stat order and uses desktop value-state formatting',
   assertEquals(buildMobileHudMetricPair(null), { currentText: '0', lastText: '0' });
 });
 
-Deno.test('mobile Autocast qualifier appears below each current estimate only', () => {
+Deno.test('mobile estimate qualifier distinguishes Base and Autocast current estimates', () => {
   const autocastMetrics = playerMetrics(
     pair(
       availableMetric(8, 'estimated', 4, [shipRow], 'with_autocast'),
@@ -225,7 +225,7 @@ Deno.test('mobile Autocast qualifier appears below each current estimate only', 
   assertEquals(
     buildMobileMetricBreakdownGroups({ presentation: presentation(), side: 'me' })
       .primary.map((section) => section.estimateLabel),
-    [undefined, undefined],
+    ['ESTIMATE', 'ESTIMATE'],
   );
 });
 

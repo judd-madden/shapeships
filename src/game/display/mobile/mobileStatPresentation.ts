@@ -40,7 +40,7 @@ export interface MobileMetricBreakdownSectionVm {
   totalText: string;
   tone: MobileMetricKind;
   rows: BoardStatBreakdownRowVm[];
-  estimateLabel?: 'AUTOCAST ESTIMATE';
+  estimateLabel?: 'ESTIMATE' | 'AUTOCAST ESTIMATE';
 }
 
 export interface MobileMetricBreakdownGroupsVm {
@@ -127,9 +127,14 @@ function buildCurrentMetricSection(args: {
       totalText: source.totalText,
       tone: metricKind,
       rows: source.rows,
-      ...((pair.current.state === 'zero' || pair.current.state === 'value') &&
-          pair.current.estimateMode === 'with_autocast'
-        ? { estimateLabel: 'AUTOCAST ESTIMATE' as const }
+      ...(source.kind === 'this_turn_estimate'
+        ? {
+            estimateLabel:
+              (pair.current.state === 'zero' || pair.current.state === 'value') &&
+                pair.current.estimateMode === 'with_autocast'
+              ? 'AUTOCAST ESTIMATE' as const
+              : 'ESTIMATE' as const,
+          }
         : {}),
     };
   }

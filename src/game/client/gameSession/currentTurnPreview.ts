@@ -1,23 +1,35 @@
 import type { CanonicalBuildSubmitPayload } from './intents';
+import type { AncientSolarEstimateSelection } from './ancient/ancientChargeDeclaration';
 
 export const CURRENT_TURN_PREVIEW_DEBOUNCE_MS = 225;
 
-export interface CurrentTurnPreviewCandidateInput {
+interface CurrentTurnPreviewCandidateCommon {
   gameId: string;
   playerId: string;
   turnNumber: number;
-  phaseKey: 'build.drawing';
   safeContextFingerprint: string;
   ownBuildCaptureIdentity?: string;
-  draft: CanonicalBuildSubmitPayload;
 }
 
-export interface CurrentTurnPreviewCandidate extends CurrentTurnPreviewCandidateInput {
+export type CurrentTurnPreviewCandidateInput =
+  | (CurrentTurnPreviewCandidateCommon & {
+      phaseKey: 'build.drawing';
+      draft: CanonicalBuildSubmitPayload;
+      solarSelection?: never;
+    })
+  | (CurrentTurnPreviewCandidateCommon & {
+      phaseKey: 'battle.charge_declaration';
+      solarSelection: AncientSolarEstimateSelection;
+      draft?: never;
+    });
+
+export type CurrentTurnPreviewCandidate = CurrentTurnPreviewCandidateInput & {
   generation: number;
   draftFingerprint: string;
+  solarSelectionFingerprint?: string;
   identityKey: string;
   requestToken: string;
-}
+};
 
 export interface CurrentTurnPreviewEstimate {
   status: 'estimated';
@@ -28,6 +40,7 @@ export interface CurrentTurnPreviewEstimate {
     phaseKey: string;
     sourceContextKey: string;
     draftKey: string;
+    solarSelectionKey?: string;
     ownBuildCaptureIdentity?: string;
   };
   playerId: string;
@@ -36,6 +49,11 @@ export interface CurrentTurnPreviewEstimate {
   withAutocast?: {
     damage: { total: number; rows: unknown[] };
     healing: { total: number; rows: unknown[] };
+  };
+  withSolarSelection?: {
+    damage: { total: number; rows: unknown[] };
+    healing: { total: number; rows: unknown[] };
+    autocastEnabled: boolean;
   };
   build: {
     lines: string[];
@@ -70,11 +88,12 @@ export type CurrentTurnPreviewState =
 export interface CurrentTurnPreviewEnvelope {
   observed: {
     turnNumber: number;
-    phaseKey: 'build.drawing';
+    phaseKey: 'build.drawing' | 'battle.charge_declaration';
     sourceContextKey?: string;
     ownBuildCaptureIdentity?: string;
   };
   draft: CanonicalBuildSubmitPayload;
+  solarSelection?: AncientSolarEstimateSelection;
   requestToken: string;
 }
 
@@ -136,10 +155,20 @@ export function getCanonicalDraftFingerprint(draft: CanonicalBuildSubmitPayload)
 
 export function getCurrentTurnPreviewCandidateIdentity(
   input: CurrentTurnPreviewCandidateInput,
-): { draftFingerprint: string; identityKey: string } {
-  const draftFingerprint = getCanonicalDraftFingerprint(input.draft);
+): {
+  draftFingerprint: string;
+  solarSelectionFingerprint?: string;
+  identityKey: string;
+} {
+  const draftFingerprint = input.phaseKey === 'build.drawing'
+    ? getCanonicalDraftFingerprint(input.draft ?? { builds: [] })
+    : fingerprintValue(null);
+  const solarSelectionFingerprint = input.phaseKey === 'battle.charge_declaration'
+    ? fingerprintValue(input.solarSelection ?? null)
+    : undefined;
   return {
     draftFingerprint,
+    ...(solarSelectionFingerprint ? { solarSelectionFingerprint } : {}),
     identityKey: stableSerialize({
       gameId: input.gameId,
       playerId: input.playerId,
@@ -148,6 +177,7 @@ export function getCurrentTurnPreviewCandidateIdentity(
       safeContextFingerprint: input.safeContextFingerprint,
       ownBuildCaptureIdentity: input.ownBuildCaptureIdentity ?? 'capture:unknown',
       draftFingerprint,
+      solarSelectionFingerprint,
     }),
   };
 }
@@ -278,16 +308,18 @@ function asEstimate(value: unknown): CurrentTurnPreviewEstimate | null {
     typeof value.identity.phaseKey !== 'string' ||
     typeof value.identity.sourceContextKey !== 'string' ||
     typeof value.identity.draftKey !== 'string' ||
+    (value.identity.solarSelectionKey !== undefined &&
+      typeof value.identity.solarSelectionKey !== 'string') ||
     (value.identity.ownBuildCaptureIdentity !== undefined &&
       typeof value.identity.ownBuildCaptureIdentity !== 'string') ||
     typeof value.playerId !== 'string' ||
     !isRecord(value.damage) ||
     !isRecord(value.healing) ||
-    !isRecord(value.build) ||
     typeof value.damage.total !== 'number' ||
     typeof value.healing.total !== 'number' ||
     !Array.isArray(value.damage.rows) ||
     !Array.isArray(value.healing.rows) ||
+    !isRecord(value.build) ||
     !Array.isArray(value.build.lines) ||
     (value.withAutocast !== undefined && (
       !isRecord(value.withAutocast) ||
@@ -297,6 +329,16 @@ function asEstimate(value: unknown): CurrentTurnPreviewEstimate | null {
       typeof value.withAutocast.healing.total !== 'number' ||
       !Array.isArray(value.withAutocast.damage.rows) ||
       !Array.isArray(value.withAutocast.healing.rows)
+    )) ||
+    (value.withSolarSelection !== undefined && (
+      !isRecord(value.withSolarSelection) ||
+      !isRecord(value.withSolarSelection.damage) ||
+      !isRecord(value.withSolarSelection.healing) ||
+      typeof value.withSolarSelection.damage.total !== 'number' ||
+      typeof value.withSolarSelection.healing.total !== 'number' ||
+      !Array.isArray(value.withSolarSelection.damage.rows) ||
+      !Array.isArray(value.withSolarSelection.healing.rows) ||
+      typeof value.withSolarSelection.autocastEnabled !== 'boolean'
     ))
   ) {
     return null;
@@ -339,7 +381,7 @@ export function createCurrentTurnPreviewScheduler(args: {
     timer = null;
   };
   const scopeKey = (candidate: CurrentTurnPreviewCandidate): string =>
-    `${candidate.gameId}::${candidate.playerId}::${candidate.turnNumber}`;
+    `${candidate.gameId}::${candidate.playerId}::${candidate.turnNumber}::${candidate.phaseKey}`;
   const remainsCurrent = (candidate: CurrentTurnPreviewCandidate, epoch: number): boolean =>
     !disposed &&
     pausedReason === null &&
@@ -350,18 +392,29 @@ export function createCurrentTurnPreviewScheduler(args: {
   const buildEnvelope = (
     candidate: CurrentTurnPreviewCandidate,
     sourceContextKey?: string,
-  ): CurrentTurnPreviewEnvelope => ({
-    observed: {
-      turnNumber: candidate.turnNumber,
-      phaseKey: candidate.phaseKey,
-      ...(candidate.ownBuildCaptureIdentity
-        ? { ownBuildCaptureIdentity: candidate.ownBuildCaptureIdentity }
-        : {}),
-      ...(sourceContextKey ? { sourceContextKey } : {}),
-    },
-    draft: candidate.draft,
-    requestToken: candidate.requestToken,
-  });
+  ): CurrentTurnPreviewEnvelope => candidate.phaseKey === 'build.drawing'
+    ? {
+        observed: {
+          turnNumber: candidate.turnNumber,
+          phaseKey: candidate.phaseKey,
+          ...(candidate.ownBuildCaptureIdentity
+            ? { ownBuildCaptureIdentity: candidate.ownBuildCaptureIdentity }
+            : {}),
+          ...(sourceContextKey ? { sourceContextKey } : {}),
+        },
+        draft: candidate.draft ?? { builds: [] },
+        requestToken: candidate.requestToken,
+      }
+    : {
+        observed: {
+          turnNumber: candidate.turnNumber,
+          phaseKey: candidate.phaseKey,
+          ...(sourceContextKey ? { sourceContextKey } : {}),
+        },
+        draft: { builds: [] },
+        solarSelection: candidate.solarSelection!,
+        requestToken: candidate.requestToken,
+      };
 
   const launch = async (candidate: CurrentTurnPreviewCandidate): Promise<void> => {
     if (disposed || pausedReason !== null || inFlight !== null) return;
@@ -418,6 +471,9 @@ export function createCurrentTurnPreviewScheduler(args: {
           estimate.identity.phaseKey === candidate.phaseKey &&
           (candidate.ownBuildCaptureIdentity === undefined ||
             estimate.identity.ownBuildCaptureIdentity === candidate.ownBuildCaptureIdentity) &&
+          (candidate.phaseKey !== 'battle.charge_declaration' ||
+            estimate.identity.solarSelectionKey ===
+              candidate.solarSelectionFingerprint) &&
           estimate.playerId === candidate.playerId
         ) {
           routeKeyByScope.set(scope, estimate.identity.sourceContextKey);
@@ -469,7 +525,7 @@ export function createCurrentTurnPreviewScheduler(args: {
       if (pausedReason === null) publish({ kind: 'idle' });
       return;
     }
-    const { draftFingerprint, identityKey } =
+    const { draftFingerprint, solarSelectionFingerprint, identityKey } =
       getCurrentTurnPreviewCandidateIdentity(input);
     if (!force && current?.identityKey === identityKey) return;
     generation += 1;
@@ -478,6 +534,7 @@ export function createCurrentTurnPreviewScheduler(args: {
       ...input,
       generation,
       draftFingerprint,
+      ...(solarSelectionFingerprint ? { solarSelectionFingerprint } : {}),
       identityKey,
       requestToken: `${input.turnNumber}.${generation}`,
     };

@@ -16,6 +16,7 @@ import {
 } from "./battleLogHistory.ts";
 import type {
   AncientEnergyPool,
+  AncientNormalizedSolarCast,
   GameState,
   LastTurnBreakdownRow,
   ShipInstance,
@@ -63,6 +64,7 @@ export type CurrentTurnEstimateIdentity = {
   sourcePhase: string;
   sourceContextKey: string;
   draftKey: string;
+  solarSelectionKey?: string;
   evaluatedDraft: BuildSubmitPayload | null;
 };
 
@@ -103,6 +105,9 @@ export type CurrentTurnEstimateAvailableResult = CurrentTurnEstimateBase & {
   damageRows: LastTurnBreakdownRow[];
   healingRows: LastTurnBreakdownRow[];
   withAutocast?: CurrentTurnHealthProjection;
+  withSolarSelection?: CurrentTurnHealthProjection & {
+    autocastEnabled: boolean;
+  };
   build: CurrentTurnBuildFacts;
   reveal: {
     solarGridChargeTransitions: SolarGridRevealTransition[];
@@ -136,6 +141,13 @@ export type EstimateCurrentTurnForPlayerArgs = {
   draft: BuildSubmitPayload | null;
   drawingMode?: "draft_preview" | "turn_start_baseline";
   expectedSourceContextKey?: string;
+  solarSelection?: CurrentTurnSolarSelection;
+};
+
+export type CurrentTurnSolarSelection = {
+  solarCasts: AncientNormalizedSolarCast[];
+  autocastEnabled: boolean;
+  initialEnergy?: AncientEnergyPool;
 };
 
 type PreparedEstimateState = {
@@ -234,6 +246,7 @@ function baseIdentity(args: {
   phaseKey: string;
   draft: BuildSubmitPayload | null;
   sourceContext: unknown;
+  solarSelection?: CurrentTurnSolarSelection;
 }): CurrentTurnEstimateIdentity {
   return {
     gameId: typeof args.state?.gameId === "string" ? args.state.gameId : "",
@@ -241,6 +254,14 @@ function baseIdentity(args: {
     sourcePhase: args.phaseKey,
     sourceContextKey: hashStableValue(args.sourceContext),
     draftKey: getCurrentTurnDraftKey(args.draft),
+    ...(args.solarSelection
+      ? {
+        solarSelectionKey: hashStableValue({
+          solarCasts: args.solarSelection.solarCasts,
+          autocastEnabled: args.solarSelection.autocastEnabled,
+        }),
+      }
+      : {}),
     evaluatedDraft: cloneDraft(args.draft),
   };
 }
@@ -260,6 +281,7 @@ function unavailable(
       phaseKey: args.phaseKey,
       draft: args.draft,
       sourceContext: { reason: args.reason },
+      solarSelection: args.solarSelection,
     }),
   };
 }
@@ -472,7 +494,8 @@ function prepareEstimateState(
   )!;
   let includeAutocast =
     args.requestingParticipantId === args.playerId &&
-    isAncientPlayer(estimatedPlayer);
+    isAncientPlayer(estimatedPlayer) &&
+    args.solarSelection === undefined;
 
   const drawing = phaseKey === "build.drawing";
   const drawingMode = drawing
@@ -502,6 +525,16 @@ function prepareEstimateState(
   }
   if (!drawing && args.draft !== null) {
     return unavailable({ ...args, phaseKey, reason: "draft_not_allowed" });
+  }
+  if (
+    args.solarSelection !== undefined &&
+    (
+      drawing ||
+      args.requestingParticipantId !== args.playerId ||
+      !isAncientPlayer(estimatedPlayer)
+    )
+  ) {
+    return unavailable({ ...args, phaseKey, reason: "invalid_requester" });
   }
 
   let visibleSource: Readonly<any> = args.state;
@@ -566,16 +599,38 @@ function prepareEstimateState(
           ancientProjection.energyByPlayerId[args.playerId] ?? null;
       }
     }
+    if (args.solarSelection?.initialEnergy) {
+      recordedRequesterAncientEnergy = {
+        battleTurnNumber: turnNumber,
+        pool: cloneAncientEnergyPool(args.solarSelection.initialEnergy),
+        sources: [],
+      };
+    } else if (args.solarSelection) {
+      const ancientProjection = projectChargeDeclarationAncientForViewer(
+        args.state,
+      );
+      if (ancientProjection.projectionAvailable) {
+        recordedRequesterAncientEnergy =
+          ancientProjection.energyByPlayerId[args.playerId] ?? null;
+      }
+    }
   } else {
     fleets = structuredClone(args.state.gameData?.ships ?? {});
     if (includeAutocast) {
       recordedRequesterAncientEnergy =
         args.state.gameData?.ancient?.energyByPlayerId?.[args.playerId] ?? null;
     }
+    if (args.solarSelection?.initialEnergy) {
+      recordedRequesterAncientEnergy = {
+        battleTurnNumber: turnNumber,
+        pool: cloneAncientEnergyPool(args.solarSelection.initialEnergy),
+        sources: [],
+      };
+    }
   }
 
   if (
-    includeAutocast &&
+    (includeAutocast || args.solarSelection !== undefined) &&
     !drawing &&
     (!isObject(recordedRequesterAncientEnergy) ||
       recordedRequesterAncientEnergy.battleTurnNumber !== turnNumber ||
@@ -882,6 +937,7 @@ export function estimateCurrentTurnForPlayer(
     phaseKey: prepared.phaseKey,
     draft: args.draft,
     sourceContext: prepared.state,
+    solarSelection: args.solarSelection,
   });
   if (
     typeof args.expectedSourceContextKey === "string" &&
@@ -967,6 +1023,49 @@ export function estimateCurrentTurnForPlayer(
       opponentPlayerId: prepared.opponentPlayerId,
     });
   }
+  let withSolarSelection:
+    | (CurrentTurnHealthProjection & { autocastEnabled: boolean })
+    | undefined;
+  if (args.solarSelection) {
+    const initialEnergy = cloneAncientEnergyPool(
+      workingState.gameData.ancient?.energyByPlayerId?.[args.playerId]?.pool,
+    );
+    const manual = resolveSolarCastSequence({
+      state: structuredClone(workingState),
+      playerId: args.playerId,
+      declarationId: `current-turn-selection:${identity.solarSelectionKey}`,
+      battleTurnNumber: prepared.turnNumber,
+      initialEnergy,
+      casts: structuredClone(args.solarSelection.solarCasts),
+      resolvers: PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
+      sourceMode: "manual",
+      initialLedgerOrder: 0,
+    });
+    let selectedState = manual.state;
+    if (args.solarSelection.autocastEnabled) {
+      const autocast = resolveSolarCastSequence({
+        state: selectedState,
+        playerId: args.playerId,
+        declarationId: `current-turn-selection:${identity.solarSelectionKey}`,
+        battleTurnNumber: prepared.turnNumber,
+        initialEnergy: manual.remainingEnergy,
+        casts: buildMonoColourAutocastCasts(manual.remainingEnergy),
+        resolvers: PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
+        sourceMode: "autocast",
+        initialLedgerOrder: manual.ledgerEntries.length,
+        initialCastIndex: manual.acceptedCasts.length,
+      });
+      selectedState = autocast.state;
+    }
+    withSolarSelection = {
+      ...evaluateHealthProjection({
+        state: selectedState,
+        playerId: args.playerId,
+        opponentPlayerId: prepared.opponentPlayerId,
+      }),
+      autocastEnabled: args.solarSelection.autocastEnabled,
+    };
+  }
   const simulatedPlayer = workingState.players.find((player) =>
     player.id === args.playerId
   );
@@ -987,6 +1086,7 @@ export function estimateCurrentTurnForPlayer(
     damageRows: baseProjection.damage.rows,
     healingRows: baseProjection.healing.rows,
     ...(withAutocast ? { withAutocast } : {}),
+    ...(withSolarSelection ? { withSolarSelection } : {}),
     build: {
       lines: buildRows.map((row) => row.line),
       rows: buildRows,
