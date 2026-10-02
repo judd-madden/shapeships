@@ -82,6 +82,24 @@ Deno.test('no-input Charge Declaration auto-readies and advances directly throug
   assert.equal(result.state.gameData.turnData.chargeDeclarationAcknowledgements, undefined);
 });
 
+Deno.test('First Strike auto-ready does not create a temporary Charge declaration', () => {
+  const state = createDeclarationState({
+    p1Ships: [{ instanceId: 'p1-gua', shipDefId: 'GUA', chargesCurrent: 1 }],
+    p2Ships: [{ instanceId: 'p2-def', shipDefId: 'DEF' }],
+  });
+  const result = onEnterPhase(state, 'battle.reveal', 'battle.first_strike', 99);
+
+  assert.equal(result.state.gameData.currentSubPhase, 'first_strike');
+  assert.equal(
+    result.state.gameData.turnData.acceptedChargeDeclarationsByPlayerId,
+    undefined,
+  );
+  assert.equal(
+    result.state.gameData.turnData.chargeDeclarationAcceptedOrdinaryActionsByPlayerId,
+    undefined,
+  );
+});
+
 Deno.test('mixed Declaration eligibility waits for the active player then advances directly through End of Turn', async () => {
   const entered = enteredDeclaration(createDeclarationState({
     p2Ships: [{ instanceId: 'p2-int', shipDefId: 'INT', chargesCurrent: 1 }],
@@ -98,6 +116,11 @@ Deno.test('mixed Declaration eligibility waits for the active player then advanc
   assert.equal(
     entered.state.gameData.phaseReadiness.some((entry: any) => entry.playerId === 'p2'),
     false,
+  );
+  assert.deepEqual(
+    entered.state.gameData.turnData.acceptedChargeDeclarationsByPlayerId?.p1
+      ?.ordinaryChargeActions,
+    [],
   );
 
   const action = await applyIntent(entered.state, 'p2', {

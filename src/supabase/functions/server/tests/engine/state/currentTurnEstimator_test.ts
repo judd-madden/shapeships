@@ -576,6 +576,164 @@ Deno.test("Charge Declaration Solar selections resolve in order before Autocast 
   assert.deepEqual(state, before);
 });
 
+Deno.test("withChargeDeclaration covers advanced Solar resolvers and remaining-energy Autocast", () => {
+  const estimate = (
+    solarCasts: Array<{
+      solarPowerId: "SSIP" | "SVOR" | "SBLA" | "SSIM";
+      targetInstanceId?: string;
+      targetInstanceIds?: string[];
+      lockedAmount?: number;
+    }>,
+    energy: { green: number; red: number; blue: number },
+    autocastEnabled = false,
+  ) => {
+    const state = createState({
+      phase: "charge_declaration",
+      p1Fleet: [ship("plu", "PLU"), ship("mer", "MER")],
+      p2Fleet: [ship("enemy-def", "DEF"), ship("enemy-fig", "FIG")],
+    }) as any;
+    state.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 5;
+    state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId =
+      structuredClone(state.gameData.ships);
+    state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
+      p1: [],
+      p2: [],
+    };
+    state.gameData.ancient.energyByPlayerId.p1 = {
+      battleTurnNumber: 5,
+      pool: energy,
+      sources: [],
+    };
+    replaceChargeDeclarationVisibilityState(state);
+    const before = structuredClone(state);
+    const result = estimateCurrentTurnForPlayer({
+      state,
+      requestingParticipantId: "p1",
+      playerId: "p1",
+      draft: null,
+      chargeDeclaration: {
+        contractVersion: 1,
+        declarationId: `advanced-${solarCasts[0].solarPowerId}`,
+        ordinaryChargeActions: [],
+        solarCasts,
+        autocastEnabled,
+      },
+    });
+    assert.notEqual(result.status, "unavailable");
+    if (result.status === "unavailable") throw new Error(result.reason);
+    assert.ok(result.withChargeDeclaration);
+    assert.deepEqual(state, before);
+    return result.withChargeDeclaration;
+  };
+
+  const siphon = estimate(
+    [{ solarPowerId: "SSIP", lockedAmount: 4 }],
+    { green: 7, red: 7, blue: 0 },
+    true,
+  );
+  assert.deepEqual(
+    siphon.damage.rows.map((row) => row.label),
+    ["Siphon", "Supernova"],
+  );
+  assert.deepEqual(
+    siphon.healing.rows.map((row) => row.label),
+    ["Siphon", "Star Birth"],
+  );
+
+  const vortex = estimate(
+    [{ solarPowerId: "SVOR" }],
+    { green: 2, red: 2, blue: 2 },
+  );
+  assert.equal(vortex.damage.total, 4);
+  assert.deepEqual(vortex.damage.rows.map((row) => row.label), ["Vortex"]);
+
+  const blackHole = estimate(
+    [{
+      solarPowerId: "SBLA",
+      targetInstanceIds: ["enemy-def", "enemy-fig"],
+    }],
+    { green: 4, red: 4, blue: 4 },
+  );
+  assert.equal(blackHole.damage.total, 2);
+  assert.deepEqual(blackHole.damage.rows.map((row) => row.label), ["Black Hole"]);
+
+  const simulacrum = estimate(
+    [{ solarPowerId: "SSIM", targetInstanceId: "enemy-def" }],
+    { green: 0, red: 0, blue: 100 },
+  );
+  assert.equal(simulacrum.damage.total, 0);
+  assert.equal(simulacrum.healing.total, 0);
+  assert.deepEqual(simulacrum.damage.rows, []);
+  assert.deepEqual(simulacrum.healing.rows, []);
+});
+
+Deno.test("Charge declaration variants retain First Strike and collect automatic effects exactly once", () => {
+  const state = createState({
+    phase: "charge_declaration",
+    p1Faction: "human",
+    p1Fleet: [
+      ship("int", "INT", { chargesCurrent: 1 }),
+      ship("bat", "BAT"),
+    ],
+  }) as any;
+  state.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 5;
+  state.gameData.pendingTurn = {
+    damageByPlayerId: { p2: 4 },
+    healByPlayerId: {},
+    breakdownEntries: [{
+      effectId: "first-strike-public",
+      kind: "Damage",
+      ownerPlayerId: "p1",
+      targetPlayerId: "p2",
+      sourceLabel: "First Strike",
+      baseAmount: 4,
+      finalAmount: 4,
+    }],
+  };
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId =
+    structuredClone(state.gameData.ships);
+  state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
+    p1: ["int"],
+    p2: [],
+  };
+  replaceChargeDeclarationVisibilityState(state);
+
+  const result = estimateCurrentTurnForPlayer({
+    state,
+    requestingParticipantId: "p1",
+    playerId: "p1",
+    draft: null,
+    chargeDeclaration: {
+      contractVersion: 1,
+      declarationId: "first-strike-plus-charge",
+      ordinaryChargeActions: [{
+        actionType: "power",
+        actionId: "INT#0",
+        sourceInstanceId: "int",
+        choiceId: "damage",
+      }],
+      solarCasts: [],
+      autocastEnabled: false,
+    },
+  });
+  assert.notEqual(result.status, "unavailable");
+  if (result.status === "unavailable") throw new Error(result.reason);
+  assert.equal(result.damage, 6);
+  assert.equal(result.healing, 3);
+  assert.equal(
+    result.damageRows.filter((row) => row.label === "First Strike").length,
+    1,
+  );
+  assert.ok(result.withChargeDeclaration);
+  assert.equal(result.withChargeDeclaration.damage.total, 11);
+  assert.equal(result.withChargeDeclaration.healing.total, 3);
+  assert.equal(
+    result.withChargeDeclaration.damage.rows
+      .filter((row) => row.label === "First Strike").length,
+    1,
+  );
+});
+
 Deno.test("speculative First Strike selections and pending totals do not enter the estimate", () => {
   const baseline: any = createState({
     phase: "first_strike",
@@ -699,7 +857,7 @@ Deno.test("hidden opponent Drawing fleets and counters cannot affect the complet
   assert.deepEqual(estimateDrawing(hiddenVariant), estimateDrawing(baseline));
 });
 
-Deno.test("QUA Reveal controller memory survives transfer and is required when recoverable", () => {
+Deno.test("QUA Reveal controller memory survives transfer and is frozen at Charge entry", () => {
   const qua = ship("qua", "QUA", {
     permanentConfiguration: { selectedNumber: 4 },
   });
@@ -734,17 +892,23 @@ Deno.test("QUA Reveal controller memory survives transfer and is required when r
       (candidate: any) =>
         candidate.gameData.powerMemory.quantumMysticRevealByInstanceId.qua
           .controllerPlayerId = 7,
-      (candidate: any) =>
-        candidate.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 4,
     ]
   ) {
     const malformed = structuredClone(state) as any;
     mutate(malformed);
     const result = estimatePublic(malformed);
-    assert.equal(result.status, "unavailable");
-    if (result.status === "unavailable") {
-      assert.equal(result.reason, "quantum_reveal_facts_unavailable");
+    assert.notEqual(result.status, "unavailable");
+    if (result.status !== "unavailable") {
+      assert.equal(result.healing, 5);
     }
+  }
+
+  const invalidStableTurnData = structuredClone(state) as any;
+  invalidStableTurnData.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 4;
+  const unavailable = estimatePublic(invalidStableTurnData);
+  assert.equal(unavailable.status, "unavailable");
+  if (unavailable.status === "unavailable") {
+    assert.equal(unavailable.reason, "quantum_reveal_facts_unavailable");
   }
 });
 

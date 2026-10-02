@@ -1252,8 +1252,21 @@ export function sanitizeAncientStateForClient<T = any>(
     } as T;
   }
   const { ancient: _internalAncient, ...safeGameData } = gameData;
+  if (isChargeDeclarationPrivacyActive(projectedState)) {
+    delete safeGameData.pendingTurn;
+  }
   if (hasNestedControllers) {
     safeGameData.controllersByPlayerId = publicControllers;
+  }
+  if (
+    isChargeDeclarationPrivacyActive(projectedState) &&
+    isObject(safeGameData.powerMemory)
+  ) {
+    safeGameData.powerMemory = {
+      frigateTriggerByInstanceId: structuredClone(
+        safeGameData.powerMemory.frigateTriggerByInstanceId ?? {},
+      ),
+    };
   }
   if (isObject(safeGameData.ships)) {
     safeGameData.ships = projectPublicShipsForClient(

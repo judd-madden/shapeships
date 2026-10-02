@@ -2349,6 +2349,11 @@ export function registerGameRoutes(
       };
       const turnPhaseProgress = projectPublicTurnPhaseProgress(gameData);
       const speciesSelectionResolved = hasCompletedSpeciesSelection(gameData);
+      const publicPhaseReadiness = phaseKey === 'battle.charge_declaration'
+        ? phaseReadiness.filter(
+          (entry: any) => entry?.playerId === requestingPlayerId,
+        )
+        : phaseReadiness;
       const publicState = {
         players: ((projectPublicPlayersForClient(
           gameData,
@@ -2361,7 +2366,7 @@ export function registerGameRoutes(
               }
             : player
         ),
-        phaseReadiness,
+        phaseReadiness: publicPhaseReadiness,
         clock: clockSnapshot,
         ships: publicShips,
         voidShipsByPlayerId:

@@ -407,6 +407,32 @@ function createChargeNoninterferencePair(viewer: FullStateViewer) {
         chargeAfter: 0,
       }],
     };
+    right.gameData.phaseReadiness.push({
+      playerId: hiddenPlayerId,
+      isReady: true,
+      currentStep: "battle.charge_declaration",
+    });
+    right.gameData.turnData.chargeDeclarationAcceptedOrdinaryActionsByPlayerId[
+      hiddenPlayerId
+    ] = {
+      schemaVersion: 1,
+      battleTurnNumber: 5,
+      playerId: hiddenPlayerId,
+      actions: [],
+    };
+    right.gameData.turnData.acceptedChargeDeclarationsByPlayerId[
+      hiddenPlayerId
+    ] = {
+      schemaVersion: 1,
+      contractVersion: 1,
+      battleTurnNumber: 5,
+      declarationId: `${hiddenPlayerId}-hidden-accepted`,
+      declarationFingerprint: `${hiddenPlayerId}-hidden-fingerprint`,
+      playerId: hiddenPlayerId,
+      ordinaryChargeActions: [],
+      solarCasts: [],
+      autocastEnabled: false,
+    };
   }
   return { left, right };
 }
@@ -801,6 +827,11 @@ Deno.test("submitted ZEN recovers its immediate ANT production in frozen own row
 
 Deno.test("Charge projection ignores canonical revision and hidden declaration differences", () => {
   const left: any = createState("battle.charge_declaration");
+  left.gameData.ships.p1 = [ship("p1-int", "INT", { chargesCurrent: 1 })];
+  left.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
+    p1: ["p1-int"],
+    p2: [],
+  };
   left.gameData.turnData.turnPhaseProgress = {
     turnNumber: 5,
     firstStrike: { expected: false, occurred: false },
@@ -830,6 +861,16 @@ Deno.test("Charge projection ignores canonical revision and hidden declaration d
       (estimate: any) => estimate.status,
     ),
     ["privacy_frozen", "privacy_frozen"],
+  );
+  assert.equal(
+    leftProjection.publicThisTurn.estimatesByPlayerId.p1
+      .chargeDeclarationUncertain,
+    true,
+  );
+  assert.equal(
+    leftProjection.publicThisTurn.estimatesByPlayerId.p2
+      .chargeDeclarationUncertain,
+    false,
   );
   assert.equal(
     JSON.stringify(leftProjection).includes("stateRevision"),
@@ -1008,6 +1049,172 @@ Deno.test("Charge Solar preview is requester-only, canonical, stale-safe, and no
   const staleBody: any = await stale.json();
   assert.equal(staleBody.reason, "source_context_changed");
   assert.equal(staleBody.retry.allowed, true);
+});
+
+Deno.test("preferred Charge preview returns a distinct complete declaration variant for every species", async () => {
+  for (const faction of ["human", "xenite", "centaur", "ancient"]) {
+    const state: any = createState("battle.charge_declaration");
+    state.players.find((player: any) => player.id === "p1").faction = faction;
+    state.gameData.ships.p1 = [
+      ship("p1-int", "INT", { chargesCurrent: 1 }),
+      ship("p1-bat", "BAT"),
+    ];
+    state.gameData.pendingTurn = {
+      damageByPlayerId: { p2: 4 },
+      healByPlayerId: {},
+      breakdownEntries: [{
+        effectId: "route-first-strike",
+        kind: "Damage",
+        ownerPlayerId: "p1",
+        targetPlayerId: "p2",
+        sourceLabel: "First Strike",
+        baseAmount: 4,
+        finalAmount: 4,
+      }],
+    };
+    state.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 5;
+    state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
+      p1: ["p1-int"],
+      p2: [],
+    };
+    state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId =
+      structuredClone(state.gameData.ships);
+    replaceChargeDeclarationVisibilityState(state);
+    const test = fixture(state);
+    const declaration = {
+      contractVersion: 1,
+      declarationId: `route-complete-${faction}`,
+      ordinaryChargeActions: [{
+        actionType: "power",
+        actionId: "INT#0",
+        sourceInstanceId: "p1-int",
+        choiceId: "damage",
+      }],
+      solarCasts: [],
+      autocastEnabled: false,
+    };
+    const response = await chargePreviewRequest(test.app, state.gameId, {
+      observed: { turnNumber: 5, phaseKey: "battle.charge_declaration" },
+      declaration,
+      requestToken: `complete-declaration-${faction}`,
+    });
+    assert.equal(response.status, 200, faction);
+    const body: any = await response.json();
+    assert.equal(body.damage.total, 6, faction);
+    assert.equal(body.healing.total, 3, faction);
+    assert.equal(body.withChargeDeclaration.damage.total, 11, faction);
+    assert.equal(body.withChargeDeclaration.healing.total, 3, faction);
+    assert.equal(
+      body.identity.declarationFingerprint,
+      body.withChargeDeclaration.declarationFingerprint,
+      faction,
+    );
+    assert.equal(body.withChargeDeclaration.autocastEnabled, false, faction);
+    assert.equal(test.persistence.writes, 0, faction);
+
+    state.gameData.turnData.acceptedChargeDeclarationsByPlayerId.p1 = {
+      schemaVersion: 1,
+      contractVersion: 1,
+      battleTurnNumber: 5,
+      declarationId: declaration.declarationId,
+      declarationFingerprint: body.identity.declarationFingerprint,
+      playerId: "p1",
+      ordinaryChargeActions: structuredClone(declaration.ordinaryChargeActions),
+      solarCasts: [],
+      autocastEnabled: false,
+    };
+    for (const recoveredState of [state, JSON.parse(JSON.stringify(state))]) {
+      const recovered: any = await fullStateBody(recoveredState, "p1");
+      const projection = recovered.requester.thisTurn.currentProjection;
+      assert.equal(projection.withChargeDeclaration.damage.total, 11, faction);
+      assert.equal(projection.withChargeDeclaration.healing.total, 3, faction);
+      assert.equal(
+        projection.identity.declarationFingerprint,
+        body.identity.declarationFingerprint,
+        faction,
+      );
+    }
+  }
+});
+
+Deno.test("Charge preview distinguishes retained conflicts from finalized submissions", async () => {
+  const state: any = createState("battle.charge_declaration");
+  state.gameData.ships.p1 = [
+    ship("p1-int", "INT", { chargesCurrent: 1 }),
+    ship("p1-int-b", "INT", { chargesCurrent: 1 }),
+  ];
+  state.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 5;
+  state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
+    p1: ["p1-int", "p1-int-b"],
+    p2: [],
+  };
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId =
+    structuredClone(state.gameData.ships);
+  replaceChargeDeclarationVisibilityState(state);
+  const acceptedAction = {
+    actionType: "power",
+    actionId: "INT#0",
+    sourceInstanceId: "p1-int",
+    choiceId: "damage",
+  };
+  state.gameData.turnData.chargeDeclarationAcceptedOrdinaryActionsByPlayerId.p1 = {
+    schemaVersion: 1,
+    battleTurnNumber: 5,
+    playerId: "p1",
+    actions: [acceptedAction],
+  };
+  const request = (ordinaryChargeActions: any[]) => ({
+    observed: { turnNumber: 5, phaseKey: "battle.charge_declaration" },
+    declaration: {
+      contractVersion: 1,
+      declarationId: "conflict-check",
+      ordinaryChargeActions,
+      solarCasts: [],
+      autocastEnabled: false,
+    },
+  });
+
+  const retainedFixture = fixture(state);
+  const retainedConflict = await chargePreviewRequest(
+    retainedFixture.app,
+    state.gameId,
+    request([{ ...acceptedAction, choiceId: "heal" }]),
+  );
+  assert.equal(retainedConflict.status, 409);
+  assert.equal((await retainedConflict.json()).reason, "declaration_conflict");
+
+  state.gameData.turnData.acceptedChargeDeclarationsByPlayerId.p1 = {
+    schemaVersion: 1,
+    contractVersion: 1,
+    battleTurnNumber: 5,
+    declarationId: "finalized",
+    declarationFingerprint: JSON.stringify({
+      contractVersion: 1,
+      ordinaryChargeActions: [acceptedAction],
+      solarCasts: [],
+      autocastEnabled: false,
+    }),
+    playerId: "p1",
+    ordinaryChargeActions: [acceptedAction],
+    solarCasts: [],
+    autocastEnabled: false,
+  };
+  for (const actions of [
+    [{ ...acceptedAction, choiceId: "heal" }],
+    [acceptedAction, {
+      ...acceptedAction,
+      sourceInstanceId: "p1-int-b",
+    }],
+  ]) {
+    const finalizedFixture = fixture(state);
+    const response = await chargePreviewRequest(
+      finalizedFixture.app,
+      state.gameId,
+      request(actions),
+    );
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).reason, "already_submitted");
+  }
 });
 
 Deno.test("accepted Charge Solar projection replays captured initial energy, not spent live energy", async () => {

@@ -64,8 +64,6 @@ import {
 } from './drawingPreludeResolution.ts';
 import {
   isChargeDeclarationLegalityInvariantError,
-  recordChargeDeclarationSpendAcknowledgements,
-  requireChargeDeclarationLegalityState,
 } from '../state/chargeDeclarationVisibility.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
 import {
@@ -91,7 +89,11 @@ import {
   getBuildCommitKey,
 } from './IntentTypes.ts';
 import { ancientAtomicDeclarationContractApplies } from './chargeDeclarationEligibility.ts';
-import { resolveChargeDeclarationSubmission } from './chargeDeclarationResolution.ts';
+import {
+  finalizeOrdinaryChargeDeclaration,
+  resolveChargeDeclarationSubmission,
+  submitOrdinaryChargeActions,
+} from './chargeDeclarationResolution.ts';
 import {
   storeCommit,
   storeReveal,
@@ -2310,6 +2312,10 @@ function markPlayerReadyAndAdvance(
       },
     };
   }
+
+  if (phaseKey === 'battle.charge_declaration') {
+    finalizeOrdinaryChargeDeclaration(state, playerId);
+  }
   
   // Ensure phaseReadiness array exists
   if (!state.gameData) {
@@ -2673,11 +2679,39 @@ function handleAction(
       };
     }
 
-    try {
-      if (phaseKey === 'battle.charge_declaration') {
-        requireChargeDeclarationLegalityState(state);
-      }
 
+    if (phaseKey === 'battle.charge_declaration') {
+      try {
+        const submitted = submitOrdinaryChargeActions({
+          state,
+          playerId,
+          actions: [payload],
+          nowMs,
+        });
+        return {
+          ok: true,
+          state: syncPhaseFields(submitted.state),
+          events: submitted.events,
+        };
+      } catch (err: any) {
+        const msg = err?.message ?? String(err);
+        return {
+          ok: false,
+          state,
+          events: [],
+          rejected: {
+            code: isChargeDeclarationLegalityInvariantError(err)
+              ? RejectionCode.INTERNAL_ERROR
+              : msg === 'CHARGE_ALREADY_USED_THIS_TURN'
+              ? RejectionCode.CHARGE_ALREADY_USED_THIS_TURN
+              : RejectionCode.BAD_PAYLOAD,
+            message: msg,
+          },
+        };
+      }
+    }
+
+    try {
       if (phaseKey === 'build.dice_roll') {
         if (state?.gameData?.turnData?.diceManipulationStage === 'cube') {
           stageCubeDiceChoice(
@@ -2742,24 +2776,6 @@ function handleAction(
       
       state = outcome.state;
       const effectEvents = getEffectEventsFromOutcomeEvents(outcome.events);
-      if (phaseKey === 'battle.charge_declaration') {
-        recordChargeDeclarationSpendAcknowledgements(state, playerId, effectEvents);
-      }
-
-      if (phaseKey === 'battle.charge_declaration') {
-        events.push(
-          ...createBattleLogBattleCaptureEventsFromResolution({
-            stateBeforeResolution,
-            turnNumber: stateBeforeResolution?.gameData?.turnNumber || 1,
-            playerId,
-            phaseKey,
-            choiceId: payload.choiceId,
-            effects: outcome.effects || [],
-            effectEvents,
-          }),
-        );
-      }
-      
       // ============================================================================
       // FLIP DECLARATION-SPENT FLAG (only in charge_declaration)
       // ============================================================================
@@ -2896,14 +2912,36 @@ function handleActionsSubmit(
 
   if (phaseKey === 'battle.charge_declaration') {
     try {
-      requireChargeDeclarationLegalityState(state);
+      const submitted = submitOrdinaryChargeActions({
+        state,
+        playerId,
+        actions: payload.actions,
+        nowMs,
+      });
+      if (submitted.status === 'idempotent') {
+        return { ok: true, state: syncPhaseFields(submitted.state), events: [] };
+      }
+      submitted.events.push({
+        type: 'POWERS_BATCH_SUBMITTED',
+        playerId,
+        phaseKey,
+        count: payload.actions.length,
+        atMs: nowMs,
+      });
+      return {
+        ok: true,
+        state: syncPhaseFields(submitted.state),
+        events: submitted.events,
+      };
     } catch (error) {
       return {
         ok: false,
         state,
         events: [],
         rejected: {
-          code: RejectionCode.INTERNAL_ERROR,
+          code: isChargeDeclarationLegalityInvariantError(error)
+            ? RejectionCode.INTERNAL_ERROR
+            : RejectionCode.BAD_PAYLOAD,
           message: error instanceof Error ? error.message : String(error),
         },
       };
@@ -2972,7 +3010,6 @@ function handleActionsSubmit(
   state = structuredClone(state);
   events = [];
   const activationSources: ShipActivationCueSource[] = [];
-  const declarationSpendEffectEvents: EffectEvent[] = [];
 
   for (const item of payload.actions) {
     // Validate action type
@@ -3078,31 +3115,12 @@ function handleActionsSubmit(
 
       state = outcome.state;
       const effectEvents = getEffectEventsFromOutcomeEvents(outcome.events);
-      if (phaseKey === 'battle.charge_declaration') {
-        declarationSpendEffectEvents.push(
-          ...effectEvents.filter((event) => event.kind === 'SpendCharge'),
-        );
-      }
       activationSources.push(
         ...getShipActivationSourcesFromAppliedEffects(
           outcome.effects || [],
           effectEvents
         )
       );
-
-      if (phaseKey === 'battle.charge_declaration') {
-        events.push(
-          ...createBattleLogBattleCaptureEventsFromResolution({
-            stateBeforeResolution,
-            turnNumber: stateBeforeResolution?.gameData?.turnNumber || 1,
-            playerId,
-            phaseKey,
-            choiceId: item.choiceId,
-            effects: outcome.effects || [],
-            effectEvents,
-          }),
-        );
-      }
 
       events.push({
         type: 'POWER_USED',
@@ -3138,26 +3156,6 @@ function handleActionsSubmit(
     }
   }
 
-  if (phaseKey === 'battle.charge_declaration') {
-    try {
-      recordChargeDeclarationSpendAcknowledgements(
-        state,
-        playerId,
-        declarationSpendEffectEvents,
-      );
-    } catch (error) {
-      return {
-        ok: false,
-        state: originalState,
-        events: [],
-        rejected: {
-          code: RejectionCode.INTERNAL_ERROR,
-          message: error instanceof Error ? error.message : String(error),
-        },
-      };
-    }
-  }
-  
   // ============================================================================
   // BATCH COMPLETION: Emit wrapper event and sync once
   // ============================================================================

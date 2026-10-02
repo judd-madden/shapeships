@@ -1950,8 +1950,7 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
     assert.equal(body.publicState.players.find((player: any) => player.id === 'p1').health, 25);
     assert.equal(body.publicState.players.find((player: any) => player.id === 'p1').maxHealth, 40);
     assert.equal(body.publicState.players.find((player: any) => player.id === 'p1').name, 'Live Renamed Player');
-    assert.equal(body.publicState.players.find((player: any) => player.id === 'p1').lines, 9);
-    assert.equal(body.publicState.phaseReadiness[0].isReady, true);
+    assert.equal(body.publicState.players.find((player: any) => player.id === 'p1').lines, 3);
     assert.equal(body.publicState.bonusLinesByPlayerId.p1, 1);
     assert.deepEqual(body.publicState.turnPhaseProgress, {
       turnNumber: 3,
@@ -2000,6 +1999,13 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
       false,
     );
   }
+  assert.deepEqual(p1Body.publicState.phaseReadiness, [{
+    playerId: 'p1',
+    isReady: true,
+    currentStep: 'battle.charge_declaration',
+  }]);
+  assert.deepEqual(p2Body.publicState.phaseReadiness, []);
+  assert.deepEqual(spectatorBody.publicState.phaseReadiness, []);
   assert.equal(
     p1Body.publicState.ships.p1.find((ship: any) => ship.instanceId === 'p1-equ').chargesCurrent,
     0,

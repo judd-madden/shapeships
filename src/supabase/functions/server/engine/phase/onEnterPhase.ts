@@ -38,6 +38,7 @@ import {
   getEligibleOrdinaryChargeSourceIdsAtDeclarationStart,
   playerRequiresChargeDeclarationInput,
 } from '../intent/chargeDeclarationEligibility.ts';
+import { finalizeOrdinaryChargeDeclaration } from '../intent/chargeDeclarationResolution.ts';
 import {
   materializeQueuedSimulacrumCopiesAtTurnStart,
 } from '../ancient/simulacrumSolarPower.ts';
@@ -944,6 +945,7 @@ function enterPhaseOnce(
       const eligible = playerRequiresChargeDeclarationInput(workingState, player.id);
 
       if (!eligible) {
+        finalizeOrdinaryChargeDeclaration(workingState, player.id);
         const existingIndex = workingState.gameData.phaseReadiness.findIndex(
           (r: any) => r.playerId === player.id && r.currentStep === toKey
         );

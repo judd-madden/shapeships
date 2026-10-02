@@ -1413,6 +1413,23 @@ Deno.test('non-Ancient legacy charge and Ready behavior remains available', asyn
   assert.equal(ready.ok, true);
 });
 
+Deno.test('Ready with no ordinary actions finalizes an explicit empty declaration', async () => {
+  const state = createAtomicChargeState();
+  const ready = await applyIntent(
+    state,
+    'p2',
+    readyIntent(state.gameId, 'p2'),
+    1000,
+  );
+  assert.equal(ready.ok, true, ready.rejected?.message);
+  const accepted = ready.state.gameData.turnData
+    .acceptedChargeDeclarationsByPlayerId.p2;
+  assert.deepEqual(accepted.ordinaryChargeActions, []);
+  assert.deepEqual(accepted.solarCasts, []);
+  assert.equal(accepted.autocastEnabled, false);
+  assert.equal(typeof accepted.declarationFingerprint, 'string');
+});
+
 Deno.test('a no-Ancient match retains ordinary declaration behavior without Ancient stops', async (t) => {
   for (const [playerFaction, opponentFaction] of [
     ['human', 'xenite'],
@@ -1631,6 +1648,91 @@ Deno.test('a successful ordinary declaration batch acknowledges every spent sour
       .chargeAfterByPlayerId.p2,
     { 'p2-int': 0, 'p2-int-second': 0 },
   );
+});
+
+Deno.test('ordinary Charge actions accumulate by source, retry idempotently, and finalize at Ready', async () => {
+  const state = createAtomicChargeState();
+  for (const instanceId of ['p2-int-b', 'p2-int-c']) {
+    state.gameData.ships.p2.push({ instanceId, shipDefId: 'INT', chargesCurrent: 1 });
+    state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId.p2.push(instanceId);
+  }
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p2 =
+    structuredClone(state.gameData.ships.p2);
+  replaceChargeDeclarationVisibilityState(state);
+
+  const action = (sourceInstanceId: string, choiceId = 'damage') => ({
+    actionType: 'power' as const,
+    actionId: 'INT#0',
+    sourceInstanceId,
+    choiceId,
+  });
+  const batch = (actions: any[], nonce: string) => ({
+    gameId: state.gameId,
+    intentType: 'ACTIONS_SUBMIT' as const,
+    turnNumber: 3,
+    nonce,
+    payload: { actions },
+  });
+
+  const first = await applyIntent(state, 'p2', {
+    ...powerActionIntent(state.gameId, 'p2-int', 'INT#0', 'damage', {}),
+    nonce: 'cumulative-a',
+  }, 1000);
+  assert.equal(first.ok, true, first.rejected?.message);
+
+  const mixed = await applyIntent(first.state, 'p2', batch([
+    action('p2-int'),
+    action('p2-int-b'),
+  ], 'cumulative-a-plus-b'), 1001);
+  assert.equal(mixed.ok, true, mixed.rejected?.message);
+  assert.deepEqual(
+    mixed.state.gameData.turnData.chargeDeclarationAcceptedOrdinaryActionsByPlayerId
+      .p2.actions.map((entry: any) => entry.sourceInstanceId),
+    ['p2-int', 'p2-int-b'],
+  );
+
+  const exactRetry = await applyIntent(mixed.state, 'p2', batch([
+    action('p2-int'),
+    action('p2-int-b'),
+  ], 'cumulative-exact-retry'), 1002);
+  assert.equal(exactRetry.ok, true);
+  assert.deepEqual(exactRetry.events, []);
+  assert.deepEqual(exactRetry.state, mixed.state);
+
+  const beforeConflict = structuredClone(mixed.state);
+  const conflict = await applyIntent(mixed.state, 'p2', batch([
+    action('p2-int'),
+    action('p2-int-b', 'heal'),
+    action('p2-int-c'),
+  ], 'cumulative-conflict'), 1003);
+  assert.equal(conflict.ok, false);
+  assert.deepEqual(conflict.events, []);
+  assert.deepEqual(conflict.state, beforeConflict);
+
+  const ready = await applyIntent(mixed.state, 'p2', {
+    ...readyIntent(state.gameId, 'p2'),
+    nonce: 'cumulative-ready',
+  }, 1004);
+  assert.equal(ready.ok, true, ready.rejected?.message);
+  assert.deepEqual(
+    ready.state.gameData.turnData.acceptedChargeDeclarationsByPlayerId.p2
+      .ordinaryChargeActions.map((entry: any) => entry.sourceInstanceId),
+    ['p2-int', 'p2-int-b'],
+  );
+
+  const postReadyExact = await applyIntent(ready.state, 'p2', {
+    ...powerActionIntent(state.gameId, 'p2-int', 'INT#0', 'damage', {}),
+    nonce: 'cumulative-post-ready-exact',
+  }, 1005);
+  assert.equal(postReadyExact.ok, true);
+  assert.deepEqual(postReadyExact.events, []);
+
+  const postReadyNew = await applyIntent(ready.state, 'p2', {
+    ...powerActionIntent(state.gameId, 'p2-int-c', 'INT#0', 'damage', {}),
+    nonce: 'cumulative-post-ready-new',
+  }, 1006);
+  assert.equal(postReadyNew.ok, false);
+  assert.match(postReadyNew.rejected?.message ?? '', /finalized/);
 });
 
 Deno.test('a failed ordinary declaration batch publishes no partial acknowledgement overlay', async () => {

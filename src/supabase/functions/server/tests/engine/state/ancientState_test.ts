@@ -1435,7 +1435,7 @@ Deno.test('Solar Power ships stay outside ordinary charge declaration snapshots'
   );
   assert.equal(
     'pendingTurn' in declaration.gameData.turnData.chargeDeclarationVisibilitySnapshot,
-    false,
+    true,
   );
   assert.deepEqual(
     declaration.gameData.turnData.chargeDeclarationAcknowledgements,
@@ -1539,9 +1539,7 @@ Deno.test('stale Charge Declaration visibility redacts projection while legality
   assert.deepEqual(projected.gameData.ships, {});
   assert.deepEqual(projected.gameData.voidShipsByPlayerId, {});
   assert.equal('pendingTurn' in projected.gameData, false);
-  assert.deepEqual(projected.gameData.powerMemory, {
-    frigateTriggerByInstanceId: { 'stable-frigate': 6 },
-  });
+  assert.equal(projected.gameData.powerMemory, undefined);
   assert.equal('health' in projected.players.find((player: any) => player.id === 'p1'), false);
   assert.equal(
     'chargeDeclarationVisibilitySnapshot' in projected.gameData.turnData,

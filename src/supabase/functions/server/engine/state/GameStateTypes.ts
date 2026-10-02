@@ -100,6 +100,12 @@ export type PendingTurnBreakdownEntry = {
   finalAmount: number;
 };
 
+export type PendingTurnState = {
+  damageByPlayerId: Record<string, number>;
+  healByPlayerId: Record<string, number>;
+  breakdownEntries: PendingTurnBreakdownEntry[];
+};
+
 export type LastTurnBreakdownRow =
   | {
       rowKind: 'ship';
@@ -234,6 +240,25 @@ export type AncientAcceptedDeclaration = {
   autocastEnabled: boolean;
 };
 
+export type RetainedOrdinaryChargeActions = {
+  schemaVersion: 1;
+  battleTurnNumber: number;
+  playerId: string;
+  actions: AncientNormalizedOrdinaryChargeChoice[];
+};
+
+export type AcceptedChargeDeclaration = {
+  schemaVersion: 1;
+  contractVersion: 1;
+  battleTurnNumber: number;
+  declarationId: string;
+  declarationFingerprint: string;
+  playerId: string;
+  ordinaryChargeActions: AncientNormalizedOrdinaryChargeChoice[];
+  solarCasts: AncientNormalizedSolarCast[];
+  autocastEnabled: boolean;
+};
+
 export type AncientSolarSourceMode = 'manual' | 'autocast';
 
 export type AncientSolarTargetReference = {
@@ -282,8 +307,17 @@ export type ChargeDeclarationVisibilitySnapshot = {
   battleTurnNumber: number;
   voidShipsByPlayerId: Record<string, ShipInstance[]>;
   healthByPlayerId: Record<string, number>;
+  resourcesByPlayerId: Record<string, { lines: number; joiningLines: number }>;
+  pendingTurn: PendingTurnState;
+  powerMemory: {
+    onceOnlyFired: Record<string, boolean>;
+    frigateTriggerByInstanceId: Record<string, number>;
+    quantumMysticRevealByInstanceId: Record<string, QuantumMysticRevealMemory>;
+  };
   ancientEnergyByPlayerId: Record<string, AncientPlayerEnergyState>;
   ancientSolarLedgerByPlayerId: Record<string, AncientSolarLedgerState>;
+  ancientPendingSimulacrumCopies: AncientPendingSimulacrumCopy[];
+  ancientPendingBlackHoleDestructions: AncientPendingBlackHoleDestruction[];
 };
 
 /** Requester-local acknowledgement derived only from accepted SpendCharge effects. */
@@ -475,6 +509,10 @@ export type GameData = {
     chargeDeclarationVisibilitySnapshot?: ChargeDeclarationVisibilitySnapshot;
     /** Minimal requester-only accepted SpendCharge feedback for this declaration window. */
     chargeDeclarationAcknowledgements?: ChargeDeclarationAcknowledgements;
+    /** Private cumulative ordinary actions accepted before Ready. */
+    chargeDeclarationAcceptedOrdinaryActionsByPlayerId?: Record<string, RetainedOrdinaryChargeActions>;
+    /** Private finalized normalized declarations for requester recovery. */
+    acceptedChargeDeclarationsByPlayerId?: Record<string, AcceptedChargeDeclaration>;
 
     /** Staged first-strike selections, scoped by player and source instance */
     pendingFirstStrikeSelectionsByPlayerId?: Record<string, Record<string, {
@@ -508,11 +546,7 @@ export type GameData = {
   voidShipsByPlayerId?: Record<string, ShipInstance[]>;
   
   /** Pending turn accumulators (for aggregated end-of-turn resolution) */
-  pendingTurn?: {
-    damageByPlayerId: Record<string, number>;
-    healByPlayerId: Record<string, number>;
-    breakdownEntries: PendingTurnBreakdownEntry[];
-  };
+  pendingTurn?: PendingTurnState;
   
   /** Last turn deltas (for UI/debug) */
   lastTurnDamageByPlayerId?: Record<string, number>;

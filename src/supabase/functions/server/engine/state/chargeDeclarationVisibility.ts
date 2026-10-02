@@ -1,5 +1,7 @@
 import type { EffectEvent } from '../../engine_shared/effects/applyEffects.ts';
 import type {
+  AncientPendingBlackHoleDestruction,
+  AncientPendingSimulacrumCopy,
   AncientPlayerEnergyState,
   AncientSolarLedgerState,
   ChargeDeclarationAcknowledgements,
@@ -79,6 +81,7 @@ export function replaceChargeDeclarationVisibilityState(state: any): void {
   const battleTurnNumber = getChargeDeclarationTurnNumber(state);
   const voidShipsByPlayerId: Record<string, ShipInstance[]> = {};
   const healthByPlayerId: Record<string, number> = {};
+  const resourcesByPlayerId: Record<string, { lines: number; joiningLines: number }> = {};
   const ancientEnergyByPlayerId: Record<string, AncientPlayerEnergyState> = {};
   const ancientSolarLedgerByPlayerId: Record<string, AncientSolarLedgerState> = {};
 
@@ -95,6 +98,15 @@ export function replaceChargeDeclarationVisibilityState(state: any): void {
       typeof player?.health === 'number' && Number.isFinite(player.health)
         ? player.health
         : 0;
+    resourcesByPlayerId[playerId] = {
+      lines: typeof player?.lines === 'number' && Number.isFinite(player.lines)
+        ? Math.max(0, Math.floor(player.lines))
+        : 0,
+      joiningLines:
+        typeof player?.joiningLines === 'number' && Number.isFinite(player.joiningLines)
+          ? Math.max(0, Math.floor(player.joiningLines))
+          : 0,
+    };
     ancientEnergyByPlayerId[playerId] = structuredClone(
       isObject(energy)
         ? energy as AncientPlayerEnergyState
@@ -111,13 +123,36 @@ export function replaceChargeDeclarationVisibilityState(state: any): void {
     battleTurnNumber,
     voidShipsByPlayerId,
     healthByPlayerId,
+    resourcesByPlayerId,
+    pendingTurn: structuredClone(state?.gameData?.pendingTurn ?? {
+      damageByPlayerId: {},
+      healByPlayerId: {},
+      breakdownEntries: [],
+    }),
+    powerMemory: {
+      onceOnlyFired: structuredClone(state?.gameData?.powerMemory?.onceOnlyFired ?? {}),
+      frigateTriggerByInstanceId: structuredClone(
+        state?.gameData?.powerMemory?.frigateTriggerByInstanceId ?? {},
+      ),
+      quantumMysticRevealByInstanceId: structuredClone(
+        state?.gameData?.powerMemory?.quantumMysticRevealByInstanceId ?? {},
+      ),
+    },
     ancientEnergyByPlayerId,
     ancientSolarLedgerByPlayerId,
+    ancientPendingSimulacrumCopies: structuredClone(
+      state?.gameData?.ancient?.pendingSimulacrumCopies ?? [],
+    ),
+    ancientPendingBlackHoleDestructions: structuredClone(
+      state?.gameData?.ancient?.pendingBlackHoleDestructions ?? [],
+    ),
   } satisfies ChargeDeclarationVisibilitySnapshot;
   turnData.chargeDeclarationAcknowledgements = {
     battleTurnNumber,
     chargeAfterByPlayerId: {},
   } satisfies ChargeDeclarationAcknowledgements;
+  turnData.chargeDeclarationAcceptedOrdinaryActionsByPlayerId = {};
+  turnData.acceptedChargeDeclarationsByPlayerId = {};
 }
 
 export function clearChargeDeclarationVisibilityState(state: any): void {
@@ -125,6 +160,8 @@ export function clearChargeDeclarationVisibilityState(state: any): void {
   if (!isObject(turnData)) return;
   delete turnData.chargeDeclarationVisibilitySnapshot;
   delete turnData.chargeDeclarationAcknowledgements;
+  delete turnData.chargeDeclarationAcceptedOrdinaryActionsByPlayerId;
+  delete turnData.acceptedChargeDeclarationsByPlayerId;
 }
 
 function getCurrentVisibilitySnapshot(
@@ -136,8 +173,19 @@ function getCurrentVisibilitySnapshot(
     snapshot.battleTurnNumber !== getChargeDeclarationTurnNumber(state) ||
     !isObject(snapshot.voidShipsByPlayerId) ||
     !isObject(snapshot.healthByPlayerId) ||
+    !isObject(snapshot.resourcesByPlayerId) ||
+    !isObject(snapshot.pendingTurn) ||
+    !isObject(snapshot.pendingTurn.damageByPlayerId) ||
+    !isObject(snapshot.pendingTurn.healByPlayerId) ||
+    !Array.isArray(snapshot.pendingTurn.breakdownEntries) ||
+    !isObject(snapshot.powerMemory) ||
+    !isObject(snapshot.powerMemory.onceOnlyFired) ||
+    !isObject(snapshot.powerMemory.frigateTriggerByInstanceId) ||
+    !isObject(snapshot.powerMemory.quantumMysticRevealByInstanceId) ||
     !isObject(snapshot.ancientEnergyByPlayerId) ||
-    !isObject(snapshot.ancientSolarLedgerByPlayerId)
+    !isObject(snapshot.ancientSolarLedgerByPlayerId) ||
+    !Array.isArray(snapshot.ancientPendingSimulacrumCopies) ||
+    !Array.isArray(snapshot.ancientPendingBlackHoleDestructions)
   ) {
     return null;
   }
@@ -236,37 +284,47 @@ export function recordChargeDeclarationSpendAcknowledgements(
 function projectPlayers(
   players: unknown,
   healthByPlayerId: Record<string, number> | null,
+  resourcesByPlayerId: Record<string, { lines: number; joiningLines: number }> | null,
+  requestingParticipantId?: string,
 ): unknown {
   if (!Array.isArray(players)) return players;
   return players.map((player: any) => {
     if (!isObject(player) || player.role !== 'player' || typeof player.id !== 'string') {
       return player;
     }
-    if (!healthByPlayerId || typeof healthByPlayerId[player.id] !== 'number') {
+    if (
+      !healthByPlayerId ||
+      typeof healthByPlayerId[player.id] !== 'number' ||
+      !resourcesByPlayerId ||
+      !isObject(resourcesByPlayerId[player.id])
+    ) {
       const {
         health: _redactedHealth,
         maxHealth: _redactedMaxHealth,
+        lines: _redactedLines,
+        joiningLines: _redactedJoiningLines,
         ...safePlayer
       } = player;
-      return safePlayer;
+      return {
+        ...safePlayer,
+        ...(player.id !== requestingParticipantId ? { isReady: false } : {}),
+      };
     }
     const { maxHealth: _redactedMaxHealth, ...safePlayer } = player;
-    return { ...safePlayer, health: healthByPlayerId[player.id] };
+    return {
+      ...safePlayer,
+      health: healthByPlayerId[player.id],
+      lines: resourcesByPlayerId[player.id].lines,
+      joiningLines: resourcesByPlayerId[player.id].joiningLines,
+      ...(player.id !== requestingParticipantId ? { isReady: false } : {}),
+    };
   });
 }
 
 function projectStablePublicPowerMemory(
-  gameData: unknown,
-): { frigateTriggerByInstanceId: Record<string, number> } | null {
-  const frigateTriggerByInstanceId = isObject(gameData)
-    ? gameData.powerMemory?.frigateTriggerByInstanceId
-    : null;
-  if (!isObject(frigateTriggerByInstanceId)) return null;
-  return {
-    frigateTriggerByInstanceId: structuredClone(
-      frigateTriggerByInstanceId as Record<string, number>,
-    ),
-  };
+  snapshot: ChargeDeclarationVisibilitySnapshot | null,
+): ChargeDeclarationVisibilitySnapshot['powerMemory'] | null {
+  return snapshot ? structuredClone(snapshot.powerMemory) : null;
 }
 
 function applyRequesterChargeAcknowledgements(
@@ -315,21 +373,38 @@ export function projectChargeDeclarationStateForViewer<T = any>(
   if (!visibilitySnapshot || !fleetSnapshot) {
     const source = state as any;
     const gameData = isObject(source?.gameData) ? source.gameData : {};
-    const stablePublicPowerMemory = projectStablePublicPowerMemory(gameData);
+    const stablePublicPowerMemory = projectStablePublicPowerMemory(visibilitySnapshot);
     const { pendingTurn: _pendingTurn, powerMemory: _powerMemory, ...safeGameData } = gameData;
     if (stablePublicPowerMemory) {
       safeGameData.powerMemory = stablePublicPowerMemory;
     }
     safeGameData.ships = {};
     safeGameData.voidShipsByPlayerId = {};
+    safeGameData.phaseReadiness = Array.isArray(gameData.phaseReadiness)
+      ? gameData.phaseReadiness.filter(
+        (entry: any) => entry?.playerId === requestingParticipantId,
+      )
+      : [];
     if (Array.isArray(safeGameData.players)) {
-      safeGameData.players = projectPlayers(safeGameData.players, null);
+      safeGameData.players = projectPlayers(
+        safeGameData.players,
+        null,
+        null,
+        requestingParticipantId,
+      );
     }
     return {
       state: {
         ...source,
         ...(Array.isArray(source?.players)
-          ? { players: projectPlayers(source.players, null) }
+          ? {
+            players: projectPlayers(
+              source.players,
+              null,
+              null,
+              requestingParticipantId,
+            ),
+          }
           : {}),
         gameData: safeGameData,
       },
@@ -344,11 +419,12 @@ export function projectChargeDeclarationStateForViewer<T = any>(
 
   const source = state as any;
   const gameData = source.gameData;
-  const stablePublicPowerMemory = projectStablePublicPowerMemory(gameData);
+  const stablePublicPowerMemory = projectStablePublicPowerMemory(visibilitySnapshot);
   const { pendingTurn: _pendingTurn, powerMemory: _powerMemory, ...safeGameData } = gameData;
   if (stablePublicPowerMemory) {
     safeGameData.powerMemory = stablePublicPowerMemory;
   }
+  safeGameData.pendingTurn = structuredClone(visibilitySnapshot.pendingTurn);
   safeGameData.ships = applyRequesterChargeAcknowledgements(
     source,
     fleetSnapshot,
@@ -358,10 +434,31 @@ export function projectChargeDeclarationStateForViewer<T = any>(
   safeGameData.voidShipsByPlayerId = structuredClone(
     visibilitySnapshot.voidShipsByPlayerId,
   );
+  safeGameData.phaseReadiness = Array.isArray(gameData.phaseReadiness)
+    ? gameData.phaseReadiness.filter(
+      (entry: any) => entry?.playerId === requestingParticipantId,
+    )
+    : [];
+  safeGameData.ancient = {
+    ...(isObject(gameData.ancient) ? gameData.ancient : {}),
+    energyByPlayerId: structuredClone(visibilitySnapshot.ancientEnergyByPlayerId),
+    acceptedDeclarationByPlayerId: {},
+    solarLedgerByPlayerId: structuredClone(
+      visibilitySnapshot.ancientSolarLedgerByPlayerId,
+    ),
+    pendingSimulacrumCopies: structuredClone(
+      visibilitySnapshot.ancientPendingSimulacrumCopies,
+    ) as AncientPendingSimulacrumCopy[],
+    pendingBlackHoleDestructions: structuredClone(
+      visibilitySnapshot.ancientPendingBlackHoleDestructions,
+    ) as AncientPendingBlackHoleDestruction[],
+  };
   if (Array.isArray(safeGameData.players)) {
     safeGameData.players = projectPlayers(
       safeGameData.players,
       visibilitySnapshot.healthByPlayerId,
+      visibilitySnapshot.resourcesByPlayerId,
+      requestingParticipantId,
     );
   }
 
@@ -373,6 +470,8 @@ export function projectChargeDeclarationStateForViewer<T = any>(
             players: projectPlayers(
               source.players,
               visibilitySnapshot.healthByPlayerId,
+              visibilitySnapshot.resourcesByPlayerId,
+              requestingParticipantId,
             ),
           }
         : {}),
@@ -454,6 +553,8 @@ export function redactChargeDeclarationTurnDataForClient(
     chargeDeclarationAcknowledgements: _acknowledgements,
     chargeDeclarationFleetSnapshotByPlayerId: _fleetSnapshot,
     chargeDeclarationEligibleSourceIdsByPlayerId: _eligibleSourceIds,
+    chargeDeclarationAcceptedOrdinaryActionsByPlayerId: _acceptedOrdinaryActions,
+    acceptedChargeDeclarationsByPlayerId: _acceptedChargeDeclarations,
     acceptedShipOfEqualityTargetsByPlayerId: _acceptedShipOfEqualityTargets,
     ...withoutInternalSnapshots
   } = value;

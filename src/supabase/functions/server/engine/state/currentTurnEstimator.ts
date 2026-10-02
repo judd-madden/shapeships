@@ -1,5 +1,10 @@
 import type { BuildSubmitPayload } from "../intent/IntentTypes.ts";
 import {
+  fingerprintChargeDeclaration,
+  resolveChargeDeclarationDisposable,
+  type NormalizedChargeDeclaration,
+} from "../intent/chargeDeclarationResolution.ts";
+import {
   resolvePlayerBuildSubmitAuthoritatively,
 } from "../intent/buildSubmitResolution.ts";
 import { applyAncientBattleRevealPreparation } from "./ancientState.ts";
@@ -65,6 +70,7 @@ export type CurrentTurnEstimateIdentity = {
   sourceContextKey: string;
   draftKey: string;
   solarSelectionKey?: string;
+  declarationFingerprint?: string;
   evaluatedDraft: BuildSubmitPayload | null;
 };
 
@@ -108,6 +114,10 @@ export type CurrentTurnEstimateAvailableResult = CurrentTurnEstimateBase & {
   withSolarSelection?: CurrentTurnHealthProjection & {
     autocastEnabled: boolean;
   };
+  withChargeDeclaration?: CurrentTurnHealthProjection & {
+    autocastEnabled: boolean;
+    declarationFingerprint: string;
+  };
   build: CurrentTurnBuildFacts;
   reveal: {
     solarGridChargeTransitions: SolarGridRevealTransition[];
@@ -142,6 +152,7 @@ export type EstimateCurrentTurnForPlayerArgs = {
   drawingMode?: "draft_preview" | "turn_start_baseline";
   expectedSourceContextKey?: string;
   solarSelection?: CurrentTurnSolarSelection;
+  chargeDeclaration?: NormalizedChargeDeclaration;
 };
 
 export type CurrentTurnSolarSelection = {
@@ -247,6 +258,7 @@ function baseIdentity(args: {
   draft: BuildSubmitPayload | null;
   sourceContext: unknown;
   solarSelection?: CurrentTurnSolarSelection;
+  chargeDeclaration?: NormalizedChargeDeclaration;
 }): CurrentTurnEstimateIdentity {
   return {
     gameId: typeof args.state?.gameId === "string" ? args.state.gameId : "",
@@ -261,6 +273,9 @@ function baseIdentity(args: {
           autocastEnabled: args.solarSelection.autocastEnabled,
         }),
       }
+      : {}),
+    ...(args.chargeDeclaration
+      ? { declarationFingerprint: fingerprintChargeDeclaration(args.chargeDeclaration) }
       : {}),
     evaluatedDraft: cloneDraft(args.draft),
   };
@@ -282,6 +297,7 @@ function unavailable(
       draft: args.draft,
       sourceContext: { reason: args.reason },
       solarSelection: args.solarSelection,
+      chargeDeclaration: args.chargeDeclaration,
     }),
   };
 }
@@ -494,8 +510,7 @@ function prepareEstimateState(
   )!;
   let includeAutocast =
     args.requestingParticipantId === args.playerId &&
-    isAncientPlayer(estimatedPlayer) &&
-    args.solarSelection === undefined;
+    isAncientPlayer(estimatedPlayer);
 
   const drawing = phaseKey === "build.drawing";
   const drawingMode = drawing
@@ -532,6 +547,15 @@ function prepareEstimateState(
       drawing ||
       args.requestingParticipantId !== args.playerId ||
       !isAncientPlayer(estimatedPlayer)
+    )
+  ) {
+    return unavailable({ ...args, phaseKey, reason: "invalid_requester" });
+  }
+  if (
+    args.chargeDeclaration !== undefined &&
+    (
+      phaseKey !== "battle.charge_declaration" ||
+      args.requestingParticipantId !== args.playerId
     )
   ) {
     return unavailable({ ...args, phaseKey, reason: "invalid_requester" });
@@ -574,10 +598,7 @@ function prepareEstimateState(
       fleets = projection.fleets;
     }
   } else if (phaseKey === "battle.charge_declaration") {
-    const projection = projectChargeDeclarationStateForViewer(
-      args.state,
-      undefined,
-    );
+    const projection = projectChargeDeclarationStateForViewer(args.state);
     if (!projection.structuralProjectionAvailable) {
       return unavailable({
         ...args,
@@ -676,7 +697,7 @@ function prepareEstimateState(
   const subjectVoid = Array.isArray(canonicalVoid)
     ? structuredClone(canonicalVoid)
     : [];
-  const sourceTurnData = args.state.gameData?.turnData ?? {};
+  const sourceTurnData = visibleSource.gameData?.turnData ?? {};
   const removedByInstanceId = turnStartBaseline
     ? {}
     : sourceTurnData.buildPhaseNonDestroyRemovedShipsByPlayerId
@@ -696,7 +717,7 @@ function prepareEstimateState(
   > = {};
   if (!drawing) {
     const recovered = recoverPublicQuantumRevealMemory({
-      source: args.state,
+      source: visibleSource,
       fleets,
       activePlayerIds,
       turnNumber,
@@ -749,27 +770,44 @@ function prepareEstimateState(
       currentSubPhase: phaseKey.split(".")[1],
       ships: structuredClone(fleets),
       voidShipsByPlayerId: { [args.playerId]: subjectVoid },
-      pendingTurn: {
-        damageByPlayerId: {},
-        healByPlayerId: {},
-        breakdownEntries: [],
-      },
+      pendingTurn: phaseKey === "battle.charge_declaration"
+        ? structuredClone(visibleSource.gameData?.pendingTurn ?? {
+          damageByPlayerId: {},
+          healByPlayerId: {},
+          breakdownEntries: [],
+        })
+        : {
+          damageByPlayerId: {},
+          healByPlayerId: {},
+          breakdownEntries: [],
+        },
       ancient: {
         schemaVersion: 1,
         energyByPlayerId: recordedRequesterAncientEnergy
           ? { [args.playerId]: structuredClone(recordedRequesterAncientEnergy) }
           : {},
         acceptedDeclarationByPlayerId: {},
-        solarLedgerByPlayerId: {},
-        pendingSimulacrumCopies: [],
-        pendingBlackHoleDestructions: [],
+        solarLedgerByPlayerId: phaseKey === "battle.charge_declaration"
+          ? structuredClone(
+            visibleSource.gameData?.ancient?.solarLedgerByPlayerId ?? {},
+          )
+          : {},
+        pendingSimulacrumCopies: structuredClone(
+          visibleSource.gameData?.ancient?.pendingSimulacrumCopies ?? [],
+        ),
+        pendingBlackHoleDestructions: structuredClone(
+          visibleSource.gameData?.ancient?.pendingBlackHoleDestructions ?? [],
+        ),
       },
       powerMemory: {
-        onceOnlyFired: filterOnceOnlyMemory(args.state, relevantShipIds),
-        frigateTriggerByInstanceId: filterFrigateMemory(
-          args.state,
-          relevantShipIds,
-        ),
+        onceOnlyFired: phaseKey === "battle.charge_declaration"
+          ? structuredClone(visibleSource.gameData?.powerMemory?.onceOnlyFired ?? {})
+          : filterOnceOnlyMemory(visibleSource, relevantShipIds),
+        frigateTriggerByInstanceId: phaseKey === "battle.charge_declaration"
+          ? structuredClone(
+            visibleSource.gameData?.powerMemory?.frigateTriggerByInstanceId ?? {},
+          )
+          : filterFrigateMemory(visibleSource, relevantShipIds),
         quantumMysticRevealByInstanceId,
       },
       turnData: {
@@ -806,6 +844,23 @@ function prepareEstimateState(
         ancientBattleRevealPreparedTurnNumber: drawing
           ? 0
           : sourceTurnData.ancientBattleRevealPreparedTurnNumber,
+        chargeDeclarationFleetSnapshotByPlayerId: phaseKey === "battle.charge_declaration"
+          ? structuredClone(sourceTurnData.chargeDeclarationFleetSnapshotByPlayerId ?? {})
+          : undefined,
+        chargeDeclarationEligibleSourceIdsByPlayerId: phaseKey === "battle.charge_declaration"
+          ? structuredClone(sourceTurnData.chargeDeclarationEligibleSourceIdsByPlayerId ?? {})
+          : undefined,
+        chargeDeclarationVisibilitySnapshot: phaseKey === "battle.charge_declaration"
+          ? structuredClone(sourceTurnData.chargeDeclarationVisibilitySnapshot)
+          : undefined,
+        chargeDeclarationAcknowledgements: phaseKey === "battle.charge_declaration"
+          ? {
+            battleTurnNumber: turnNumber,
+            chargeAfterByPlayerId: {},
+          }
+          : undefined,
+        chargePowerUsedByInstanceId: {},
+        acceptedShipOfEqualityTargetsByPlayerId: {},
       },
     } as any,
   };
@@ -938,6 +993,7 @@ export function estimateCurrentTurnForPlayer(
     draft: args.draft,
     sourceContext: prepared.state,
     solarSelection: args.solarSelection,
+    chargeDeclaration: args.chargeDeclaration,
   });
   if (
     typeof args.expectedSourceContextKey === "string" &&
@@ -984,18 +1040,6 @@ export function estimateCurrentTurnForPlayer(
     );
   }
 
-  workingState = {
-    ...workingState,
-    gameData: {
-      ...workingState.gameData,
-      pendingTurn: {
-        damageByPlayerId: {},
-        healByPlayerId: {},
-        breakdownEntries: [],
-      },
-    },
-  };
-
   const baseProjection = evaluateHealthProjection({
     state: structuredClone(workingState),
     playerId: args.playerId,
@@ -1003,22 +1047,36 @@ export function estimateCurrentTurnForPlayer(
   });
   let withAutocast: CurrentTurnHealthProjection | undefined;
   if (prepared.includeAutocast) {
-    const initialEnergy = cloneAncientEnergyPool(
-      workingState.gameData.ancient?.energyByPlayerId?.[args.playerId]?.pool,
-    );
-    const autocast = resolveSolarCastSequence({
-      state: structuredClone(workingState),
-      playerId: args.playerId,
-      declarationId: `current-turn-estimate:${identity.sourceContextKey}`,
-      battleTurnNumber: prepared.turnNumber,
-      initialEnergy,
-      casts: buildMonoColourAutocastCasts(initialEnergy),
-      resolvers: PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
-      sourceMode: "autocast",
-      initialLedgerOrder: 0,
-    });
+    const autocastState = prepared.phaseKey === "battle.charge_declaration"
+      ? resolveChargeDeclarationDisposable({
+        state: workingState,
+        playerId: args.playerId,
+        normalized: {
+          contractVersion: 1,
+          declarationId: `current-turn-autocast:${identity.sourceContextKey}`,
+          ordinaryChargeActions: [],
+          solarCasts: [],
+          autocastEnabled: true,
+        },
+      }).state
+      : (() => {
+        const initialEnergy = cloneAncientEnergyPool(
+          workingState.gameData.ancient?.energyByPlayerId?.[args.playerId]?.pool,
+        );
+        return resolveSolarCastSequence({
+          state: structuredClone(workingState),
+          playerId: args.playerId,
+          declarationId: `current-turn-estimate:${identity.sourceContextKey}`,
+          battleTurnNumber: prepared.turnNumber,
+          initialEnergy,
+          casts: buildMonoColourAutocastCasts(initialEnergy),
+          resolvers: PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
+          sourceMode: "autocast",
+          initialLedgerOrder: 0,
+        }).state;
+      })();
     withAutocast = evaluateHealthProjection({
-      state: autocast.state,
+      state: autocastState,
       playerId: args.playerId,
       opponentPlayerId: prepared.opponentPlayerId,
     });
@@ -1027,36 +1085,47 @@ export function estimateCurrentTurnForPlayer(
     | (CurrentTurnHealthProjection & { autocastEnabled: boolean })
     | undefined;
   if (args.solarSelection) {
-    const initialEnergy = cloneAncientEnergyPool(
-      workingState.gameData.ancient?.energyByPlayerId?.[args.playerId]?.pool,
-    );
-    const manual = resolveSolarCastSequence({
-      state: structuredClone(workingState),
-      playerId: args.playerId,
-      declarationId: `current-turn-selection:${identity.solarSelectionKey}`,
-      battleTurnNumber: prepared.turnNumber,
-      initialEnergy,
-      casts: structuredClone(args.solarSelection.solarCasts),
-      resolvers: PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
-      sourceMode: "manual",
-      initialLedgerOrder: 0,
-    });
-    let selectedState = manual.state;
-    if (args.solarSelection.autocastEnabled) {
-      const autocast = resolveSolarCastSequence({
-        state: selectedState,
+    const selectedState = prepared.phaseKey === "battle.charge_declaration"
+      ? resolveChargeDeclarationDisposable({
+        state: workingState,
         playerId: args.playerId,
-        declarationId: `current-turn-selection:${identity.solarSelectionKey}`,
-        battleTurnNumber: prepared.turnNumber,
-        initialEnergy: manual.remainingEnergy,
-        casts: buildMonoColourAutocastCasts(manual.remainingEnergy),
-        resolvers: PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
-        sourceMode: "autocast",
-        initialLedgerOrder: manual.ledgerEntries.length,
-        initialCastIndex: manual.acceptedCasts.length,
-      });
-      selectedState = autocast.state;
-    }
+        normalized: {
+          contractVersion: 1,
+          declarationId: `current-turn-selection:${identity.solarSelectionKey}`,
+          ordinaryChargeActions: [],
+          solarCasts: structuredClone(args.solarSelection.solarCasts),
+          autocastEnabled: args.solarSelection.autocastEnabled,
+        },
+      }).state
+      : (() => {
+        const initialEnergy = cloneAncientEnergyPool(
+          workingState.gameData.ancient?.energyByPlayerId?.[args.playerId]?.pool,
+        );
+        const manual = resolveSolarCastSequence({
+          state: structuredClone(workingState),
+          playerId: args.playerId,
+          declarationId: `current-turn-selection:${identity.solarSelectionKey}`,
+          battleTurnNumber: prepared.turnNumber,
+          initialEnergy,
+          casts: structuredClone(args.solarSelection!.solarCasts),
+          resolvers: PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
+          sourceMode: "manual",
+          initialLedgerOrder: 0,
+        });
+        if (!args.solarSelection!.autocastEnabled) return manual.state;
+        return resolveSolarCastSequence({
+          state: manual.state,
+          playerId: args.playerId,
+          declarationId: `current-turn-selection:${identity.solarSelectionKey}`,
+          battleTurnNumber: prepared.turnNumber,
+          initialEnergy: manual.remainingEnergy,
+          casts: buildMonoColourAutocastCasts(manual.remainingEnergy),
+          resolvers: PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
+          sourceMode: "autocast",
+          initialLedgerOrder: manual.ledgerEntries.length,
+          initialCastIndex: manual.acceptedCasts.length,
+        }).state;
+      })();
     withSolarSelection = {
       ...evaluateHealthProjection({
         state: selectedState,
@@ -1064,6 +1133,28 @@ export function estimateCurrentTurnForPlayer(
         opponentPlayerId: prepared.opponentPlayerId,
       }),
       autocastEnabled: args.solarSelection.autocastEnabled,
+    };
+  }
+  let withChargeDeclaration:
+    | (CurrentTurnHealthProjection & {
+      autocastEnabled: boolean;
+      declarationFingerprint: string;
+    })
+    | undefined;
+  if (args.chargeDeclaration) {
+    const resolved = resolveChargeDeclarationDisposable({
+      state: workingState,
+      playerId: args.playerId,
+      normalized: args.chargeDeclaration,
+    });
+    withChargeDeclaration = {
+      ...evaluateHealthProjection({
+        state: resolved.state,
+        playerId: args.playerId,
+        opponentPlayerId: prepared.opponentPlayerId,
+      }),
+      autocastEnabled: args.chargeDeclaration.autocastEnabled,
+      declarationFingerprint: fingerprintChargeDeclaration(args.chargeDeclaration),
     };
   }
   const simulatedPlayer = workingState.players.find((player) =>
@@ -1087,6 +1178,7 @@ export function estimateCurrentTurnForPlayer(
     healingRows: baseProjection.healing.rows,
     ...(withAutocast ? { withAutocast } : {}),
     ...(withSolarSelection ? { withSolarSelection } : {}),
+    ...(withChargeDeclaration ? { withChargeDeclaration } : {}),
     build: {
       lines: buildRows.map((row) => row.line),
       rows: buildRows,
