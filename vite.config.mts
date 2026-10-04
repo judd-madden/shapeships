@@ -1,3 +1,5 @@
+/// <reference types="vitest/config" />
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import tailwindcss from '@tailwindcss/vite';
@@ -7,6 +9,14 @@ export default defineConfig(() => ({
     base: '/',
 
     plugins: [react(), tailwindcss()],
+    test: {
+        environment: 'node',
+        include: [
+            'src/game/client/tests/**/*_test.ts',
+            'src/game/display/tests/**/*_test.ts',
+        ],
+        setupFiles: ['./vitest.setup.ts'],
+    },
     resolve: {
         extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
         alias: {

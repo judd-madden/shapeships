@@ -83,11 +83,17 @@ The authoritative game server runs through Supabase Edge Functions. See the proj
 Common repository checks include:
 
 ```bash
+npm run test:client
 npm run typecheck
 npm run build
 deno check src/supabase/functions/server/index.tsx
 deno test --allow-env --allow-read src/supabase/functions/server/tests
 ```
+
+`npm run test:client` runs the `_test.ts` suites under
+`src/game/client/tests` and `src/game/display/tests` with Vitest. These tests
+and their compatibility setup remain outside the production bundle. Server
+tests continue to use the Deno command shown above.
 
 ## Status
 
