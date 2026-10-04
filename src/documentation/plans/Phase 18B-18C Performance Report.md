@@ -40,13 +40,14 @@ Each row reports the number of estimator calls made by that route. Authenticatio
 | Representative waiting-opponent GET | 0 | 0.0002 / 0.0002 ms | 0.025 / 0.036 ms | 0.001 / 0.003 ms | 0.163 / 0.325 ms | 0.142–0.684 ms |
 | Representative revealed player GET | 2 | 0.0002 / 0.0003 ms | 0.028 / 0.037 ms | 0.291 / 0.508 ms | 0.552 / 0.858 ms | 0.449–1.430 ms |
 | Representative revealed spectator GET | 2 | 0.0001 / 0.0002 ms | 0.028 / 0.037 ms | 0.263 / 0.442 ms | 0.498 / 0.727 ms | 0.431–0.997 ms |
+| Representative Charge accepted Ancient GET | 3 | 0.0003 / 0.0005 ms | 0.051 / 0.065 ms | 1.749 / 2.185 ms | 2.224 / 2.762 ms | 1.949–3.884 ms |
 | Complex preview POST | 1 | 0.0001 / 0.0002 ms | 0.046 / 0.060 ms | 0.312 / 0.526 ms | 0.485 / 0.765 ms | 0.417–1.268 ms |
 | Complex submitted-waiting GET | 1 | 0.0001 / 0.0002 ms | 0.050 / 0.071 ms | 0.320 / 0.543 ms | 0.616 / 0.892 ms | 0.559–1.222 ms |
 | Complex waiting-opponent GET | 0 | 0.0001 / 0.0002 ms | 0.044 / 0.069 ms | 0.001 / 0.002 ms | 0.226 / 0.349 ms | 0.202–0.463 ms |
 | Complex revealed player GET | 2 | 0.0001 / 0.0002 ms | 0.042 / 0.068 ms | 0.086 / 0.143 ms | 0.314 / 0.547 ms | 0.281–0.833 ms |
 | Complex revealed spectator GET | 2 | 0.0001 / 0.0002 ms | 0.041 / 0.058 ms | 0.082 / 0.110 ms | 0.304 / 0.505 ms | 0.277–0.693 ms |
 
-The complex route fixture contains 27 mixed ships with Dreadnought, Science Vessel, Queen, Evolver, Solar Grid, and foreign effects. The representative fixture contains eight established ships and uses an empty eligible draft.
+The complex route fixture contains 27 mixed ships with Dreadnought, Science Vessel, Queen, Evolver, Solar Grid, and foreign effects. The representative fixture contains eight established ships and uses an empty eligible draft. The Charge fixture performs a full GET with two public frozen estimates plus the Ancient requester's recovered normalized declaration through `withChargeDeclaration`; its estimator count is three.
 
 Repeat with:
 

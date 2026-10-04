@@ -12,6 +12,7 @@ import {
 import {
   type CurrentTurnEstimateAvailableResult,
   estimateCurrentTurnForPlayer,
+  hashStableValue,
 } from "../../../engine/state/currentTurnEstimator.ts";
 import {
   projectDrawingPreludeFleetsForViewerWithAvailability,
@@ -26,6 +27,30 @@ import {
 } from "../../../engine_shared/resolve/resolvePhase.ts";
 
 const EMPTY_DRAFT: BuildSubmitPayload = { builds: [] };
+
+Deno.test("stable value hashing preserves canonical identity bytes", () => {
+  const nested = {
+    z: [3, { b: true, a: "x" }],
+    a: null,
+    skip: undefined,
+  };
+  const reordered = {
+    a: null,
+    z: [3, { a: "x", b: true }],
+  };
+
+  assert.equal(hashStableValue(nested), "4de6c1ab6cb6f181");
+  assert.equal(hashStableValue(reordered), "4de6c1ab6cb6f181");
+  assert.equal(
+    hashStableValue([
+      "charge",
+      { solarCasts: [{ solarPowerId: "SLIF" }], autocastEnabled: true },
+      0,
+      false,
+    ]),
+    "59825f6d9f9c0589",
+  );
+});
 
 function ship(
   instanceId: string,

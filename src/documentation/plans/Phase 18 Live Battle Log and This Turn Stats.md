@@ -2,7 +2,7 @@
 
 ## Normative Planning and Pass-Decomposition Document
 
-- **Status:** Phases 18A-18E are implemented in the live repository as of 2026-09-27; display passes 18F-18G remain planned, and the deployed-equivalent performance/public-rollout gate remains incomplete
+- **Status:** Phases 18A-18G and the Charge Declaration Addendum are implemented in the live repository as of 2026-10-04; the deployed-equivalent performance/public-rollout gate remains incomplete
 - **Phase type:** Live battle presentation and server-calculated estimates; not a new gameplay phase
 - **Primary scope:** A viewer-safe live current-turn Battle Log; estimated and resolved current-turn damage/healing; paired desktop and mobile stat presentation
 - **Architecture baseline:** Server-authoritative Shapeships after the Phase 14 phase simplification, Phase 16 head polling, and current Phase 7 Battle Log / Phase 12 stats implementations

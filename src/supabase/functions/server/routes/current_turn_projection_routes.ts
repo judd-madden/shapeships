@@ -26,6 +26,7 @@ import {
   type CurrentTurnEstimateResult,
   estimateCurrentTurnForPlayer,
   getCurrentTurnDraftKey,
+  hashStableValue,
 } from "../engine/state/currentTurnEstimator.ts";
 import { getCurrentDrawingPreludePlayerState } from "../engine/state/drawingPreludeState.ts";
 import type { IntentPersistence } from "./intent_persistence.ts";
@@ -96,34 +97,6 @@ function getTurnNumber(state: any): number {
   const value = state?.gameData?.turnNumber ??
     state?.gameData?.turnData?.turnNumber ?? state?.turnNumber;
   return Number.isInteger(value) ? value : 0;
-}
-
-function stableSerialize(value: unknown): string {
-  if (value === null) return "null";
-  if (Array.isArray(value)) {
-    return `[${value.map(stableSerialize).join(",")}]`;
-  }
-  if (isObject(value)) {
-    const entries = Object.keys(value)
-      .filter((key) => typeof value[key] !== "undefined")
-      .sort((left, right) => left.localeCompare(right))
-      .map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key])}`)
-      .join(",");
-    return `{${entries}}`;
-  }
-  return JSON.stringify(value) ?? "null";
-}
-
-function hashStableValue(value: unknown): string {
-  const serialized = stableSerialize(value);
-  let hash = 0xcbf29ce484222325n;
-  const prime = 0x100000001b3n;
-  const mask = 0xffffffffffffffffn;
-  for (let index = 0; index < serialized.length; index += 1) {
-    hash ^= BigInt(serialized.charCodeAt(index));
-    hash = (hash * prime) & mask;
-  }
-  return hash.toString(16).padStart(16, "0");
 }
 
 function toEstimateIdentityDto(

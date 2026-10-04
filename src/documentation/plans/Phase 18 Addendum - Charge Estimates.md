@@ -287,15 +287,18 @@ Implemented:
 - Do not change balance, ship definitions, power wording, animation timing, Battle Log reveal timing, styling beyond the appended uncertainty marker, or tooling.
 - Do not start Vite, Playwright, or browser/manual testing unless separately requested. Final implementation reporting should state: **Not run — browser/Vite testing handled by user.**
 
-### 8.1 Narrow cleanup pass results — 2026-10-04
+### 8.1 Final narrow maintenance pass results — 2026-10-04
 
-- `deno test src/game/client/tests/gameSession/chargeDeclaration_test.ts` — failed before running because the existing client test graph uses extensionless imports that plain Deno does not resolve.
-- Compatibility retries with `--sloppy-imports` and `--no-check` also could not run the client test because the existing Vite client graph resolves `ShipDefinitions.json.ts` through `ShipDefinitions.json` and reads `import.meta.env` at module load. No test-only production abstraction or tooling change was introduced.
-- `deno test src/supabase/functions/server/tests/routes/current_turn_projection_routes_test.ts` — required the existing server environment permission; rerun with `--allow-env` passed all 20 tests.
+- The duplicate route hash implementation was removed in favour of the estimator's exported stable-value hash helper. Fixed golden vectors preserve the existing serialized FNV outputs byte-for-byte.
+- `deno test --allow-env src/supabase/functions/server/tests/engine/state/currentTurnEstimator_test.ts` — passed all 36 tests, including the new hash identity regression.
+- `deno test --allow-env src/supabase/functions/server/tests/routes/current_turn_projection_routes_test.ts` — passed all 20 tests.
+- `deno test --allow-env src/supabase/functions/server/tests/routes/current_turn_projection_performance_test.ts` — passed. The representative Charge full GET made three estimator calls; across 200 measured samples its estimator median/p95 was 1.749/2.185 ms and total-route median/p95 was 2.224/2.762 ms in the documented in-memory environment.
+- Repository scripts and configuration expose no supported client test command. `src/game/client/tests/gameSession/chargeDeclaration_test.ts` therefore did not execute, and its test cases are not claimed as passed. Earlier direct Deno compatibility attempts remain invalid because the client graph depends on Vite resolution and `import.meta.env`; no tooling or production test seam was added.
 - `deno task check` — passed.
 - `npm run typecheck` — passed.
 - `npm run build` — passed with the existing large-chunk advisory.
-- Not run — browser/Vite testing handled by user
+- `deno fmt --check` against the four touched TypeScript files — not clean because those files contain existing formatter differences outside this narrow pass; no broad formatting rewrite was applied.
+- Not run — browser/Vite testing handled by user.
 
 ## 9. Completion Criteria
 

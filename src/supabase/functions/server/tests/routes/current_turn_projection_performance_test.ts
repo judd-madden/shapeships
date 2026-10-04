@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { Hono } from "npm:hono";
 import { registerGameRoutes } from "../../routes/game_routes.ts";
 import type { CurrentTurnRouteTiming } from "../../routes/current_turn_projection_routes.ts";
+import {
+  replaceChargeDeclarationVisibilityState,
+} from "../../engine/state/chargeDeclarationVisibility.ts";
 import type {
   ConditionalWriteResult,
   GameStatePersistence,
@@ -14,7 +17,10 @@ function ship(instanceId: string, shipDefId: string, extra: any = {}) {
   return { instanceId, shipDefId, createdTurn: 4, ...extra };
 }
 
-function createState(complex: boolean, phase: "drawing" | "reveal") {
+function createState(
+  complex: boolean,
+  phase: "drawing" | "reveal" | "charge_declaration",
+) {
   const turnNumber = 8;
   const baseP1 = [
     ship("p1-def", "DEF"),
@@ -97,7 +103,7 @@ function createState(complex: boolean, phase: "drawing" | "reveal") {
       },
       ancient: {
         schemaVersion: 1,
-        energyByPlayerId: phase === "reveal"
+        energyByPlayerId: phase !== "drawing"
           ? {
             p2: {
               battleTurnNumber: turnNumber,
@@ -148,7 +154,7 @@ function createState(complex: boolean, phase: "drawing" | "reveal") {
           p1: { savedLines: 60, savedJoiningLines: 30 },
           p2: { savedLines: 30, savedJoiningLines: 15 },
         },
-        ...(phase === "reveal"
+        ...(phase !== "drawing"
           ? { ancientBattleRevealPreparedTurnNumber: turnNumber }
           : {}),
       },
@@ -212,6 +218,7 @@ async function measure(args: {
   path: string;
   body?: any;
   expectedEstimateCount: number;
+  verifyRecoveredChargeDeclaration?: boolean;
 }) {
   const persistence = new PerfPersistence(args.state);
   const authSamples: number[] = [];
@@ -232,6 +239,22 @@ async function measure(args: {
     (timing) => routeTimings.push(timing),
   );
   const totals: number[] = [];
+  if (args.verifyRecoveredChargeDeclaration) {
+    const response = await app.request(args.path, { method: args.method });
+    assert.equal(response.status, 200);
+    const body: any = await response.json();
+    const publicEstimates = Object.values(
+      body.publicState.thisTurn.estimatesByPlayerId,
+    ) as any[];
+    assert.equal(publicEstimates.length, 2);
+    assert.equal(
+      publicEstimates.every((estimate) => estimate.status === "privacy_frozen"),
+      true,
+    );
+    assert.ok(
+      body.requester.thisTurn.currentProjection.withChargeDeclaration,
+    );
+  }
   const run = async () => {
     const startedAt = performance.now();
     const response = await app.request(args.path, {
@@ -352,6 +375,55 @@ Deno.test("Phase 18I in-memory route performance fixtures", async () => {
         expectedEstimateCount: 2,
       }),
     );
+
+    if (!complex) {
+      const charge: any = createState(false, "charge_declaration");
+      charge.gameData.ships.p2 = [
+        ship("p2-mer", "MER"),
+        ship("p2-plu", "PLU"),
+      ];
+      charge.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
+        p1: [],
+        p2: [],
+      };
+      charge.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId =
+        structuredClone(charge.gameData.ships);
+      replaceChargeDeclarationVisibilityState(charge);
+      charge.gameData.ancient.acceptedDeclarationByPlayerId.p2 = {
+        schemaVersion: 1,
+        contractVersion: 1,
+        declarationId: "representative-accepted-solar",
+        declarationFingerprint: JSON.stringify({
+          contractVersion: 1,
+          ordinaryChargeActions: [],
+          solarCasts: [{ solarPowerId: "SLIF" }],
+          autocastEnabled: true,
+        }),
+        playerId: "p2",
+        context: {
+          contextVersion: 1,
+          battleTurnNumber: 8,
+          initialEnergy: { green: 3, red: 3, blue: 0 },
+          energySourceIds: [],
+        },
+        ordinaryChargeActions: [],
+        solarCasts: [{ solarPowerId: "SLIF" }],
+        autocastEnabled: true,
+      };
+      results.push(
+        await measure({
+          name: "representative-charge-accepted-ancient-get",
+          shape:
+            "two public frozen estimates plus requester-private recovered normalized Ancient declaration",
+          state: charge,
+          sessionId: "p2",
+          method: "GET",
+          path: `/make-server-825e19ab/game-state/${charge.gameId}`,
+          expectedEstimateCount: 3,
+          verifyRecoveredChargeDeclaration: true,
+        }),
+      );
+    }
   }
   const privateBattleProjectionAndPairCost = ["representative", "complex"].map(
     (label) => {

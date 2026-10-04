@@ -234,7 +234,7 @@ function stableSerialize(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 
-function hashStableValue(value: unknown): string {
+export function hashStableValue(value: unknown): string {
   const serialized = stableSerialize(value);
   let hash = 0xcbf29ce484222325n;
   const prime = 0x100000001b3n;
