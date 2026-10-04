@@ -1019,6 +1019,8 @@ Deno.test("Charge Solar preview is requester-only, canonical, stale-safe, and no
   assert.equal(body.withSolarSelection.healing.total, 3);
   assert.equal(body.withSolarSelection.damage.total, 7);
   assert.equal(body.withSolarSelection.autocastEnabled, true);
+  assert.equal(body.withChargeDeclaration.healing.total, 3);
+  assert.equal(body.withChargeDeclaration.damage.total, 7);
   assert.equal(typeof body.identity.solarSelectionKey, "string");
   assert.deepEqual(test.persistence.store.get(test.key), before);
   assert.equal(test.persistence.writes, 0);
@@ -1112,6 +1114,7 @@ Deno.test("preferred Charge preview returns a distinct complete declaration vari
     assert.equal(body.healing.total, 3, faction);
     assert.equal(body.withChargeDeclaration.damage.total, 11, faction);
     assert.equal(body.withChargeDeclaration.healing.total, 3, faction);
+    assert.equal("withSolarSelection" in body, false, faction);
     assert.equal(
       body.identity.declarationFingerprint,
       body.withChargeDeclaration.declarationFingerprint,
@@ -1155,6 +1158,7 @@ Deno.test("preferred Charge preview returns a distinct complete declaration vari
       const projection = recovered.requester.thisTurn.currentProjection;
       assert.equal(projection.withChargeDeclaration.damage.total, 11, faction);
       assert.equal(projection.withChargeDeclaration.healing.total, 3, faction);
+      assert.equal("withSolarSelection" in projection, false, faction);
       assert.equal(
         projection.identity.declarationFingerprint,
         body.identity.declarationFingerprint,
@@ -1283,7 +1287,7 @@ Deno.test("Charge preview distinguishes retained conflicts from finalized submis
   }
 });
 
-Deno.test("accepted Charge Solar projection replays captured initial energy, not spent live energy", async () => {
+Deno.test("accepted Ancient Charge projection uses the normalized declaration without a duplicate Solar variant", async () => {
   const state: any = createState("battle.charge_declaration");
   configureAncientProjectionPlayer(state, "p1");
   state.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 5;
@@ -1313,12 +1317,32 @@ Deno.test("accepted Charge Solar projection replays captured initial energy, not
     solarCasts: [{ solarPowerId: "SLIF" }],
     autocastEnabled: true,
   };
+  const declarationFingerprint = JSON.stringify({
+    contractVersion: 1,
+    ordinaryChargeActions: [],
+    solarCasts: [{ solarPowerId: "SLIF" }],
+    autocastEnabled: true,
+  });
+  state.gameData.turnData.acceptedChargeDeclarationsByPlayerId.p1 = {
+    schemaVersion: 1,
+    contractVersion: 1,
+    battleTurnNumber: 5,
+    declarationId: "accepted-solar",
+    declarationFingerprint,
+    playerId: "p1",
+    ordinaryChargeActions: [],
+    solarCasts: [{ solarPowerId: "SLIF" }],
+    autocastEnabled: true,
+  };
 
   const body: any = await fullStateBody(state, "p1");
-  const selected = body.requester.thisTurn.currentProjection.withSolarSelection;
+  const currentProjection = body.requester.thisTurn.currentProjection;
+  const selected = currentProjection.withChargeDeclaration;
   assert.equal(selected.healing.total, 3);
   assert.equal(selected.damage.total, 7);
   assert.equal(selected.autocastEnabled, true);
+  assert.equal(selected.declarationFingerprint, declarationFingerprint);
+  assert.equal("withSolarSelection" in currentProjection, false);
   const publicOwn = body.publicState.thisTurn.estimatesByPlayerId.p1;
   assert.equal("withSolarSelection" in publicOwn, false);
   const otherBody: any = await fullStateBody(state, "p2");

@@ -844,7 +844,7 @@ export function registerCurrentTurnProjectionRoutes(args: {
             draft: null,
             expectedSourceContextKey: observed.sourceContextKey,
             chargeDeclaration: normalized,
-            ...(isAncientPlayer(participant)
+            ...(solarSelection !== undefined && isAncientPlayer(participant)
               ? {
                 solarSelection: {
                   solarCasts: normalized.solarCasts,
@@ -1046,14 +1046,6 @@ export function projectCurrentTurnFieldsForFullState(args: {
       playerId: requester.id,
       draft: null,
       ...(recovered ? { chargeDeclaration: recovered } : {}),
-      ...(recovered && isAncientPlayer(requester)
-        ? {
-          solarSelection: {
-            solarCasts: recovered.solarCasts,
-            autocastEnabled: recovered.autocastEnabled,
-          },
-        }
-        : {}),
     });
     estimateCount++;
     requesterThisTurn = {

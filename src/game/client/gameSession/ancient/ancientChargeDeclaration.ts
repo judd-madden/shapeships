@@ -6,7 +6,6 @@ import {
   serializeOrdinaryChargeActions,
   serializeChargeDeclarationSolarCasts,
   type ChargeDeclarationPayload,
-  type NormalizedSolarCast,
   type OrdinaryChargeSerializationResult,
 } from '../chargeDeclaration';
 import type { AncientEnergyPool } from '../selectors';
@@ -62,8 +61,6 @@ export type AncientManualSolarCast =
         selectedNumber?: number;
       };
     };
-
-export type AncientChargeDeclarationSolarCastPayload = NormalizedSolarCast;
 
 export type SupportedAncientSolarEstimatePowerId =
   | 'SLIF'
@@ -126,6 +123,18 @@ export type FrozenAncientChargeDeclarationAttempt = {
   };
   eventsHandled: boolean;
 };
+
+export function isIncompleteAncientBlackHoleSelection(args: {
+  selectorMode: AncientSolarSelectorMode | null;
+  requiredTargetCount: number;
+  selectedTargetCount: number;
+}): boolean {
+  return (
+    args.selectorMode === 'blackHole' &&
+    args.requiredTargetCount > 0 &&
+    args.selectedTargetCount !== args.requiredTargetCount
+  );
+}
 
 export function getAncientChargeDeclarationActions(
   availableActions: unknown

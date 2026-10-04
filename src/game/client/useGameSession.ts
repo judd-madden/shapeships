@@ -327,6 +327,7 @@ import {
   getAncientChargeDeclarationActions,
   getAncientEnergyTotal,
   getUsableAncientEnergyPoolForPlayer,
+  isIncompleteAncientBlackHoleSelection,
   isFixedAncientManualSolarPowerId,
   replayAncientManualSolarCasts,
   selectAncientSolarPresentationCasts,
@@ -2839,7 +2840,7 @@ export function useGameSession(
   const ancientDeclarationActions = getAncientChargeDeclarationActions(availableActions);
   const ancientChargeDeclarationWorkflowKey =
     `${effectiveGameId ?? 'nogame'}::${me?.id ?? 'noplayer'}::${phaseInstanceKey}`;
-  const ancientPlayerReady = isPlayerReadyForPhase(rawState, me?.id);
+  const requesterPlayerReady = isPlayerReadyForPhase(rawState, me?.id);
   const ancientDeclarationActionsLoaded = Array.isArray(availableActions);
   const hasPendingAncientRejectionRecovery =
     ancientChargeDeclarationWorkflow?.key === ancientChargeDeclarationWorkflowKey &&
@@ -2848,7 +2849,7 @@ export function useGameSession(
     phaseKey === 'battle.charge_declaration' &&
     myRole === 'player' &&
     mySpecies === 'ancient' &&
-    !ancientPlayerReady &&
+    !requesterPlayerReady &&
     (
       hasPendingAncientRejectionRecovery ||
       (
@@ -2921,7 +2922,7 @@ export function useGameSession(
       displayLeftPlayer?.id === me?.id,
     currentBattleTurnNumber: turnNumber,
     localPreviewCasts: ancientSolarPresentationCasts,
-    isAuthoritativelyReady: ancientPlayerReady,
+    isAuthoritativelyReady: requesterPlayerReady,
     suppressedAuthoritativeLedgerEntryIds:
       getSuppressedSimulacrumLedgerEntryIds(displayLeftPlayer?.id),
   });
@@ -2952,7 +2953,7 @@ export function useGameSession(
           allowLocalPreview: false,
           currentBattleTurnNumber: turnNumber,
           localPreviewCasts: [],
-          isAuthoritativelyReady: ancientPlayerReady,
+          isAuthoritativelyReady: requesterPlayerReady,
         })
       : displayLeftAncientSolarEntries;
   const displayRightAncientSolarEntriesDuringFleetMaterialisationHold =
@@ -3248,6 +3249,12 @@ export function useGameSession(
     ancientBlackHoleTargeting.requiredTargetCount > 0;
   const ancientBlackHoleSelectedTargetInstanceIds =
     activeAncientChargeDeclarationWorkflow?.blackHoleSelectedTargetInstanceIds ?? [];
+  const ancientBlackHoleSelectionIncomplete =
+    isIncompleteAncientBlackHoleSelection({
+      selectorMode: activeAncientChargeDeclarationWorkflow?.selectorMode ?? null,
+      requiredTargetCount: ancientBlackHoleTargeting.requiredTargetCount,
+      selectedTargetCount: ancientBlackHoleSelectedTargetInstanceIds.length,
+    });
   const ancientBlackHoleBoardTargeting = buildAncientBlackHoleBoardTargeting({
     active: ancientBlackHoleSelectorActive,
     targeting: ancientBlackHoleTargeting,
@@ -4101,19 +4108,25 @@ useEffect(() => {
       phaseKey !== 'battle.charge_declaration' ||
       myRole !== 'player' ||
       !effectiveGameId ||
-      !previewRequesterPlayerId ||
-      !Array.isArray(availableActions)
+      !previewRequesterPlayerId
     ) {
       return { ok: false, reason: 'charge_declaration_unavailable' };
     }
     if (activeAncientChargeDeclarationAttempt) {
       return { ok: true, payload: activeAncientChargeDeclarationAttempt.body.payload };
     }
+    if (!Array.isArray(availableActions)) {
+      return { ok: false, reason: 'charge_declaration_unavailable' };
+    }
 
     const declarationId =
       `${effectiveGameId}:${previewRequesterPlayerId}:${turnNumber}:battle.charge_declaration:preview`;
     if (mySpecies === 'ancient') {
-      if (!activeAncientChargeDeclarationWorkflow || !ancientManualSolarCastReplay.valid) {
+      if (
+        !activeAncientChargeDeclarationWorkflow ||
+        !ancientManualSolarCastReplay.valid ||
+        ancientBlackHoleSelectionIncomplete
+      ) {
         return { ok: false, reason: 'incomplete_solar_declaration' };
       }
       const built = buildAncientChargeDeclarationPayload({
@@ -4160,6 +4173,7 @@ useEffect(() => {
     activeAncientChargeDeclarationAttempt,
     activeAncientChargeDeclarationWorkflow,
     ancientManualSolarCastReplay.valid,
+    ancientBlackHoleSelectionIncomplete,
     ancientDeclarationActions,
     shipChoiceSelectionByInstanceId,
     allocatedDestroyTargetIdsBySourceInstanceId,
@@ -4174,7 +4188,7 @@ useEffect(() => {
       phaseKey === 'battle.charge_declaration' &&
       myRole === 'player' &&
       !isFinished &&
-      !ancientPlayerReady &&
+      !requesterPlayerReady &&
       !hasRecoveredChargeDeclaration &&
       chargeDeclarationBuild.ok;
     if (
@@ -4201,7 +4215,7 @@ useEffect(() => {
     phaseKey,
     myRole,
     isFinished,
-    ancientPlayerReady,
+    requesterPlayerReady,
     hasRecoveredChargeDeclaration,
     chargeDeclarationBuild,
     requesterChargeProjection?.identity?.sourceContextKey,
@@ -4888,7 +4902,7 @@ useEffect(() => {
                 ? { kind: 'recovered' }
                 : chargeCurrentTurnPreviewCandidate
                   ? { kind: 'editing' }
-                  : ancientPlayerReady
+                  : requesterPlayerReady
                     ? { kind: 'awaiting_recovery' }
                     : !chargeDeclarationBuild.ok
                       ? { kind: 'incomplete', reason: chargeDeclarationBuild.reason }
@@ -5935,11 +5949,6 @@ useEffect(() => {
       !ancientManualSolarCastReplay.valid ||
       activeAncientChargeDeclarationWorkflow.rejectionRecoveryPending
     );
-  const hasIncompleteAncientBlackHoleSelection =
-    activeAncientChargeDeclarationWorkflow?.selectorMode === 'blackHole' &&
-    ancientBlackHoleTargeting.requiredTargetCount > 0 &&
-    activeAncientChargeDeclarationWorkflow.blackHoleSelectedTargetInstanceIds.length !==
-      ancientBlackHoleTargeting.requiredTargetCount;
   const hasIncompleteAncientSimulacrumSelection =
     activeAncientChargeDeclarationWorkflow?.selectorMode === 'simulacrum';
 
@@ -6001,7 +6010,7 @@ useEffect(() => {
   } else if (isNonInputBattleTransitionPhase) {
     readyEnabled = false;
     readyDisabledReason = null;
-  } else if (hasIncompleteAncientBlackHoleSelection) {
+  } else if (ancientBlackHoleSelectionIncomplete) {
     readyEnabled = false;
     readyDisabledReason = 'Must complete actions';
   } else if (hasIncompleteAncientSimulacrumSelection) {
@@ -7094,7 +7103,7 @@ useEffect(() => {
         activeAncientChargeDeclarationWorkflow.hadChargeStage &&
         activeAncientChargeDeclarationAttempt == null &&
         !activeAncientChargeDeclarationWorkflow.rejectionRecoveryPending &&
-        !ancientPlayerReady
+        !requesterPlayerReady
       ) {
         setAncientBlackHoleHover(null);
         setAncientSimulacrumHover(null);
@@ -7980,7 +7989,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       workflow.entryDisposition !== 'unresolved' ||
       phaseKey !== 'battle.charge_declaration' ||
       !ancientDeclarationActionsLoaded ||
-      ancientPlayerReady ||
+      requesterPlayerReady ||
       activeAncientChargeDeclarationAttempt != null ||
       workflow.rejectionRecoveryPending
     ) {
@@ -8025,7 +8034,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     ancientChargeDeclarationWorkflowKey,
     ancientDeclarationActionsLoaded,
     ancientManualSolarCastReplay.valid,
-    ancientPlayerReady,
+    requesterPlayerReady,
     effectiveGameId,
     mySessionId,
     phaseKey,

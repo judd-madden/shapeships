@@ -1,6 +1,6 @@
 # Phase 18 Addendum — Charge Declaration Estimate Updates
 
-**Status:** Server pass implemented; client migration remains follow-up  
+**Status:** Server and client passes implemented; browser validation remains user-managed
 **Scope:** Server-authoritative live estimate updates during `battle.charge_declaration` for every species  
 **Relationship to Phase 18:** This addendum overrides only Phase 18's rule that both estimates remain frozen and exclude all Charge Declaration choices. The original Phase 18 planning document remains a historical record.
 
@@ -96,11 +96,11 @@ The server pass implements the following additive contract:
 
 - `POST /charge-declaration-preview/:gameId` accepts the preferred `{ observed, declaration, requestToken? }` envelope for every player species. `declaration` is contract version 1 and contains `declarationId`, ordered `ordinaryChargeActions`, ordered `solarCasts`, and explicit `autocastEnabled`.
 - The canonical declaration fingerprint is normalized JSON containing `contractVersion`, ordered ordinary actions, ordered Solar casts, and `autocastEnabled`; it deliberately excludes `declarationId`.
-- Responses preserve Base `damage`/`healing`, `draftKey`, `withAutocast`, `solarSelectionKey`, and `withSolarSelection`, and add `identity.declarationFingerprint` plus `withChargeDeclaration` with matched totals, rows, Autocast setting, and fingerprint.
-- Legacy `{ observed, solarSelection, requestToken? }` requests remain accepted and use the same full production Solar registry with an empty ordinary-action list.
+- Responses preserve Base `damage`/`healing`, `draftKey`, and independently required `withAutocast` data. Preferred normalized requests return `identity.declarationFingerprint` plus `withChargeDeclaration` with matched totals, rows, Autocast setting, and fingerprint.
+- Legacy `{ observed, solarSelection, requestToken? }` requests remain accepted as a compatibility path, retain `solarSelectionKey` and `withSolarSelection`, and use the same full production Solar registry with an empty ordinary-action list.
 - Public frozen Charge Declaration estimates add `chargeDeclarationUncertain`, derived only from snapped eligible ordinary sources or snapped usable Ancient energy.
 
-The estimator creates an independent deep clone of the phase-entry template for each meaningfully distinct variant. Base collects canonical automatic effects once. `withAutocast` applies only phase-entry Autocast, `withSolarSelection` applies only the supplied or accepted manual Solar selection and its effective Autocast setting, and `withChargeDeclaration` applies the complete retained-plus-draft ordinary and Solar declaration. Each variant then collects automatic effects exactly once.
+The estimator creates an independent deep clone of the phase-entry template for each meaningfully distinct variant. Base collects canonical automatic effects once. `withAutocast` applies only phase-entry Autocast, `withSolarSelection` is calculated only for genuine legacy compatibility requests or the existing Reveal/First Strike projection path, and `withChargeDeclaration` applies the complete retained-plus-draft ordinary and Solar declaration. Preferred normalized Charge preview and Charge-phase recovery no longer calculate a duplicate Solar-selection variant from the same declaration. Each calculated variant collects automatic effects exactly once.
 
 The resolver dependency audit classified the required inputs as follows:
 
@@ -113,15 +113,11 @@ Ordinary Charge acceptance is cumulative and private. Exact accepted source/acti
 
 Full GET reconstructs requester projections for every species from the finalized declaration or cumulative retained actions. Preview starts at phase entry, replays retained actions exactly once, deduplicates identical draft sources, and rejects conflicts. Malformed or illegal input is unavailable, turn/phase or source-context drift is obsolete, and no failure path substitutes Base, unrelated Autocast, or fabricated zero.
 
-The following earlier limitations are retained here as historical context for the client follow-up:
+The client pass is implemented. `useGameSession.ts` builds normalized Charge declarations for every species, preserves frozen Ancient submission attempts across polling gaps, and treats incomplete required Black Hole targeting as pending rather than reusing a prior complete draft. `currentTurnPreview.ts` provides stable semantic identity, debounce, one in-flight request, newest-candidate coalescing, caching, stale-response rejection, and one bounded source-context retry for Drawing and Charge Declaration. `thisTurnPresentation.ts` selects matching requester-only normalized Charge projections and the stable public uncertainty marker.
 
-- `useGameSession.ts` already owns ordinary ship-choice state, target allocations, Ancient ordered manual casts, the Autocast preference, and frozen Ancient submission attempts.
-- `ancientChargeDeclaration.ts` already builds the complete Ancient authoritative payload, while `intents.ts` separately constructs ordinary non-Ancient action batches at Ready.
-- `currentTurnPreview.ts` already supplies debounce, one in-flight request, newest-candidate coalescing, caching, stale-response rejection, and one bounded source-context retry for Drawing and the narrow Solar preview.
-- The scheduler currently clears its debounce timer before checking whether a re-applied candidate has the same semantic identity. Equivalent renders can therefore postpone or cancel the original request deadline; this must be corrected while generalizing the candidate.
-- `thisTurnPresentation.ts` can select requester-only Autocast/Solar variants, but has not yet migrated to the generic local Charge draft projection or public Charge uncertainty marker.
+## 6. Implementation Record
 
-## 6. Implementation Plan
+The following server and client work is implemented. The bullets remain as the normative description of the delivered behavior.
 
 ### 6.1 Shared client declaration construction
 
@@ -132,7 +128,7 @@ Relevant files:
 - `src/game/client/useGameSession.ts`
 - a neutral Charge Declaration helper module if extraction keeps the existing files focused
 
-Changes:
+Implemented:
 
 - Extract or share the ordinary Charge action builder currently duplicated between Ancient atomic submission and the generic Ready flow.
 - Produce a stable normalized local draft for all player species from renderable actions, choice selections, and allocated targets.
@@ -149,7 +145,7 @@ Relevant files:
 - `src/supabase/functions/server/engine/state/currentTurnEstimator.ts`
 - `src/supabase/functions/server/engine/state/chargeDeclarationVisibility.ts`
 
-Changes:
+Implemented:
 
 - Extract a canonical disposable simulation core from authoritative Charge Declaration resolution, or otherwise share the same normalization and resolver sequence without duplicating rules.
 - Support ordinary-only drafts for non-Ancient players and combined ordinary/Solar drafts for Ancient players.
@@ -169,7 +165,7 @@ Relevant files:
 - `src/supabase/functions/server/engine/intent/IntentReducer.ts`
 - `src/supabase/functions/server/engine/state/GameStateTypes.ts`
 
-Changes:
+Implemented:
 
 - Generalize `/charge-declaration-preview/:gameId` from Ancient `solarSelection` to the normalized local Charge Declaration draft.
 - Allow any active player with Charge Declaration input to request their own preview.
@@ -191,7 +187,7 @@ Relevant files:
 - `src/supabase/functions/server/routes/current_turn_projection_routes.ts`
 - client DTO/types and `thisTurnPresentation.ts`
 
-Changes:
+Implemented:
 
 - Add a public projection field such as `chargeDeclarationUncertain: boolean` for each player's frozen Charge Declaration estimate.
 - Derive it only from phase-entry public eligibility:
@@ -208,7 +204,7 @@ Relevant files:
 - `src/game/client/gameSession/currentTurnPreview.ts`
 - `src/game/client/useGameSession.ts`
 
-Changes:
+Implemented:
 
 - Replace Solar-only candidate identity with a stable normalized Charge Declaration draft fingerprint.
 - Compute semantic identity before clearing the current debounce timer.
@@ -224,7 +220,7 @@ Relevant files:
 - `src/game/client/gameSession/thisTurnPresentation.ts`
 - desktop/mobile stats components and styles only where needed to render the appended `?`
 
-Changes:
+Implemented:
 
 - During Charge Declaration, select the matching live requester projection for the local player's own metrics regardless of species.
 - When a local candidate is pending, unavailable, or stale, do not fall through to the public Base or unrelated Autocast projection. Preserve the last valid matching local projection where allowed, otherwise show the existing pending/unavailable treatment.
@@ -290,6 +286,16 @@ Changes:
 - Run `npm run build`.
 - Do not change balance, ship definitions, power wording, animation timing, Battle Log reveal timing, styling beyond the appended uncertainty marker, or tooling.
 - Do not start Vite, Playwright, or browser/manual testing unless separately requested. Final implementation reporting should state: **Not run — browser/Vite testing handled by user.**
+
+### 8.1 Narrow cleanup pass results — 2026-10-04
+
+- `deno test src/game/client/tests/gameSession/chargeDeclaration_test.ts` — failed before running because the existing client test graph uses extensionless imports that plain Deno does not resolve.
+- Compatibility retries with `--sloppy-imports` and `--no-check` also could not run the client test because the existing Vite client graph resolves `ShipDefinitions.json.ts` through `ShipDefinitions.json` and reads `import.meta.env` at module load. No test-only production abstraction or tooling change was introduced.
+- `deno test src/supabase/functions/server/tests/routes/current_turn_projection_routes_test.ts` — required the existing server environment permission; rerun with `--allow-env` passed all 20 tests.
+- `deno task check` — passed.
+- `npm run typecheck` — passed.
+- `npm run build` — passed with the existing large-chunk advisory.
+- Not run — browser/Vite testing handled by user
 
 ## 9. Completion Criteria
 

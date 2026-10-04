@@ -5,6 +5,10 @@ import {
   serializeChargeDeclarationSolarCasts,
   serializeOrdinaryChargeActions,
 } from '../../gameSession/chargeDeclaration';
+import {
+  buildAncientChargeDeclarationPayload,
+  isIncompleteAncientBlackHoleSelection,
+} from '../../gameSession/ancient/ancientChargeDeclaration';
 import type { RenderableServerAction } from '../../gameSession/availableActions';
 
 function assert(condition: unknown, message = 'assertion failed'): void {
@@ -143,4 +147,68 @@ Deno.test('normalized declaration combines ordinary actions with ordered complet
       getChargeDeclarationFingerprint(payload),
     'declarationId changed semantic identity',
   );
+});
+
+Deno.test('Black Hole selection is incomplete only while required targets are missing', () => {
+  assert(
+    isIncompleteAncientBlackHoleSelection({
+      selectorMode: 'blackHole',
+      requiredTargetCount: 2,
+      selectedTargetCount: 1,
+    }),
+    'partial required targeting was treated as complete',
+  );
+  assert(
+    !isIncompleteAncientBlackHoleSelection({
+      selectorMode: 'blackHole',
+      requiredTargetCount: 2,
+      selectedTargetCount: 2,
+    }),
+    'complete required targeting was treated as incomplete',
+  );
+  assert(
+    !isIncompleteAncientBlackHoleSelection({
+      selectorMode: null,
+      requiredTargetCount: 2,
+      selectedTargetCount: 0,
+    }),
+    'cancelled targeting was treated as incomplete',
+  );
+  assert(
+    !isIncompleteAncientBlackHoleSelection({
+      selectorMode: 'siphon',
+      requiredTargetCount: 2,
+      selectedTargetCount: 0,
+    }),
+    'a non-Black-Hole selector was treated as incomplete',
+  );
+  assert(
+    !isIncompleteAncientBlackHoleSelection({
+      selectorMode: 'blackHole',
+      requiredTargetCount: 0,
+      selectedTargetCount: 0,
+    }),
+    'a valid zero-target Black Hole was treated as incomplete',
+  );
+});
+
+Deno.test('Ancient declaration builder preserves completed and zero-target Black Hole casts', () => {
+  const result = buildAncientChargeDeclarationPayload({
+    declarationId: 'black-hole-preview',
+    actions: [],
+    selectedChoiceIdBySourceInstanceId: {},
+    allocatedTargetIdsBySourceInstanceId: {},
+    allocatedTargetIdBySourceInstanceId: {},
+    localManualSolarCasts: [
+      { solarPowerId: 'SBLA', targetInstanceIds: ['target-z', 'target-a'] },
+      { solarPowerId: 'SBLA', targetInstanceIds: [] },
+    ],
+    autocastEnabled: false,
+  });
+  assert(result.ok);
+  if (!result.ok) return;
+  assertEquals(result.payload.solarCasts, [
+    { solarPowerId: 'SBLA', targetInstanceIds: ['target-a', 'target-z'] },
+    { solarPowerId: 'SBLA', targetInstanceIds: [] },
+  ]);
 });
