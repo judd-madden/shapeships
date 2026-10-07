@@ -36,7 +36,7 @@ export function LoginShell({
   // Alpha v3: Full-page layout with header + panel + footer
   if (alphaDisableAuth) {
     return (
-      <div className="ss-playerRoot content-stretch relative flex size-full flex-col items-center overflow-y-auto px-6 pb-[120px] pt-[40px] sm:px-10 md:px-16 md:pt-[60px] lg:px-24 xl:px-[160px] 2xl:px-[240px]">
+      <div className="content-stretch relative flex size-full flex-col items-center overflow-y-auto px-6 pb-[120px] pt-[40px] sm:px-10 md:px-16 md:pt-[60px] lg:px-24 xl:px-[160px] 2xl:px-[240px]">
         <div className="content-stretch relative flex w-full max-w-[1440px] shrink-0 flex-col items-center gap-[40px] sm:gap-[56px] md:gap-[80px]">
           
           {/* Logo + Title + Feature Highlights */}
@@ -166,7 +166,7 @@ export function LoginShell({
   };
 
   return (
-    <div className="ss-playerRoot container mx-auto p-6 max-w-md">
+    <div className="container mx-auto p-6 max-w-md">
       <div className="mb-8">
         <h1 className="drop-shadow-lg">Shapeships</h1>
       </div>

@@ -5,6 +5,7 @@ import type { CreatePrivateGameSettings } from './panels/CreatePrivateGamePanel'
 import { LoginShell } from './shells/LoginShell';
 import { MenuShell } from './shells/MenuShell';
 import { attemptMobileGameFullscreen } from '../utils/mobileFullscreen';
+import { StarsBackground } from '../game/display/graphics/StarsBackground';
 
 const ALPHA_DISABLE_AUTH = true;
 
@@ -128,8 +129,12 @@ export default function ScreenManager({
 
   return (
     <div
-      className="ss-playerRoot min-h-screen relative"
+      className="ss-playerRoot relative isolate min-h-screen"
     >
+      <div className="fixed inset-0 z-0">
+        <StarsBackground />
+      </div>
+
       {isDevModeAvailable && (
         <div className="fixed top-4 right-4 z-50">
           <Button
@@ -143,7 +148,10 @@ export default function ScreenManager({
           </Button>
         </div>
       )}
-      {renderShell()}
+
+      <div className="relative z-10">
+        {renderShell()}
+      </div>
     </div>
   );
 }
