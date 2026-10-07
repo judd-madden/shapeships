@@ -44,9 +44,9 @@ export function LoginShell({
             
             {/* Logo */}
             <div className="relative inline-grid max-w-full shrink-0 grid-cols-[max-content] grid-rows-[max-content] place-items-start leading-[0]">
-              <p className="[grid-area:1_/_1] relative ml-[69px] mt-[0.49px] text-[30px] font-bold leading-[normal] not-italic text-nowrap sm:ml-[126px] sm:text-[72px] lg:ml-[160px] lg:text-[88px] xl:ml-[203.9px] xl:text-[105.935px]">
+              <h1 className="[grid-area:1_/_1] relative ml-[69px] mt-[0.49px] text-[30px] font-bold leading-[normal] not-italic text-nowrap sm:ml-[126px] sm:text-[72px] lg:ml-[160px] lg:text-[88px] xl:ml-[203.9px] xl:text-[105.935px]">
                 SHAPESHIPS
-              </p>
+              </h1>
               <div className="[grid-area:1_/_1] relative ml-0 mt-0 flex h-[45px] w-[53.25px] items-center justify-center sm:h-[96px] sm:w-[112px] lg:h-[118px] lg:w-[138px] xl:h-[136.015px] xl:w-[159.556px]">
                 <div className="flex-none rotate-[180deg] scale-y-[-100%]">
                   <LogoIcon className="h-[45px] w-[53.25px] sm:h-[96px] sm:w-[112px] lg:h-[118px] lg:w-[138px] xl:h-[136.015px] xl:w-[159.556px]" />
@@ -57,35 +57,35 @@ export function LoginShell({
             {/* Feature Highlights Row */}
             <div className="content-center relative flex w-full flex-wrap items-stretch justify-center gap-x-[28px] gap-y-[10px] sm:gap-y-[20px] lg:gap-x-[50px]">
               
-              {/* Feature 1: Free space battle game */}
+              {/* Feature 1: Free strategy game */}
               <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
                 <DrawingIcon className="relative shrink-0 size-[32px] sm:size-[48px]" />
                 <p className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
-                  Free strategy game
+                  Free Strategy Game
                 </p>
               </div>
 
-              {/* Feature 2: 1v1 Online */}
-              <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
-                <PlayersIcon className="relative shrink-0 size-[32px] sm:size-[48px]" />
-                <p className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
-                  1v1 Online
-                </p>
-              </div>
-
-              {/* Feature 3: Simultaneous turns */}
+              {/* Feature 3: Space autobattler */}
               <div className="flex relative max-w-[260px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
                 <Dice value={3} className="w-[32px] h-[30px] sm:w-[48px] sm:h-[45px] shrink-0" enableRotate={false}/>
+                <h2 className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
+                  Space Autobattler
+                </h2>
+              </div>
+
+              {/* Feature 2: Multiplayer & Single Player */}
+              <div className="flex relative  max-w-[300px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
+                <PlayersIcon className="relative shrink-0 size-[32px] sm:size-[48px]" />
                 <p className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
-                  Shared dice each turn
+                  Multiplayer &amp; Single Player
                 </p>
               </div>
 
-              {/* Feature 4: 10-30 minute games */}
+              {/* Feature 4: 5-30 minute games */}
               <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
                 <ClockIcon className="relative shrink-0 size-[32px] sm:size-[48px]" />
                 <p className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
-                  10-30 minute games
+                  5-30 minute games
                 </p>
               </div>
 
