@@ -35,7 +35,6 @@ import {
   requireChargeDeclarationLegalityState,
 } from '../state/chargeDeclarationVisibility.ts';
 import {
-  resolveManualSolarDeclaration,
   resolveSolarCastSequence,
   type ManualSolarResolverRegistry,
 } from '../ancient/manualSolarDeclaration.ts';
@@ -400,7 +399,21 @@ export function resolveChargeDeclarationDisposable(args: {
     const nextSources = Array.isArray(initialEnergyState?.sources)
       ? structuredClone(initialEnergyState.sources)
       : [];
-    const manualSolar = resolveManualSolarDeclaration({
+    const currentLedger =
+      workingState.gameData.ancient.solarLedgerByPlayerId[args.playerId];
+    const retainedTriggeredEntries =
+      currentLedger?.battleTurnNumber === battleTurnNumber &&
+        Array.isArray(currentLedger.entries)
+        ? currentLedger.entries.filter((entry: any) =>
+          entry?.sourceMode === 'cube_destruction'
+        )
+        : [];
+    const initialLedgerOrder = retainedTriggeredEntries.reduce(
+      (next: number, entry: any) =>
+        Number.isInteger(entry?.order) ? Math.max(next, entry.order + 1) : next,
+      0,
+    );
+    const manualSolar = resolveSolarCastSequence({
       state: workingState,
       playerId: args.playerId,
       declarationId: args.normalized.declarationId,
@@ -408,10 +421,15 @@ export function resolveChargeDeclarationDisposable(args: {
       initialEnergy: nextEnergy,
       casts: args.normalized.solarCasts,
       resolvers: dependencies.manualSolarResolvers,
+      sourceMode: 'manual',
+      initialLedgerOrder,
     });
     workingState = manualSolar.state;
     nextEnergy = manualSolar.remainingEnergy;
-    const ledgerEntries = [...manualSolar.ledgerEntries];
+    const ledgerEntries = [
+      ...structuredClone(retainedTriggeredEntries),
+      ...manualSolar.ledgerEntries,
+    ];
 
     if (args.normalized.autocastEnabled) {
       const autocastSolar = resolveSolarCastSequence({
@@ -423,7 +441,10 @@ export function resolveChargeDeclarationDisposable(args: {
         casts: buildMonoColourAutocastCasts(nextEnergy),
         resolvers: dependencies.manualSolarResolvers,
         sourceMode: 'autocast',
-        initialLedgerOrder: ledgerEntries.length,
+        initialLedgerOrder: ledgerEntries.reduce(
+          (next, entry) => Math.max(next, entry.order + 1),
+          0,
+        ),
       });
       workingState = autocastSolar.state;
       nextEnergy = autocastSolar.remainingEnergy;

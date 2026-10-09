@@ -610,6 +610,40 @@ Deno.test('standard Destroy semantics preserve Zenith spawning and Spiral health
   assert.equal(resolvedState.players[1].health, 35);
 });
 
+Deno.test('delayed Black Hole destruction invokes Cube Simulacrum for its current controller', () => {
+  const state = createState({
+    p1Ships: [ship('enemy-basic', 'OXI')],
+    p2Ships: [ship('transferred-cube', 'CUB')],
+  });
+  state.gameData.turnData.simulacrumRevealFleetSnapshotByPlayerId =
+    structuredClone(state.gameData.ships);
+  state.gameData.ancient.solarLedgerByPlayerId = {
+    p1: { battleTurnNumber: 3, entries: [] },
+    p2: { battleTurnNumber: 3, entries: [] },
+  };
+  state.gameData.ancient.pendingBlackHoleDestructions = [
+    pendingRecord({
+      id: 'destroy-cube-with-black-hole',
+      ownerPlayerId: 'p1',
+      targetPlayerId: 'p2',
+      targets: ['transferred-cube'],
+    }),
+  ];
+
+  const result = resolveCommittedBlackHoleDestructions(state, 3);
+  const resolvedState: any = result.state;
+  const pending = resolvedState.gameData.ancient.pendingSimulacrumCopies;
+
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].ownerPlayerId, 'p2');
+  assert.equal(pending[0].sourceTargetInstanceId, 'enemy-basic');
+  assert.equal(
+    resolvedState.gameData.ancient.solarLedgerByPlayerId.p2.entries[0]
+      .sourceMode,
+    'cube_destruction',
+  );
+});
+
 Deno.test('accepted Black Hole declaration survives JSON reload and resolves once', () => {
   const state = createState({
     p1Ships: [

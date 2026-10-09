@@ -25,6 +25,7 @@ const LIVE_ROW_ANCIENT_SOLAR_POWER_IDS = new Set<string>([
 const ANCIENT_SOLAR_DISPLAY_SOURCE_MODES = new Set<string>([
   'manual',
   'autocast',
+  'cube_destruction',
 ]);
 
 function isNonNegativeInteger(value: unknown): value is number {
@@ -344,8 +345,10 @@ function buildLocalManualEntries(args: {
   playerId: string;
   battleTurnNumber: number;
   casts: readonly AncientManualSolarCast[];
+  initialOrder?: number;
 }): AncientSolarDisplayEntry[] {
-  return args.casts.flatMap<AncientSolarDisplayEntry>((cast, order) => {
+  return args.casts.flatMap<AncientSolarDisplayEntry>((cast, localOrder) => {
+    const order = (args.initialOrder ?? 0) + localOrder;
     if (!isLiveRowAncientSolarPowerId(cast.solarPowerId)) {
       return [];
     }
@@ -449,9 +452,20 @@ export function deriveAncientSolarDisplayEntries(args: {
     return visibleAuthoritativeEntries;
   }
 
-  return buildLocalManualEntries({
-    playerId: args.playerId,
-    battleTurnNumber: args.currentBattleTurnNumber,
-    casts: args.localPreviewCasts,
-  });
+  const retainedTriggeredEntries = visibleAuthoritativeEntries.filter(
+    (entry) => entry.sourceMode === 'cube_destruction'
+  );
+  const initialOrder = retainedTriggeredEntries.reduce(
+    (next, entry) => Math.max(next, entry.order + 1),
+    0
+  );
+  return [
+    ...retainedTriggeredEntries,
+    ...buildLocalManualEntries({
+      playerId: args.playerId,
+      battleTurnNumber: args.currentBattleTurnNumber,
+      casts: args.localPreviewCasts,
+      initialOrder,
+    }),
+  ];
 }

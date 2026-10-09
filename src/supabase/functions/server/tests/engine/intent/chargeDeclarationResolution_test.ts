@@ -185,6 +185,98 @@ Deno.test('ordinary charge list rejects duplicate source entries before transact
   })), /Duplicate ordinary charge source/);
 });
 
+Deno.test('Charge Declaration preserves Cube-triggered Solar entries and appends manual casts', () => {
+  const state = createState();
+  state.gameData.ancient.solarLedgerByPlayerId.p1 = {
+    battleTurnNumber: 3,
+    entries: [{
+      entryId: 'cube-trigger-entry',
+      order: 0,
+      solarPowerId: 'SSIM',
+      sourceMode: 'cube_destruction',
+      paidEnergy: { green: 0, red: 0, blue: 0 },
+      targets: [{ playerId: 'p2', shipInstanceId: 'copied-target' }],
+      simulacrum: {
+        sourceTargetInstanceId: 'copied-target',
+        copiedShipDefId: 'OXI',
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: {},
+      },
+      trigger: {
+        kind: 'cube_destruction',
+        sourceShipInstanceId: 'cube-1',
+        sourceEffectId: 'destroy-cube-1',
+      },
+    }],
+  };
+  replaceChargeDeclarationVisibilityState(state);
+
+  const result = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({ solarCasts: [{ solarPowerId: 'SLIF' }] }),
+    nowMs: 100,
+  });
+
+  assert.deepEqual(
+    result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries.map(
+      (entry: any) => [entry.entryId, entry.sourceMode, entry.order],
+    ),
+    [
+      ['cube-trigger-entry', 'cube_destruction', 0],
+      ['ancient-solar:3:p1:declaration-1:manual:0', 'manual', 1],
+    ],
+  );
+});
+
+Deno.test('manual Simulacrum cannot reuse a Cube-triggered target', () => {
+  const state = createState();
+  state.gameData.ships.p2 = [{ instanceId: 'trigger-target', shipDefId: 'OXI' }];
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p2 =
+    structuredClone(state.gameData.ships.p2);
+  state.gameData.ancient.energyByPlayerId.p1.pool.blue = 2;
+  state.gameData.ancient.pendingSimulacrumCopies = [{
+    pendingCopyId: 'trigger-copy',
+    declarationId: 'trigger-declaration',
+    ownerPlayerId: 'p1',
+    sourceTargetInstanceId: 'trigger-target',
+    copiedShipDefId: 'OXI',
+    queuedTurnNumber: 3,
+    materializationTurnNumber: 4,
+    queueOrder: 0,
+    capturedStartOfBattleCharges: 0,
+    permanentConfiguration: {},
+    sourceMode: 'primary',
+    status: 'queued',
+  }];
+  state.gameData.ancient.solarLedgerByPlayerId.p1 = {
+    battleTurnNumber: 3,
+    entries: [{
+      entryId: 'trigger-entry',
+      order: 0,
+      solarPowerId: 'SSIM',
+      sourceMode: 'cube_destruction',
+      paidEnergy: { green: 0, red: 0, blue: 0 },
+      simulacrum: {
+        sourceTargetInstanceId: 'trigger-target',
+        copiedShipDefId: 'OXI',
+      },
+    }],
+  };
+  replaceChargeDeclarationVisibilityState(state);
+  const before = structuredClone(state);
+
+  assert.throws(() => resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      solarCasts: [{ solarPowerId: 'SSIM', targetInstanceId: 'trigger-target' }],
+    }),
+    nowMs: 100,
+  }), /already selected/);
+  assert.deepEqual(state, before);
+});
+
 Deno.test('Ancient multi-EQU declarations reject repeated targets atomically and accept disjoint pairs', () => {
   const state = createState();
   state.gameData.ships.p1 = [

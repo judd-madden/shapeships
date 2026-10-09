@@ -11,6 +11,11 @@ import type {
 import { applyEffects, type EffectEvent } from '../../engine_shared/effects/applyEffects.ts';
 import type { Effect } from '../../engine_shared/effects/Effect.ts';
 
+type DeclarativeSolarSourceMode = Extract<
+  AncientSolarSourceMode,
+  'manual' | 'autocast'
+>;
+
 export type ManualSolarResolverDescriptor = {
   acceptedFields: {
     targetInstanceId?: boolean;
@@ -24,7 +29,7 @@ export type ManualSolarResolverDescriptor = {
     battleTurnNumber: number;
     castIndex: number;
     ledgerOrder: number;
-    sourceMode: AncientSolarSourceMode;
+    sourceMode: DeclarativeSolarSourceMode;
     castIdentity: string;
     cast: Readonly<AncientNormalizedSolarCast>;
     remainingEnergy: Readonly<AncientEnergyPool>;
@@ -259,7 +264,7 @@ export function resolveSolarCastSequence(args: {
   initialEnergy: AncientEnergyPool;
   casts: AncientNormalizedSolarCast[];
   resolvers: Readonly<ManualSolarResolverRegistry>;
-  sourceMode: AncientSolarSourceMode;
+  sourceMode: DeclarativeSolarSourceMode;
   initialLedgerOrder: number;
   initialCastIndex?: number;
 }): ManualSolarDeclarationResult {

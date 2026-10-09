@@ -266,16 +266,24 @@ export function deriveAncientSimulacrumTargetingState(args: {
   >[];
   myShips: readonly any[];
   localManualSolarCasts: readonly AncientManualSolarCast[];
+  acceptedSimulacrumEntries?: readonly AncientSolarDisplayEntry[];
   remainingBlue: number;
 }): AncientSimulacrumTargetingState {
+  const acceptedSimulacrumEntries = (args.acceptedSimulacrumEntries ?? [])
+    .filter((entry) => entry.solarPowerId === 'SSIM' && !entry.isLocalPreview);
   const selectedTargetInstanceIds = new Set(
-    args.localManualSolarCasts.flatMap((cast) =>
-      cast.solarPowerId === 'SSIM' &&
-      typeof cast.targetInstanceId === 'string' &&
-      cast.targetInstanceId.length > 0
-        ? [cast.targetInstanceId]
-        : []
-    )
+    [
+      ...args.localManualSolarCasts.flatMap((cast) =>
+        cast.solarPowerId === 'SSIM' &&
+        typeof cast.targetInstanceId === 'string' &&
+        cast.targetInstanceId.length > 0
+          ? [cast.targetInstanceId]
+          : []
+      ),
+      ...acceptedSimulacrumEntries.flatMap(
+        (entry) => entry.targetMarker?.targetInstanceIds ?? []
+      ),
+    ]
   );
   const selectedCopiesByShipDefId = args.localManualSolarCasts.reduce<
     Partial<Record<ShipDefId, number>>
@@ -285,6 +293,12 @@ export function deriveAncientSimulacrumTargetingState(args: {
     }
     return counts;
   }, {});
+  for (const entry of acceptedSimulacrumEntries) {
+    if (entry.solarPowerId !== 'SSIM') continue;
+    const copiedShipDefId = entry.simulacrumPresentation.copiedShipDefId;
+    selectedCopiesByShipDefId[copiedShipDefId] =
+      (selectedCopiesByShipDefId[copiedShipDefId] ?? 0) + 1;
+  }
   const ownedCountByShipDefId = args.myShips.reduce<Partial<Record<ShipDefId, number>>>(
     (counts, ship) => {
       const rawShipDefId = String(ship?.shipDefId ?? '');

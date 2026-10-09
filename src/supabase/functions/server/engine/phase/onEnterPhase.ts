@@ -444,6 +444,18 @@ function enterPhaseOnce(
     workingState = refreshRevealedTurnPhaseProgress(workingState);
     turnData = workingState.gameData.turnData;
 
+    const simulacrumRevealFleetSnapshotByPlayerId: Record<string, ShipInstance[]> = {};
+    for (const player of workingState.players?.filter((candidate: any) =>
+      candidate?.role === 'player' && typeof candidate?.id === 'string'
+    ) ?? []) {
+      const liveFleet = workingState.gameData.ships?.[player.id];
+      simulacrumRevealFleetSnapshotByPlayerId[player.id] = Array.isArray(liveFleet)
+        ? liveFleet.map((ship: ShipInstance) => structuredClone(ship))
+        : [];
+    }
+    turnData.simulacrumRevealFleetSnapshotByPlayerId =
+      simulacrumRevealFleetSnapshotByPlayerId;
+
     const turnNumber =
       workingState.gameData?.turnNumber ??
       turnData.turnNumber ??

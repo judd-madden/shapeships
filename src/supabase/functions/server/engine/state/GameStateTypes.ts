@@ -259,7 +259,13 @@ export type AcceptedChargeDeclaration = {
   autocastEnabled: boolean;
 };
 
-export type AncientSolarSourceMode = 'manual' | 'autocast';
+export type AncientSolarSourceMode = 'manual' | 'autocast' | 'cube_destruction';
+
+export type AncientSolarTriggerProvenance = {
+  kind: 'cube_destruction';
+  sourceShipInstanceId: string;
+  sourceEffectId: string;
+};
 
 export type AncientSolarTargetReference = {
   playerId: string;
@@ -291,6 +297,7 @@ export type AncientSolarLedgerEntry = {
   lockedAmount?: number;
   targets?: AncientSolarTargetReference[];
   simulacrum?: AncientSimulacrumPresentation;
+  trigger?: AncientSolarTriggerProvenance;
 };
 
 export type AncientSolarLedgerState = {
@@ -505,6 +512,8 @@ export type GameData = {
     
     chargeDeclarationEligibleSourceIdsByPlayerId?: Record<string, string[]>;
     chargeDeclarationFleetSnapshotByPlayerId?: Record<string, ShipInstance[]>;
+    /** Private Reveal-time SSIM source data used by pre-Charge Cube destruction. */
+    simulacrumRevealFleetSnapshotByPlayerId?: Record<string, ShipInstance[]>;
     /** Narrow client-visibility baseline for the simultaneous declaration window. */
     chargeDeclarationVisibilitySnapshot?: ChargeDeclarationVisibilitySnapshot;
     /** Minimal requester-only accepted SpendCharge feedback for this declaration window. */

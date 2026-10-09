@@ -97,6 +97,7 @@ Deno.test('Ancient balance descriptions expose the updated Star Birth, Cube, and
   for (const [shipDefId, rawPowerIndex, expectedText] of [
     ['SSTA', 0, 'Heal equal to the dice roll +4.'],
     ['CUB', 1, 'If you do, each of your Cubes deals 4 damage.'],
+    ['CUB', 2, 'Upon destruction, cast Simulacrum for free on the lowest-cost eligible basic enemy ship.'],
     ['SPI', 2, 'Once only on the turn the second Spiral is built, you may destroy one basic enemy ship.'],
   ] as const) {
     assert.equal(getClientShip(clientDefinitions, shipDefId).powers[rawPowerIndex]?.text, expectedText);
@@ -113,6 +114,7 @@ Deno.test('raw power tag membership is exact and authoring invariants hold', () 
     'ZEN#1',
     'ZEN#2',
     'QUE#0',
+    'CUB#2',
     'SSIM#0',
   ];
   const expectedTargetsShips = [
@@ -122,6 +124,7 @@ Deno.test('raw power tag membership is exact and authoring invariants hold', () 
     'EQU#0',
     'DOM#1',
     'SPI#2',
+    'CUB#2',
     'SSIM#0',
     'SBLA#0',
   ];
@@ -148,11 +151,12 @@ Deno.test('raw power tag membership is exact and authoring invariants hold', () 
   assert.deepEqual(simulacrum?.tags, ['makes_ships', 'targets_ships']);
 });
 
-Deno.test('exactly eight maker powers have their explicit activation timing', () => {
+Deno.test('maker powers have their explicit activation timing', () => {
   const expectedTimings = new Map<string, string>([
     ['CAR#0', 'start_of_drawing'],
     ['DRE#0', 'reveal'],
     ['BUG#0', 'start_of_drawing'],
+    ['CUB#2', 'on_destruction'],
     ['ZEN#0', 'when_built'],
     ['ZEN#1', 'start_of_drawing'],
     ['ZEN#2', 'on_destruction'],
@@ -162,8 +166,8 @@ Deno.test('exactly eight maker powers have their explicit activation timing', ()
   const timedRows = serverRows.filter((row) => row.activationTiming !== null);
   const makerRows = serverRows.filter((row) => row.tags.includes('makes_ships'));
 
-  assert.equal(timedRows.length, 8);
-  assert.equal(makerRows.length, 8);
+  assert.equal(timedRows.length, 9);
+  assert.equal(makerRows.length, 9);
 
   for (const row of serverRows) {
     const coordinate = `${row.shipDefId}#${row.rawPowerIndex}`;

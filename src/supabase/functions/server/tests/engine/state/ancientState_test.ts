@@ -1077,6 +1077,16 @@ Deno.test('battle.reveal entry generates public Core Energy before the unchanged
   assert.equal(entered.gameData.currentSubPhase, 'reveal');
   assert.equal(entered.gameData.turnData.currentMajorPhase, 'battle');
   assert.equal(entered.gameData.turnData.currentSubPhase, 'reveal');
+  assert.deepEqual(
+    entered.gameData.turnData.simulacrumRevealFleetSnapshotByPlayerId.p1,
+    [{ instanceId: 'plu-reveal', shipDefId: 'PLU' }],
+  );
+
+  const clientState: any = sanitizeAncientStateForClient(entered, 'p1');
+  assert.equal(
+    'simulacrumRevealFleetSnapshotByPlayerId' in clientState.gameData.turnData,
+    false,
+  );
 
   const projection = projectPublicAncientState(entered);
   assert.deepEqual(
@@ -1284,6 +1294,24 @@ Deno.test('Simulacrum ledger normalization preserves only trustworthy exact comp
           permanentConfiguration: [],
         },
       },
+      {
+        ...baseEntry,
+        entryId: 'cube-trigger',
+        order: 7,
+        sourceMode: 'cube_destruction',
+        paidEnergy: { green: 0, red: 0, blue: 0 },
+        trigger: {
+          kind: 'cube_destruction',
+          sourceShipInstanceId: 'cube-1',
+          sourceEffectId: 'destroy-cube-1',
+        },
+        simulacrum: {
+          sourceTargetInstanceId: 'cube-target',
+          copiedShipDefId: 'OXI',
+          capturedStartOfBattleCharges: 0,
+          permanentConfiguration: {},
+        },
+      },
     ],
   };
 
@@ -1322,7 +1350,19 @@ Deno.test('Simulacrum ledger normalization preserves only trustworthy exact comp
       sourceTargetInstanceId: 'string-target',
       copiedShipDefId: 'CAR',
     },
+    {
+      sourceTargetInstanceId: 'cube-target',
+      copiedShipDefId: 'OXI',
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+    },
   ]);
+  assert.equal(entries[7].sourceMode, 'cube_destruction');
+  assert.deepEqual(entries[7].trigger, {
+    kind: 'cube_destruction',
+    sourceShipInstanceId: 'cube-1',
+    sourceEffectId: 'destroy-cube-1',
+  });
   assert.notEqual(
     entries[2].simulacrum.permanentConfiguration,
     validSelectedConfiguration,

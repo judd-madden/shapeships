@@ -629,7 +629,10 @@ export type BoardStatBreakdownRowVm =
       amountText: string;
     };
 
-export type AncientSolarDisplaySourceMode = 'manual' | 'autocast';
+export type AncientSolarDisplaySourceMode =
+  | 'manual'
+  | 'autocast'
+  | 'cube_destruction';
 
 export interface AncientSimulacrumDisplayPresentation {
   copiedShipDefId: ShipDefId;

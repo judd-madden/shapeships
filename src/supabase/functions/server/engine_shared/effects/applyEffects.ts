@@ -27,6 +27,7 @@ import {
   canControlAdditionalSpirals,
   getPlayerMaxHealth,
 } from '../maximumHealth.ts';
+import { resolveCubeDestructionSimulacrum } from '../../engine/ancient/simulacrumSolarPower.ts';
 
 // ============================================================================
 // EVENT TYPES
@@ -72,6 +73,10 @@ export function applyEffects(
 
   // Clone gameData object (required to avoid mutating input state)
   newState.gameData = { ...state.gameData };
+
+  if (state.gameData.ancient) {
+    newState.gameData.ancient = structuredClone(state.gameData.ancient);
+  }
 
   // Clone ships container if it exists (required for CreateShip/Destroy/SpendCharge)
   if (newState.gameData.ships) {
@@ -478,6 +483,18 @@ function applyDestroyShip(
   const currentVoid = voidShips[targetPlayerId] ?? [];
   voidShips[targetPlayerId] = [...currentVoid, destroyedShip];
   let createdShipsFromDestroy = 0;
+
+  if (destroyedShip.shipDefId === 'CUB') {
+    const triggeredState = resolveCubeDestructionSimulacrum({
+      state,
+      controllerPlayerId: targetPlayerId,
+      destroyedCubeInstanceId: destroyedShip.instanceId,
+      destructionEffectId: effect.id,
+    });
+    if (triggeredState?.gameData.ancient) {
+      state.gameData.ancient = triggeredState.gameData.ancient;
+    }
+  }
 
   if (destroyedShip.shipDefId === 'ZEN') {
     appendShipToFleet(state, targetPlayerId, 'XEN');

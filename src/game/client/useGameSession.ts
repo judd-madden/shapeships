@@ -2925,21 +2925,21 @@ export function useGameSession(
     isAuthoritativelyReady: requesterPlayerReady,
     suppressedAuthoritativeLedgerEntryIds:
       getSuppressedSimulacrumLedgerEntryIds(displayLeftPlayer?.id),
-  });
-  const displayRightAncientSolarEntries = normalizeSpecies(
-    displayRightPlayer?.faction ?? displayRightPlayer?.species
-  ) === 'ancient'
-    ? deriveAncientSolarDisplayEntries({
-        playerId: displayRightPlayer?.id,
-        ledger: displayRightPlayer?.id ? publicAncientSolarLedgers?.[displayRightPlayer.id] : null,
-        allowLocalPreview: false,
-        currentBattleTurnNumber: turnNumber,
-        localPreviewCasts: [],
-        isAuthoritativelyReady: isPlayerReadyForPhase(rawState, displayRightPlayer?.id),
-        suppressedAuthoritativeLedgerEntryIds:
-          getSuppressedSimulacrumLedgerEntryIds(displayRightPlayer?.id),
-      })
-    : [];
+  }).filter((entry) =>
+    displayLeftSpecies === 'ancient' || entry.sourceMode === 'cube_destruction'
+  );
+  const displayRightAncientSolarEntries = deriveAncientSolarDisplayEntries({
+    playerId: displayRightPlayer?.id,
+    ledger: displayRightPlayer?.id ? publicAncientSolarLedgers?.[displayRightPlayer.id] : null,
+    allowLocalPreview: false,
+    currentBattleTurnNumber: turnNumber,
+    localPreviewCasts: [],
+    isAuthoritativelyReady: isPlayerReadyForPhase(rawState, displayRightPlayer?.id),
+    suppressedAuthoritativeLedgerEntryIds:
+      getSuppressedSimulacrumLedgerEntryIds(displayRightPlayer?.id),
+  }).filter((entry) =>
+    displayRightSpecies === 'ancient' || entry.sourceMode === 'cube_destruction'
+  );
   // The fleet hold is exposed later by useEndOfTurnPresentation. Keep the
   // existing suppressed projection above and prepare only the Build-time
   // unsuppressed alternative here so hook order does not need to change.
@@ -2954,10 +2954,12 @@ export function useGameSession(
           currentBattleTurnNumber: turnNumber,
           localPreviewCasts: [],
           isAuthoritativelyReady: requesterPlayerReady,
-        })
+        }).filter((entry) =>
+          displayLeftSpecies === 'ancient' || entry.sourceMode === 'cube_destruction'
+        )
       : displayLeftAncientSolarEntries;
   const displayRightAncientSolarEntriesDuringFleetMaterialisationHold =
-    majorPhase === 'build' && displayRightSpecies === 'ancient'
+    majorPhase === 'build'
       ? deriveAncientSolarDisplayEntries({
           playerId: displayRightPlayer?.id,
           ledger: displayRightPlayer?.id
@@ -2970,7 +2972,9 @@ export function useGameSession(
             rawState,
             displayRightPlayer?.id
           ),
-        })
+        }).filter((entry) =>
+          displayRightSpecies === 'ancient' || entry.sourceMode === 'cube_destruction'
+        )
       : displayRightAncientSolarEntries;
   const showAncientSolarTargetMarkers =
     majorPhase === 'battle' && !isFinished;
@@ -3270,6 +3274,7 @@ export function useGameSession(
     myShips,
     localManualSolarCasts:
       activeAncientChargeDeclarationWorkflow?.localManualSolarCasts ?? [],
+    acceptedSimulacrumEntries: displayLeftAncientSolarEntries,
     remainingBlue: provisionalAncientEnergy.blue,
   });
   const ancientSimulacrumSelector = deriveAncientSimulacrumSelectorState({
@@ -4685,10 +4690,8 @@ useEffect(() => {
       opponentFleet: opponentFleetRendered,
       myVoidFleet: displayLeftVoidFleet,
       opponentVoidFleet: displayRightVoidFleet,
-      myAncientSolarEntries:
-        effectiveMySpecies === 'ancient' ? displayLeftAncientSolarEntries : [],
-      opponentAncientSolarEntries:
-        effectiveOpponentSpecies === 'ancient' ? displayRightAncientSolarEntries : [],
+      myAncientSolarEntries: displayLeftAncientSolarEntries,
+      opponentAncientSolarEntries: displayRightAncientSolarEntries,
 
       // UI-only stable ordering (append-only)
       myFleetRenderOrder,
@@ -5147,14 +5150,8 @@ useEffect(() => {
   if (board.mode === 'board' && shouldSuppressCurrentTurnCreatedLocalShips) {
     board = {
       ...board,
-      myAncientSolarEntries:
-        displayLeftSpecies === 'ancient'
-          ? presentedDisplayLeftAncientSolarEntries
-          : [],
-      opponentAncientSolarEntries:
-        displayRightSpecies === 'ancient'
-          ? presentedDisplayRightAncientSolarEntries
-          : [],
+      myAncientSolarEntries: presentedDisplayLeftAncientSolarEntries,
+      opponentAncientSolarEntries: presentedDisplayRightAncientSolarEntries,
     };
   }
   const materializedSimulacrumFleetInstanceIdsByPlayerId =
@@ -7705,6 +7702,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
                 opponentFleet,
                 myShips,
                 localManualSolarCasts: current.localManualSolarCasts,
+                acceptedSimulacrumEntries: displayLeftAncientSolarEntries,
                 remainingBlue: replay.remainingEnergy.blue,
               }).hasEligibleTarget
             ) {
@@ -7933,6 +7931,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
             opponentFleet,
             myShips,
             localManualSolarCasts: current.localManualSolarCasts,
+            acceptedSimulacrumEntries: displayLeftAncientSolarEntries,
             remainingBlue: replay.remainingEnergy.blue,
           });
           const target = allocateNextAncientSimulacrumTarget({

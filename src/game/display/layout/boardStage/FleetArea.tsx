@@ -566,7 +566,7 @@ export function FleetArea({
 }) {
   const rowSets = ROW_SETS_BY_SPECIES[species];
   const grouped =
-    species === 'ancient' || (ships && ships.length > 0)
+    species === 'ancient' || (ships && ships.length > 0) || ancientSolarEntries.length > 0
       ? groupShipsIntoRows(ships ?? [], order, rowSets, species, liveRowOverrides)
       : null;
   const isCompactAncientLayout =
@@ -740,7 +740,8 @@ export function FleetArea({
     );
   };
 
-  const hasLiveContent = species === 'ancient' || renderedShips.length > 0;
+  const hasLiveContent =
+    species === 'ancient' || renderedShips.length > 0 || ancientSolarEntries.length > 0;
   const hasVoidShips = Boolean(voidShips && voidShips.length > 0);
   const liveRowsClassName =
     liveRowsLayout === 'pairedRows'
@@ -899,11 +900,21 @@ export function FleetArea({
                     </>
                   ) : grouped ? (
                     <>
-                      {renderLiveRow(grouped.row1)}
-                      {renderLiveRow(grouped.row2)}
-                      {renderLiveRow(grouped.row3)}
-                      {renderLiveRow(grouped.row4)}
+                      {grouped.row1.length > 0 ? renderLiveRow(grouped.row1) : null}
+                      {grouped.row2.length > 0 ? renderLiveRow(grouped.row2) : null}
+                      {grouped.row3.length > 0 ? renderLiveRow(grouped.row3) : null}
+                      {grouped.row4.length > 0 ? renderLiveRow(grouped.row4) : null}
                     </>
+                  ) : null}
+                  {ancientSolarEntries.length > 0 ? (
+                    <div onMouseDown={(event) => event.stopPropagation()}>
+                      <AncientSolarLedgerRow
+                        entries={ancientSolarEntries}
+                        isBattleReveal={isBattleReveal}
+                        onFleetHoverEnter={onFleetHoverEnter}
+                        onFleetHoverLeave={onFleetHoverLeave}
+                      />
+                    </div>
                   ) : null}
                 </div>
               ) : null}

@@ -305,7 +305,7 @@ function normalizeSolarLedgerEntry(value: unknown): AncientSolarLedgerEntry | nu
     !isNonEmptyString(value.entryId) ||
     !isNonEmptyString(value.solarPowerId) ||
     !ANCIENT_SOLAR_POWER_ID_SET.has(value.solarPowerId as AncientSolarPowerId) ||
-    !['manual', 'autocast'].includes(value.sourceMode)
+    !['manual', 'autocast', 'cube_destruction'].includes(value.sourceMode)
   ) {
     return null;
   }
@@ -335,6 +335,17 @@ function normalizeSolarLedgerEntry(value: unknown): AncientSolarLedgerEntry | nu
     };
   }
 
+  const trigger = isObject(value.trigger) &&
+      value.trigger.kind === 'cube_destruction' &&
+      isNonEmptyString(value.trigger.sourceShipInstanceId) &&
+      isNonEmptyString(value.trigger.sourceEffectId)
+    ? {
+        kind: 'cube_destruction' as const,
+        sourceShipInstanceId: value.trigger.sourceShipInstanceId,
+        sourceEffectId: value.trigger.sourceEffectId,
+      }
+    : undefined;
+
   return {
     entryId: value.entryId,
     order: normalizeAncientNumber(value.order),
@@ -346,6 +357,7 @@ function normalizeSolarLedgerEntry(value: unknown): AncientSolarLedgerEntry | nu
       : {}),
     ...(targets ? { targets } : {}),
     ...(simulacrum ? { simulacrum } : {}),
+    ...(trigger ? { trigger } : {}),
   };
 }
 
@@ -1280,6 +1292,7 @@ export function sanitizeAncientStateForClient<T = any>(
       pendingSOLARPowerDeclarations: _obsoleteSolarDeclarations,
       thirdSpiralFirstStrikeEligibilityByPlayerId: _thirdSpiralFirstStrikeEligibility,
       ancientBattleRevealPreparedTurnNumber: _ancientBattleRevealPreparedTurnNumber,
+      simulacrumRevealFleetSnapshotByPlayerId: _simulacrumRevealFleetSnapshot,
       turnPhaseProgress: _turnPhaseProgress,
       ...safeTurnData
     } = turnData;

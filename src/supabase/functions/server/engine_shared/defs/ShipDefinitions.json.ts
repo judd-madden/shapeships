@@ -1448,6 +1448,12 @@ export const SHIP_DEFINITIONS_JSON = [
       {
         "subphase": "Automatic",
         "text": "If you do, each of your Cubes deals 4 damage."
+      },
+      {
+        "subphase": "Upon Destruction",
+        "text": "Upon destruction, cast Simulacrum for free on the lowest-cost eligible basic enemy ship.",
+        "tags": ["makes_ships", "targets_ships"],
+        "activationTiming": "on_destruction"
       }
     ],
     "energyCost": null,
@@ -1706,7 +1712,7 @@ export const SHIP_DEFINITIONS_JSON = [
  * IMPORTANT: This version should match the client-side version when synced.
  * Client version is in: /game/data/ShipDefinitions.json.ts
  */
-export const SHIP_DEFS_VERSION = '2026-09-29';
+export const SHIP_DEFS_VERSION = '2026-10-09';
 
 // ============================================================================
 // TYPE INFERENCE HELPERS

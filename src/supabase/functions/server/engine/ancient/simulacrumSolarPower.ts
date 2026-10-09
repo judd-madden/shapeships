@@ -230,10 +230,243 @@ function requireSimulacrumTarget(context: Parameters<
   return { targetPlayerId, target, definition };
 }
 
+export function queueSimulacrumCopy(args: {
+  state: Readonly<any>;
+  ownerPlayerId: string;
+  target: Readonly<ShipInstance>;
+  battleTurnNumber: number;
+  declarationId: string;
+  castIdentity: string;
+  queueOrder: number;
+}): {
+  candidateState: any;
+  capturedStartOfBattleCharges: number;
+  permanentConfiguration: ShipPermanentConfiguration;
+} {
+  const definition = getShipById(args.target.shipDefId);
+  if (!definition) {
+    throw new Error(`Unknown Simulacrum ship definition: ${args.target.shipDefId}`);
+  }
+  if (!isCanonicalBasicOnlyTargetShip(args.target.shipDefId)) {
+    throw new Error(
+      `Illegal Simulacrum target definition: ${args.target.shipDefId}`,
+    );
+  }
+  if (
+    typeof definition.totalLineCost !== "number" ||
+    !Number.isFinite(definition.totalLineCost) ||
+    !Number.isInteger(definition.totalLineCost) ||
+    definition.totalLineCost <= 0
+  ) {
+    throw new Error(
+      `Invalid canonical Simulacrum cost for ${args.target.shipDefId}`,
+    );
+  }
+
+  // Every attempt owns its Ancient containers. Callers commit only a fully
+  // accepted candidate, so rejected targets cannot leak reservations.
+  const candidateState = structuredClone(args.state);
+  const ancient = candidateState?.gameData?.ancient;
+  if (!ancient || !Array.isArray(ancient.pendingSimulacrumCopies)) {
+    throw new Error("Simulacrum requires initialized Ancient pending state");
+  }
+
+  const duplicatePrimary = ancient.pendingSimulacrumCopies.some(
+    (record: AncientPendingSimulacrumCopy) =>
+      record.ownerPlayerId === args.ownerPlayerId &&
+      record.queuedTurnNumber === args.battleTurnNumber &&
+      record.sourceTargetInstanceId === args.target.instanceId &&
+      record.sourceMode === "primary",
+  );
+  if (duplicatePrimary) {
+    throw new Error(
+      `Simulacrum primary target already selected: ${args.target.instanceId}`,
+    );
+  }
+
+  const requiredMultiplicity = playerControlsLiveChronoswarm(
+    candidateState,
+    args.ownerPlayerId,
+  )
+    ? 2
+    : 1;
+  assertSimulacrumQuantityAvailable({
+    state: candidateState,
+    ownerPlayerId: args.ownerPlayerId,
+    copiedShipDefId: args.target.shipDefId,
+    proposedCount: requiredMultiplicity,
+  });
+
+  const pendingSourceMode = "primary";
+  const pendingCopyId =
+    `${args.castIdentity}:simulacrum-copy:${pendingSourceMode}`;
+  if (
+    ancient.pendingSimulacrumCopies.some(
+      (record: AncientPendingSimulacrumCopy) =>
+        record.pendingCopyId === pendingCopyId,
+    )
+  ) {
+    throw new Error(
+      `Duplicate Simulacrum pendingCopyId invariant: ${pendingCopyId}`,
+    );
+  }
+
+  let capturedStartOfBattleCharges = 0;
+  if (isChargeCapableDefinition(definition)) {
+    if (!isNonNegativeInteger(args.target.chargesCurrent)) {
+      throw new Error(
+        `Simulacrum target has invalid snapshotted charges: ${args.target.instanceId}`,
+      );
+    }
+    capturedStartOfBattleCharges = args.target.chargesCurrent;
+  }
+  const permanentConfiguration = capturePermanentConfiguration(args.target);
+
+  const pendingCopy: AncientPendingSimulacrumCopy = {
+    pendingCopyId,
+    declarationId: args.declarationId,
+    ownerPlayerId: args.ownerPlayerId,
+    sourceTargetInstanceId: args.target.instanceId,
+    copiedShipDefId: args.target.shipDefId,
+    queuedTurnNumber: args.battleTurnNumber,
+    materializationTurnNumber: args.battleTurnNumber + 1,
+    queueOrder: args.queueOrder,
+    capturedStartOfBattleCharges,
+    permanentConfiguration: structuredClone(permanentConfiguration),
+    sourceMode: pendingSourceMode,
+    status: "queued",
+  };
+  ancient.pendingSimulacrumCopies = [
+    ...ancient.pendingSimulacrumCopies,
+    pendingCopy,
+  ];
+
+  return {
+    candidateState,
+    capturedStartOfBattleCharges,
+    permanentConfiguration,
+  };
+}
+
+export function resolveCubeDestructionSimulacrum(args: {
+  state: Readonly<GameState>;
+  controllerPlayerId: string;
+  destroyedCubeInstanceId: string;
+  destructionEffectId: string;
+}): GameState | null {
+  const battleTurnNumber = args.state.gameData.turnNumber;
+  let targetPlayerId: string;
+  try {
+    targetPlayerId = requireOpponentPlayerId(
+      args.state,
+      args.controllerPlayerId,
+    );
+  } catch {
+    return null;
+  }
+
+  const revealSnapshots = args.state.gameData.turnData
+    ?.simulacrumRevealFleetSnapshotByPlayerId;
+  const liveFleet = getFleet(args.state, targetPlayerId);
+  if (!revealSnapshots || typeof revealSnapshots !== "object" || liveFleet.length === 0) {
+    return null;
+  }
+
+  const liveTargetIds = new Set(liveFleet.map((ship) => ship.instanceId));
+  const revealFleet = Object.values(revealSnapshots)
+    .flatMap((fleet) => Array.isArray(fleet) ? fleet : []);
+  const candidates = revealFleet
+    .filter((ship: ShipInstance) =>
+      liveTargetIds.has(ship.instanceId) &&
+      isCanonicalBasicOnlyTargetShip(ship.shipDefId)
+    )
+    .flatMap((target: ShipInstance) => {
+      const definition = getShipById(target.shipDefId);
+      return typeof definition?.totalLineCost === "number" &&
+          Number.isFinite(definition.totalLineCost) &&
+          Number.isInteger(definition.totalLineCost) &&
+          definition.totalLineCost > 0
+        ? [{ target, cost: definition.totalLineCost }]
+        : [];
+    })
+    .sort((left, right) =>
+      left.cost - right.cost ||
+      left.target.instanceId.localeCompare(right.target.instanceId)
+    );
+
+  const existingLedger =
+    args.state.gameData.ancient?.solarLedgerByPlayerId?.[
+      args.controllerPlayerId
+    ];
+  const existingEntries = existingLedger?.battleTurnNumber === battleTurnNumber
+    ? existingLedger.entries
+    : [];
+  const queueOrder = existingEntries.reduce(
+    (next, entry) => Math.max(next, entry.order + 1),
+    0,
+  );
+  const triggerIdentity =
+    `cube-destruction:${battleTurnNumber}:${args.controllerPlayerId}:` +
+    `${args.destroyedCubeInstanceId}:${args.destructionEffectId}`;
+
+  for (const { target } of candidates) {
+    try {
+      const queued = queueSimulacrumCopy({
+        state: args.state,
+        ownerPlayerId: args.controllerPlayerId,
+        target,
+        battleTurnNumber,
+        declarationId: triggerIdentity,
+        castIdentity: triggerIdentity,
+        queueOrder,
+      });
+      const ancient = queued.candidateState.gameData.ancient;
+      ancient.solarLedgerByPlayerId = {
+        ...ancient.solarLedgerByPlayerId,
+        [args.controllerPlayerId]: {
+          battleTurnNumber,
+          entries: [
+            ...structuredClone(existingEntries),
+            {
+              entryId: triggerIdentity,
+              order: queueOrder,
+              solarPowerId: "SSIM",
+              sourceMode: "cube_destruction",
+              paidEnergy: { green: 0, red: 0, blue: 0 },
+              targets: [{
+                playerId: targetPlayerId,
+                shipInstanceId: target.instanceId,
+              }],
+              simulacrum: {
+                sourceTargetInstanceId: target.instanceId,
+                copiedShipDefId: target.shipDefId,
+                capturedStartOfBattleCharges:
+                  queued.capturedStartOfBattleCharges,
+                permanentConfiguration: structuredClone(
+                  queued.permanentConfiguration,
+                ),
+              },
+              trigger: {
+                kind: "cube_destruction",
+                sourceShipInstanceId: args.destroyedCubeInstanceId,
+                sourceEffectId: args.destructionEffectId,
+              },
+            },
+          ],
+        },
+      };
+      return queued.candidateState as GameState;
+    } catch {
+      // An automatic cast skips an unavailable candidate and tries the next.
+    }
+  }
+  return null;
+}
+
 export const SIMULACRUM_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
   acceptedFields: { targetInstanceId: true },
   resolve(context) {
-    if (context.sourceMode === "autocast") {
+    if (context.sourceMode !== "manual") {
       throw new Error(
         "Simulacrum may only be resolved from a manual Solar cast",
       );
@@ -241,84 +474,18 @@ export const SIMULACRUM_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
     const { targetPlayerId, target, definition } = requireSimulacrumTarget(
       context,
     );
-    const candidateState = structuredClone(context.state);
-    const ancient = candidateState?.gameData?.ancient;
-    if (!ancient || !Array.isArray(ancient.pendingSimulacrumCopies)) {
-      throw new Error("Simulacrum requires initialized Ancient pending state");
-    }
-
-    const pendingSourceMode = "primary";
-    const duplicatePrimary = ancient.pendingSimulacrumCopies.some(
-      (record: AncientPendingSimulacrumCopy) =>
-        record.ownerPlayerId === context.playerId &&
-        record.queuedTurnNumber === context.battleTurnNumber &&
-        record.sourceTargetInstanceId === target.instanceId &&
-        record.sourceMode === "primary",
-    );
-    if (duplicatePrimary) {
-      throw new Error(
-        `Simulacrum primary target already selected: ${target.instanceId}`,
-      );
-    }
-
-    const requiredMultiplicity = playerControlsLiveChronoswarm(
-      candidateState,
-      context.playerId,
-    )
-      ? 2
-      : 1;
-    assertSimulacrumQuantityAvailable({
-      state: candidateState,
+    const queued = queueSimulacrumCopy({
+      state: context.state,
       ownerPlayerId: context.playerId,
-      copiedShipDefId: target.shipDefId,
-      proposedCount: requiredMultiplicity,
+      target,
+      battleTurnNumber: context.battleTurnNumber,
+      declarationId: context.declarationId,
+      castIdentity: context.castIdentity,
+      queueOrder: context.ledgerOrder,
     });
 
-    const pendingCopyId =
-      `${context.castIdentity}:simulacrum-copy:${pendingSourceMode}`;
-    if (
-      ancient.pendingSimulacrumCopies.some(
-        (record: AncientPendingSimulacrumCopy) =>
-          record.pendingCopyId === pendingCopyId,
-      )
-    ) {
-      throw new Error(
-        `Duplicate Simulacrum pendingCopyId invariant: ${pendingCopyId}`,
-      );
-    }
-
-    let capturedStartOfBattleCharges = 0;
-    if (isChargeCapableDefinition(definition)) {
-      if (!isNonNegativeInteger(target.chargesCurrent)) {
-        throw new Error(
-          `Simulacrum target has invalid snapshotted charges: ${target.instanceId}`,
-        );
-      }
-      capturedStartOfBattleCharges = target.chargesCurrent;
-    }
-    const permanentConfiguration = capturePermanentConfiguration(target);
-
-    const pendingCopy: AncientPendingSimulacrumCopy = {
-      pendingCopyId,
-      declarationId: context.declarationId,
-      ownerPlayerId: context.playerId,
-      sourceTargetInstanceId: target.instanceId,
-      copiedShipDefId: target.shipDefId,
-      queuedTurnNumber: context.battleTurnNumber,
-      materializationTurnNumber: context.battleTurnNumber + 1,
-      queueOrder: context.ledgerOrder,
-      capturedStartOfBattleCharges,
-      permanentConfiguration: structuredClone(permanentConfiguration),
-      sourceMode: pendingSourceMode,
-      status: "queued",
-    };
-    ancient.pendingSimulacrumCopies = [
-      ...ancient.pendingSimulacrumCopies,
-      pendingCopy,
-    ];
-
     return {
-      candidateState,
+      candidateState: queued.candidateState,
       paidEnergy: {
         green: 0,
         red: 0,
@@ -333,8 +500,8 @@ export const SIMULACRUM_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
         simulacrum: {
           sourceTargetInstanceId: target.instanceId,
           copiedShipDefId: target.shipDefId,
-          capturedStartOfBattleCharges,
-          permanentConfiguration: structuredClone(permanentConfiguration),
+          capturedStartOfBattleCharges: queued.capturedStartOfBattleCharges,
+          permanentConfiguration: structuredClone(queued.permanentConfiguration),
         },
       },
     };
@@ -861,7 +1028,8 @@ function ledgerEntryMatchesMaterializedRecord(
   record: Readonly<AncientPendingSimulacrumCopy>,
 ): boolean {
   return entry?.solarPowerId === "SSIM" &&
-    entry?.sourceMode === "manual" &&
+    (entry?.sourceMode === "manual" ||
+      entry?.sourceMode === "cube_destruction") &&
     entry?.order === record.queueOrder &&
     entry?.simulacrum?.copiedShipDefId === record.copiedShipDefId &&
     entry?.simulacrum?.sourceTargetInstanceId ===

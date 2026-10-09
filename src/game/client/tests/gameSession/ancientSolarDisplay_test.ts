@@ -8,6 +8,7 @@ import {
   hasCurrentTurnManualAncientSolarCast,
 } from '../../gameSession/ancient/ancientSolarDisplay';
 import { buildAncientSolarEstimateSelection } from '../../gameSession/ancient/ancientChargeDeclaration';
+import { deriveAncientSimulacrumTargetingState } from '../../gameSession/ancient/ancientSolarTargeting';
 
 Deno.test('manual Solar estimate fallback only recognizes current-turn manual ledger entries', () => {
   const ledger = {
@@ -111,6 +112,107 @@ Deno.test('manual Solar preview candidates preserve order and fall back as a who
     casts: [],
     autocastEnabled: true,
   }), null, 'removing all manual casts must restore ordinary Base/Autocast selection');
+});
+
+Deno.test('Cube-triggered SSIM remains visible beside a local manual preview', () => {
+  const entries = deriveAncientSolarDisplayEntries({
+    playerId: 'p1',
+    ledger: {
+      battleTurnNumber: 5,
+      entries: [{
+        entryId: 'cube-trigger',
+        order: 0,
+        solarPowerId: 'SSIM',
+        sourceMode: 'cube_destruction',
+        simulacrum: {
+          sourceTargetInstanceId: 'target-oxi',
+          copiedShipDefId: 'OXI',
+          capturedStartOfBattleCharges: 0,
+          permanentConfiguration: {},
+        },
+      }],
+    },
+    allowLocalPreview: true,
+    currentBattleTurnNumber: 5,
+    localPreviewCasts: [{ solarPowerId: 'SLIF' }],
+    isAuthoritativelyReady: false,
+  });
+
+  assertEquals(
+    entries.map((entry) => [entry.sourceMode, entry.solarPowerId, entry.order]),
+    [
+      ['cube_destruction', 'SSIM', 0],
+      ['manual', 'SLIF', 1],
+    ],
+  );
+  assertEquals(deriveAncientCurrentTurnEstimateMode({
+    viewerIsAncientPlayer: true,
+    autocastEnabled: true,
+    hasLocalOrFrozenManualSolarCast: false,
+    authoritativeLedger: {
+      battleTurnNumber: 5,
+      entries: [{ sourceMode: 'cube_destruction' }],
+    },
+    turnNumber: 5,
+  }), 'with_autocast');
+});
+
+Deno.test('accepted Cube-triggered SSIM reserves its target from manual selection', () => {
+  const acceptedEntries = deriveAncientSolarDisplayEntries({
+    playerId: 'p1',
+    ledger: {
+      battleTurnNumber: 5,
+      entries: [{
+        entryId: 'cube-trigger',
+        order: 0,
+        solarPowerId: 'SSIM',
+        sourceMode: 'cube_destruction',
+        simulacrum: {
+          sourceTargetInstanceId: 'target-oxi',
+          copiedShipDefId: 'OXI',
+          capturedStartOfBattleCharges: 0,
+          permanentConfiguration: {},
+        },
+      }],
+    },
+    allowLocalPreview: false,
+    currentBattleTurnNumber: 5,
+    localPreviewCasts: [],
+    isAuthoritativelyReady: false,
+  });
+  const targeting = deriveAncientSimulacrumTargetingState({
+    opponentShipsVisible: [
+      { instanceId: 'target-oxi', shipDefId: 'OXI' },
+      { instanceId: 'target-ast', shipDefId: 'AST' },
+    ],
+    opponentFleet: [
+      {
+        shipDefId: 'OXI',
+        stackKey: 'oxi-stack',
+        memberInstanceIds: ['target-oxi'],
+        condition: undefined,
+        currentCharges: null,
+        caption: null,
+      },
+      {
+        shipDefId: 'AST',
+        stackKey: 'ast-stack',
+        memberInstanceIds: ['target-ast'],
+        condition: undefined,
+        currentCharges: null,
+        caption: null,
+      },
+    ],
+    myShips: [],
+    localManualSolarCasts: [],
+    acceptedSimulacrumEntries: acceptedEntries,
+    remainingBlue: 10,
+  });
+
+  assertEquals(targeting.selectedTargetInstanceIdsByStackKey, {
+    'oxi-stack': ['target-oxi'],
+  });
+  assertEquals(Object.keys(targeting.eligibleTargetsByStackKey), ['ast-stack']);
 });
 import {
   buildPresentationFleetCountsByLiveRenderKey,
