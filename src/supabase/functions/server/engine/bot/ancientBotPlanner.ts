@@ -37,7 +37,6 @@ import type {
 import type { BotPlanProgress } from './botTypes.ts';
 import { planDamageHealChargeActions } from './botPowerPlanning.ts';
 import {
-  compareTacticalTargetValues,
   compareTargetsHighestTactical,
 } from './botTargeting.ts';
 
@@ -78,8 +77,6 @@ type SimulacrumCandidate = {
   targetInstanceId: string;
   shipDefId: string;
   totalLineCost: number;
-  chargesCurrent: number;
-  hasChargeMechanic: boolean;
 };
 
 const ENERGY_COLOURS = ['green', 'red', 'blue'] as const;
@@ -226,21 +223,18 @@ function validateSolarPolicy(
         !hasOnlyKeys(candidate, [
           'mode',
           'maxCastsPerDeclaration',
-          'excludeDepletedChargedTargets',
           'activationFleetGoal',
         ]) ||
         !(
           candidate.maxCastsPerDeclaration === 'while_legal_affordable' ||
           isPositiveSafeInteger(candidate.maxCastsPerDeclaration)
-        ) ||
-        candidate.excludeDepletedChargedTargets !== true
+        )
       ) {
         return { ok: false, reason: 'invalid_simulacrum_policy' };
       }
       simulacrum = {
         mode: 'highest_value_highest_charge',
         maxCastsPerDeclaration: candidate.maxCastsPerDeclaration,
-        excludeDepletedChargedTargets: true,
         ...(activationFleetGoal ? { activationFleetGoal } : {}),
       };
     } else {
@@ -311,16 +305,10 @@ function getOpponentSnapshotCandidates(args: {
     ) {
       continue;
     }
-    const hasChargeMechanic = typeof definition.charges === 'number' &&
-      Number.isFinite(definition.charges);
     candidates.push({
       targetInstanceId: ship.instanceId,
       shipDefId: ship.shipDefId,
       totalLineCost: definition.totalLineCost,
-      chargesCurrent: isNonNegativeSafeInteger(ship.chargesCurrent)
-        ? ship.chargesCurrent
-        : 0,
-      hasChargeMechanic,
     });
   }
   return candidates;
@@ -349,18 +337,8 @@ function compareSimulacrumCandidates(
   left: SimulacrumCandidate,
   right: SimulacrumCandidate,
 ): number {
-  return compareTacticalTargetValues(
-    {
-      totalLineCost: left.totalLineCost,
-      chargesCurrent: left.chargesCurrent,
-      instanceId: left.targetInstanceId,
-    },
-    {
-      totalLineCost: right.totalLineCost,
-      chargesCurrent: right.chargesCurrent,
-      instanceId: right.targetInstanceId,
-    },
-  );
+  return right.totalLineCost - left.totalLineCost ||
+    left.targetInstanceId.localeCompare(right.targetInstanceId);
 }
 
 function trialSimulacrumCandidate(args: {
@@ -651,12 +629,7 @@ export function planAncientChargeDeclaration(args: {
     } else {
       const orderedCandidates = snapshotCandidates
         .filter((candidate) =>
-          candidate.totalLineCost <= remainingEnergy.blue &&
-          !(
-            simulacrumPolicy.excludeDepletedChargedTargets &&
-            candidate.hasChargeMechanic &&
-            candidate.chargesCurrent === 0
-          )
+          candidate.totalLineCost <= remainingEnergy.blue
         )
         .sort(compareSimulacrumCandidates);
       const maximumCasts =

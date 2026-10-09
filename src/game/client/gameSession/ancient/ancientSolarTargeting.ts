@@ -158,6 +158,7 @@ export interface AncientSimulacrumTargetDescriptor {
   targetInstanceId: string;
   copiedShipDefId: ShipDefId;
   previewBlueCost: number;
+  /** Historical field name; now the fresh copy's definition-backed charges. */
   previewCapturedStartOfBattleCharges?: number;
   previewPermanentConfiguration: {
     selectedNumber?: number;
@@ -200,7 +201,7 @@ function getValidSimulacrumTargetDescriptor(
   };
 }
 
-function getStackPresentationSnapshot(
+function getSimulacrumPreviewPresentation(
   stack: Pick<
     BoardFleetSummary,
     'shipDefId' | 'condition' | 'currentCharges' | 'caption'
@@ -212,25 +213,19 @@ function getStackPresentationSnapshot(
 > {
   const definition = getShipDefinitionById(copiedShipDefId);
   const maxCharges = definition?.maxCharges ?? 0;
-  let previewCapturedStartOfBattleCharges: number | undefined;
-
-  if (maxCharges <= 0) {
-    previewCapturedStartOfBattleCharges = 0;
-  } else if (maxCharges === 1) {
-    if (stack.condition === 'charges_1') {
-      previewCapturedStartOfBattleCharges = 1;
-    } else if (stack.condition === 'charges_0') {
-      previewCapturedStartOfBattleCharges = 0;
-    }
-  } else if (stack.condition === 'charges_0') {
-    previewCapturedStartOfBattleCharges = 0;
-  } else if (
-    typeof stack.currentCharges === 'number' &&
-    Number.isInteger(stack.currentCharges) &&
-    stack.currentCharges >= 0
-  ) {
-    previewCapturedStartOfBattleCharges = stack.currentCharges;
-  }
+  // Former balance rule: derive the preview from the source stack's
+  // Reveal-time condition/currentCharges.
+  // let previewCapturedStartOfBattleCharges: number | undefined;
+  // if (maxCharges <= 0) previewCapturedStartOfBattleCharges = 0;
+  // else if (maxCharges === 1) {
+  //   if (stack.condition === 'charges_1') previewCapturedStartOfBattleCharges = 1;
+  //   else if (stack.condition === 'charges_0') previewCapturedStartOfBattleCharges = 0;
+  // } else if (stack.condition === 'charges_0') previewCapturedStartOfBattleCharges = 0;
+  // else if (Number.isInteger(stack.currentCharges) && (stack.currentCharges ?? -1) >= 0) {
+  //   previewCapturedStartOfBattleCharges = stack.currentCharges ?? undefined;
+  // }
+  const previewCapturedStartOfBattleCharges =
+    Number.isInteger(maxCharges) && maxCharges >= 0 ? maxCharges : undefined;
 
   const displayedSelectedNumber =
     copiedShipDefId === 'QUA' &&
@@ -349,7 +344,7 @@ export function deriveAncientSimulacrumTargetingState(args: {
       }
       hasLegalTargetBeforeAffordability = true;
       if (descriptor.previewBlueCost > args.remainingBlue) return [];
-      const presentation = getStackPresentationSnapshot(
+      const presentation = getSimulacrumPreviewPresentation(
         stack,
         descriptor.copiedShipDefId
       );

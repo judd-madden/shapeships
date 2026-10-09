@@ -4,7 +4,10 @@ import type {
   GameState,
   ShipInstance,
 } from "../../../engine/state/GameStateTypes.ts";
-import { normalizeAncientGameState } from "../../../engine/state/ancientState.ts";
+import {
+  applyAncientBattleRevealPreparation,
+  normalizeAncientGameState,
+} from "../../../engine/state/ancientState.ts";
 import { onEnterPhase } from "../../../engine/phase/onEnterPhase.ts";
 import { resolveSolarCastSequence } from "../../../engine/ancient/manualSolarDeclaration.ts";
 import {
@@ -399,12 +402,13 @@ Deno.test("accepted Simulacrum Cube survives reload through materialization and 
   );
 });
 
-Deno.test("Simulacrum ledger and pending records share exact snapshot values without sharing configuration references", () => {
+Deno.test("Simulacrum ledger and pending records share fresh initial charges without sharing configuration references", () => {
   const snapshotQua = ship("qua-target", "QUA", {
     permanentConfiguration: { selectedNumber: 5 },
   });
   const snapshotCarThree = ship("car-three", "CAR", { chargesCurrent: 3 });
   const snapshotCarZero = ship("car-zero", "CAR", { chargesCurrent: 0 });
+  const snapshotIntZero = ship("int-zero", "INT", { chargesCurrent: 0 });
   const snapshotDef = ship("def-target", "DEF");
   const state = createState({
     p2Ships: [
@@ -413,41 +417,45 @@ Deno.test("Simulacrum ledger and pending records share exact snapshot values wit
       }),
       ship("car-three", "CAR", { chargesCurrent: 5 }),
       ship("car-zero", "CAR", { chargesCurrent: 4 }),
+      ship("int-zero", "INT", { chargesCurrent: 1 }),
       ship("def-target", "DEF"),
     ],
     p2Snapshot: [
       snapshotQua,
       snapshotCarThree,
       snapshotCarZero,
+      snapshotIntZero,
       snapshotDef,
     ],
   });
   const quaCost = getShipById("QUA")!.totalLineCost as number;
   const carCost = getShipById("CAR")!.totalLineCost as number;
+  const intCost = getShipById("INT")!.totalLineCost as number;
   const defCost = getShipById("DEF")!.totalLineCost as number;
   const result = resolve(
     state,
-    ["qua-target", "car-three", "car-zero", "def-target"],
+    ["qua-target", "car-three", "car-zero", "int-zero", "def-target"],
   );
   const queued = result.state.gameData.ancient!.pendingSimulacrumCopies;
 
   assert.deepEqual(
     queued.map((record: AncientPendingSimulacrumCopy) => record.queueOrder),
-    [0, 1, 2, 3],
+    [0, 1, 2, 3, 4],
   );
   assert.deepEqual(queued.map((record: AncientPendingSimulacrumCopy) =>
     record.capturedStartOfBattleCharges
   ), [
     0,
-    3,
-    0,
+    6,
+    6,
+    1,
     0,
   ]);
   assert.deepEqual(
     queued.map((record: AncientPendingSimulacrumCopy) =>
       record.permanentConfiguration
     ),
-    [{ selectedNumber: 5 }, {}, {}, {}],
+    [{ selectedNumber: 5 }, {}, {}, {}, {}],
   );
   assert.deepEqual(
     result.ledgerEntries.map((entry) => entry.simulacrum),
@@ -461,13 +469,19 @@ Deno.test("Simulacrum ledger and pending records share exact snapshot values wit
       {
         sourceTargetInstanceId: "car-three",
         copiedShipDefId: "CAR",
-        capturedStartOfBattleCharges: 3,
+        capturedStartOfBattleCharges: 6,
         permanentConfiguration: {},
       },
       {
         sourceTargetInstanceId: "car-zero",
         copiedShipDefId: "CAR",
-        capturedStartOfBattleCharges: 0,
+        capturedStartOfBattleCharges: 6,
+        permanentConfiguration: {},
+      },
+      {
+        sourceTargetInstanceId: "int-zero",
+        copiedShipDefId: "INT",
+        capturedStartOfBattleCharges: 1,
         permanentConfiguration: {},
       },
       {
@@ -493,7 +507,7 @@ Deno.test("Simulacrum ledger and pending records share exact snapshot values wit
   assert.deepEqual(result.remainingEnergy, {
     green: 0,
     red: 0,
-    blue: 100 - quaCost - (carCost * 2) - defCost,
+    blue: 100 - quaCost - (carCost * 2) - intCost - defCost,
   });
 
   const before = structuredClone(state);
@@ -607,7 +621,6 @@ Deno.test("turn start materializes in active seat and numeric queue order with e
     turnNumber: 5,
     p1Ships: [
       ship("spi-1", "SPI"),
-      ship("spi-2", "SPI"),
     ],
   });
   (state.gameData as any).currentPhase = "build";
@@ -662,7 +675,6 @@ Deno.test("turn start materializes in active seat and numeric queue order with e
   );
   assert.deepEqual(state.gameData.ships?.["z-owner"].map((entry) => entry.instanceId), [
     "spi-1",
-    "spi-2",
   ]);
 });
 
@@ -936,7 +948,7 @@ Deno.test("copied CAR is eligible only through the Drawing-prelude projector", (
   );
 });
 
-Deno.test("materialization restores exact zero charges and selected number and reconciles an existing recorded ship", () => {
+Deno.test("materialization gives fresh full charges, preserves selected number, and reconciles an existing recorded ship", () => {
   const state = createState({
     turnNumber: 5,
     p1Ships: [ship("already-there", "FIG", { createdTurn: 5 })],
@@ -954,18 +966,25 @@ Deno.test("materialization restores exact zero charges and selected number and r
       permanentConfiguration: { selectedNumber: 5 },
     }),
     pending({
+      pendingCopyId: "int-full",
+      copiedShipDefId: "INT",
+      capturedStartOfBattleCharges: 0,
+      queueOrder: 2,
+    }),
+    pending({
       pendingCopyId: "reconcile",
       materializedInstanceId: "already-there",
       materializationOutcome: {
         joiningLinesGranted: 0,
         producedShips: [],
       },
-      queueOrder: 2,
+      queueOrder: 3,
     }),
   ];
   const first = materializeQueuedSimulacrumCopiesAtTurnStart(state, 5, 1);
   const fleet = first.state.gameData.ships!["z-owner"];
-  assert.equal(fleet.find((entry) => entry.shipDefId === "WIS")?.chargesCurrent, 0);
+  assert.equal(fleet.find((entry) => entry.shipDefId === "WIS")?.chargesCurrent, 2);
+  assert.equal(fleet.find((entry) => entry.shipDefId === "INT")?.chargesCurrent, 1);
   assert.deepEqual(
     fleet.find((entry) => entry.shipDefId === "QUA")?.permanentConfiguration,
     { selectedNumber: 5 },
@@ -977,6 +996,42 @@ Deno.test("materialization restores exact zero charges and selected number and r
   const second = materializeQueuedSimulacrumCopiesAtTurnStart(first.state, 5, 2);
   assert.deepEqual(second.state.gameData.ships, first.state.gameData.ships);
   assert.deepEqual(second.events, []);
+});
+
+Deno.test("fresh copied Solar Grid spends normally at its first Reveal without refilling", () => {
+  const state = createState({ turnNumber: 5 });
+  state.gameData.ancient!.pendingSimulacrumCopies = [pending({
+    pendingCopyId: "sol-full",
+    copiedShipDefId: "SOL",
+    capturedStartOfBattleCharges: 0,
+  })];
+  const materialized = materializeQueuedSimulacrumCopiesAtTurnStart(
+    state,
+    5,
+    1,
+    () => "copied-sol",
+  ).state;
+  assert.equal(
+    materialized.gameData.ships?.["z-owner"].find((entry) =>
+      entry.instanceId === "copied-sol"
+    )?.chargesCurrent,
+    4,
+  );
+
+  const revealed = applyAncientBattleRevealPreparation(materialized);
+  assert.equal(
+    revealed.gameData.ships?.["z-owner"].find((entry) =>
+      entry.instanceId === "copied-sol"
+    )?.chargesCurrent,
+    3,
+  );
+  const retried = applyAncientBattleRevealPreparation(revealed);
+  assert.equal(
+    retried.gameData.ships?.["z-owner"].find((entry) =>
+      entry.instanceId === "copied-sol"
+    )?.chargesCurrent,
+    3,
+  );
 });
 
 Deno.test("turn-start materialization preserves LEG lines while copied ZEN suppresses ANT idempotently", () => {
@@ -1106,7 +1161,7 @@ Deno.test("directly materialized BUG builds once on its first turn while an ordi
   assert.equal(
     firstFleet.find((entry) => entry.instanceId === "copied-bug")
       ?.chargesCurrent,
-    1,
+    3,
   );
   assert.equal(
     firstFleet.find((entry) => entry.instanceId === "ordinary-bug")
@@ -1123,8 +1178,8 @@ Deno.test("directly materialized BUG builds once on its first turn while an ordi
       event.effectId.startsWith(
         "drawing-prelude:5:z-owner:pass:1:copied-bug:BUG#0:automatic:",
       ) &&
-      event.details?.before === 2 &&
-      event.details?.after === 1
+      event.details?.before === 4 &&
+      event.details?.after === 3
     ),
     true,
   );
@@ -1144,7 +1199,7 @@ Deno.test("directly materialized BUG builds once on its first turn while an ordi
   assert.equal(
     secondFleet.find((entry) => entry.instanceId === "copied-bug")
       ?.chargesCurrent,
-    1,
+    3,
   );
   assert.equal(
     secondFleet.filter((entry) => entry.shipDefId === "XEN").length,

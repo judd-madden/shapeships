@@ -317,30 +317,115 @@ Deno.test('multiple Cube destructions reserve distinct targets in effect order',
   );
 });
 
-Deno.test('Cube trigger copies Reveal-time charges and permanent configuration', () => {
+Deno.test('Cube trigger uses fresh charges and current permanent configuration', () => {
   const configuredTarget = {
     ...ship('quantum-target', 'QUA'),
-    permanentConfiguration: { selectedNumber: 5 },
+    permanentConfiguration: { selectedNumber: 2 },
   };
   const chargedTarget = {
     ...ship('interceptor-target', 'INT'),
     chargesCurrent: 1,
   };
+  const multiChargedTarget = {
+    ...ship('carrier-target', 'CAR'),
+    chargesCurrent: 4,
+  };
   const state = initializeCubeTriggerState(createState({
-    p1Ships: [ship('cube-1', 'CUB'), ship('cube-2', 'CUB')],
-    p2Ships: [configuredTarget, chargedTarget],
+    p1Ships: [ship('cube-1', 'CUB'), ship('cube-2', 'CUB'), ship('cube-3', 'CUB')],
+    p2Ships: [configuredTarget, chargedTarget, multiChargedTarget],
   }));
+  state.gameData.ships!.p2[0] = {
+    ...state.gameData.ships!.p2[0],
+    permanentConfiguration: { selectedNumber: 5 },
+  };
   state.gameData.ships!.p2[1] = {
     ...state.gameData.ships!.p2[1],
     chargesCurrent: 0,
+  };
+  state.gameData.ships!.p2[2] = {
+    ...state.gameData.ships!.p2[2],
+    chargesCurrent: 2,
   };
 
   const result = applyEffects(state, [
     destroyEffect('p1', 'cube-1'),
     destroyEffect('p1', 'cube-2'),
+    destroyEffect('p1', 'cube-3'),
   ]);
   const pending = result.state.gameData.ancient?.pendingSimulacrumCopies ?? [];
 
   assert.equal(pending[0]?.capturedStartOfBattleCharges, 1);
   assert.deepEqual(pending[1]?.permanentConfiguration, { selectedNumber: 5 });
+  assert.equal(pending[2]?.capturedStartOfBattleCharges, 6);
+
+  const nextTurnState = structuredClone(result.state);
+  nextTurnState.gameData.turnNumber = 4;
+  nextTurnState.gameData.turnData!.turnNumber = 4;
+  const ids = ['cube-copy-int', 'cube-copy-qua', 'cube-copy-car'];
+  const materialized = materializeQueuedSimulacrumCopiesAtTurnStart(
+    nextTurnState,
+    4,
+    100,
+    () => ids.shift()!,
+  ).state;
+  const copiedFleet = materialized.gameData.ships!.p1;
+  assert.equal(
+    copiedFleet.find((candidate) => candidate.instanceId === 'cube-copy-int')
+      ?.chargesCurrent,
+    1,
+  );
+  assert.deepEqual(
+    copiedFleet.find((candidate) => candidate.instanceId === 'cube-copy-qua')
+      ?.permanentConfiguration,
+    { selectedNumber: 5 },
+  );
+  assert.equal(
+    copiedFleet.find((candidate) => candidate.instanceId === 'cube-copy-car')
+      ?.chargesCurrent,
+    6,
+  );
+});
+
+Deno.test('Cube destruction targets Xenites created after Reveal by an earlier Zenith destruction', () => {
+  const state = initializeCubeTriggerState(createState({
+    p1Ships: [ship('cube-1', 'CUB')],
+    p2Ships: [ship('zenith-1', 'ZEN')],
+  }));
+
+  const result = applyEffects(state, [
+    destroyEffect('p2', 'zenith-1'),
+    destroyEffect('p1', 'cube-1'),
+  ]);
+  const liveXenites = result.state.gameData.ships?.p2
+    ?.filter((candidate) => candidate.shipDefId === 'XEN') ?? [];
+  assert.equal(liveXenites.length, 2);
+  assert.equal(
+    result.state.gameData.ancient?.pendingSimulacrumCopies[0]?.copiedShipDefId,
+    'XEN',
+  );
+  assert.equal(
+    result.state.gameData.ancient?.pendingSimulacrumCopies[0]
+      ?.sourceTargetInstanceId,
+    liveXenites.map((candidate) => candidate.instanceId).sort()[0],
+  );
+});
+
+Deno.test('unexpected Cube trigger failures are logged without restoring the destroyed Cube', () => {
+  const state = initializeCubeTriggerState(createState({
+    p1Ships: [ship('cube-1', 'CUB')],
+    p2Ships: [ship('target-1', 'OXI')],
+  }));
+  state.gameData.ancient!.pendingSimulacrumCopies = null as any;
+  const originalConsoleError = console.error;
+  const errors: unknown[][] = [];
+  console.error = (...args: unknown[]) => errors.push(args);
+  try {
+    const result = applyEffects(state, [destroyEffect('p1', 'cube-1')]);
+    assert.deepEqual(result.state.gameData.ships?.p1, []);
+    assert.equal(result.state.gameData.ancient?.pendingSimulacrumCopies, null);
+  } finally {
+    console.error = originalConsoleError;
+  }
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0]?.[0], '[Simulacrum] Unexpected Cube destruction trigger failure');
 });

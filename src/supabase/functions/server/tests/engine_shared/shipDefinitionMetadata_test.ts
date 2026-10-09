@@ -114,7 +114,6 @@ Deno.test('raw power tag membership is exact and authoring invariants hold', () 
     'ZEN#1',
     'ZEN#2',
     'QUE#0',
-    'CUB#2',
     'SSIM#0',
   ];
   const expectedTargetsShips = [
@@ -124,7 +123,6 @@ Deno.test('raw power tag membership is exact and authoring invariants hold', () 
     'EQU#0',
     'DOM#1',
     'SPI#2',
-    'CUB#2',
     'SSIM#0',
     'SBLA#0',
   ];
@@ -149,9 +147,13 @@ Deno.test('raw power tag membership is exact and authoring invariants hold', () 
     row.shipDefId === 'SSIM' && row.rawPowerIndex === 0
   );
   assert.deepEqual(simulacrum?.tags, ['makes_ships', 'targets_ships']);
+  const cubeDestruction = serverRows.find((row) =>
+    row.shipDefId === 'CUB' && row.rawPowerIndex === 2
+  );
+  assert.deepEqual(cubeDestruction?.tags, []);
 });
 
-Deno.test('maker powers have their explicit activation timing', () => {
+Deno.test('timed powers retain explicit timing independently of presentation tags', () => {
   const expectedTimings = new Map<string, string>([
     ['CAR#0', 'start_of_drawing'],
     ['DRE#0', 'reveal'],
@@ -167,22 +169,25 @@ Deno.test('maker powers have their explicit activation timing', () => {
   const makerRows = serverRows.filter((row) => row.tags.includes('makes_ships'));
 
   assert.equal(timedRows.length, 9);
-  assert.equal(makerRows.length, 9);
+  assert.equal(makerRows.length, 8);
 
   for (const row of serverRows) {
     const coordinate = `${row.shipDefId}#${row.rawPowerIndex}`;
-    const isMaker = row.tags.includes('makes_ships');
+    const expectedTiming = expectedTimings.get(coordinate);
 
-    if (isMaker) {
-      assert.equal(typeof row.activationTiming, 'string');
-      assert.equal(row.activationTiming, expectedTimings.get(coordinate));
+    if (expectedTiming) {
+      assert.equal(row.activationTiming, expectedTiming);
     } else {
       assert.equal(
         row.activationTiming,
         null,
-        `${coordinate} is untagged or targets-only and has no timing`,
+        `${coordinate} has no authored activation timing`,
       );
     }
+  }
+
+  for (const row of makerRows) {
+    assert.equal(expectedTimings.has(`${row.shipDefId}#${row.rawPowerIndex}`), true);
   }
 });
 
@@ -199,6 +204,7 @@ Deno.test('server inspection aggregation is ordered and deduplicated', () => {
     getAggregatedShipPowerTags(getShipByIdOrThrow('EVO')),
     ['targets_ships'],
   );
+  assert.deepEqual(getAggregatedShipPowerTags(getShipByIdOrThrow('CUB')), []);
   assert.deepEqual(getAggregatedShipPowerTags(getShipByIdOrThrow('CHR')), []);
 });
 
@@ -207,6 +213,7 @@ Deno.test('client presentation helper returns labels without raw power identity'
     ['ZEN', ['MAKES SHIPS']],
     ['SSIM', ['MAKES SHIPS', 'TARGETS SHIPS']],
     ['EVO', ['TARGETS SHIPS']],
+    ['CUB', []],
     ['CHR', []],
   ];
 

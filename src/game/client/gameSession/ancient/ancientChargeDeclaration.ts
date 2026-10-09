@@ -56,6 +56,7 @@ export type AncientManualSolarCast =
       targetInstanceId: string;
       copiedShipDefId: ShipDefId;
       previewBlueCost: number;
+      /** Historical field name; now the fresh copy's definition-backed charges. */
       previewCapturedStartOfBattleCharges?: number;
       previewPermanentConfiguration: {
         selectedNumber?: number;

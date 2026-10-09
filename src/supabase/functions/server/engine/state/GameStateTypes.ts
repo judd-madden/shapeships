@@ -276,8 +276,9 @@ export type AncientSimulacrumPresentation = {
   sourceTargetInstanceId: string;
   copiedShipDefId: string;
   /**
-   * Exact charge count captured from the authoritative start-of-Battle
-   * fleet snapshot. Optional only for older persisted ledger entries.
+   * Definition-backed initial charge count for the fresh copy. The historical
+   * field name is retained for persisted-ledger compatibility.
+   * Optional only for older persisted ledger entries.
    */
   capturedStartOfBattleCharges?: number;
   /**
@@ -353,6 +354,10 @@ export type AncientPendingSimulacrumCopy = {
   queuedTurnNumber: number;
   materializationTurnNumber: number;
   queueOrder: number;
+  /**
+   * Definition-backed initial charge count for the fresh copy. The historical
+   * field name is retained for pending-state compatibility.
+   */
   capturedStartOfBattleCharges: number;
   permanentConfiguration: ShipPermanentConfiguration;
   sourceMode: 'primary';

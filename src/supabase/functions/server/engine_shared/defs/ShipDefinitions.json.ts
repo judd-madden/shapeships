@@ -1452,7 +1452,6 @@ export const SHIP_DEFINITIONS_JSON = [
       {
         "subphase": "Upon Destruction",
         "text": "Upon destruction, cast Simulacrum for free on the lowest-cost eligible basic enemy ship.",
-        "tags": ["makes_ships", "targets_ships"],
         "activationTiming": "on_destruction"
       }
     ],
@@ -1615,7 +1614,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "blue": 0,
       "xBlue": true
     },
-    "extraRules": "Ship is created at the start of the NEXT turn. Each ship may only be targeted once per turn. Ships with charges are copied as they were at Reveal phase. Copied ships CAN be upgraded via the opponent's species tab.",
+    "extraRules": "Ship is created at the start of the NEXT turn. Each ship may only be targeted once per turn. Ships with charges are created like new, with all charges available. Copied ships CAN be upgraded.",
     "stackCaption": "N/A",
     "colour": "N/A",
     "numberOfGraphics": 4

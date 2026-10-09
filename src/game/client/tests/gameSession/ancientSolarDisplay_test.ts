@@ -9,6 +9,8 @@ import {
 } from '../../gameSession/ancient/ancientSolarDisplay';
 import { buildAncientSolarEstimateSelection } from '../../gameSession/ancient/ancientChargeDeclaration';
 import { deriveAncientSimulacrumTargetingState } from '../../gameSession/ancient/ancientSolarTargeting';
+import { getShipDefinitionUI } from '../../../data/ShipDefinitionsUI';
+import { resolveShipGraphic } from '../../../display/graphics/resolveShipGraphic';
 
 Deno.test('manual Solar estimate fallback only recognizes current-turn manual ledger entries', () => {
   const ledger = {
@@ -114,7 +116,104 @@ Deno.test('manual Solar preview candidates preserve order and fall back as a who
   }), null, 'removing all manual casts must restore ordinary Base/Autocast selection');
 });
 
-Deno.test('Cube-triggered SSIM remains visible beside a local manual preview', () => {
+Deno.test('Simulacrum local previews use fresh full-charge graphics and preserve selected numbers', () => {
+  const targeting = deriveAncientSimulacrumTargetingState({
+    opponentShipsVisible: [
+      { instanceId: 'depleted-int', shipDefId: 'INT' },
+      { instanceId: 'partial-car', shipDefId: 'CAR' },
+      { instanceId: 'configured-qua', shipDefId: 'QUA' },
+    ],
+    opponentFleet: [
+      {
+        shipDefId: 'INT',
+        stackKey: 'int-depleted',
+        memberInstanceIds: ['depleted-int'],
+        condition: 'charges_0',
+        currentCharges: 0,
+        caption: null,
+      },
+      {
+        shipDefId: 'CAR',
+        stackKey: 'car-partial',
+        memberInstanceIds: ['partial-car'],
+        condition: undefined,
+        currentCharges: 2,
+        caption: null,
+      },
+      {
+        shipDefId: 'QUA',
+        stackKey: 'qua-configured',
+        memberInstanceIds: ['configured-qua'],
+        condition: undefined,
+        currentCharges: null,
+        caption: '5',
+      },
+    ],
+    myShips: [],
+    localManualSolarCasts: [],
+    remainingBlue: 20,
+  });
+  const intPreview = targeting.eligibleTargetsByStackKey['int-depleted'][0];
+  const carPreview = targeting.eligibleTargetsByStackKey['car-partial'][0];
+  const quaPreview = targeting.eligibleTargetsByStackKey['qua-configured'][0];
+  assertEquals(intPreview.previewCapturedStartOfBattleCharges, 1);
+  assertEquals(carPreview.previewCapturedStartOfBattleCharges, 6);
+  assertEquals(quaPreview.previewPermanentConfiguration, { selectedNumber: 5 });
+
+  const entries = deriveAncientSolarDisplayEntries({
+    playerId: 'p1',
+    ledger: null,
+    allowLocalPreview: true,
+    currentBattleTurnNumber: 5,
+    localPreviewCasts: [
+      { solarPowerId: 'SSIM', ...intPreview },
+      { solarPowerId: 'SSIM', ...carPreview },
+      { solarPowerId: 'SSIM', ...quaPreview },
+    ],
+    isAuthoritativelyReady: false,
+  });
+  assertEquals(
+    entries.map((entry) => entry.solarPowerId === 'SSIM'
+      ? [
+          entry.simulacrumPresentation.copiedShipDefId,
+          entry.simulacrumPresentation.capturedStartOfBattleCharges ?? null,
+          entry.simulacrumPresentation.selectedNumber ?? null,
+        ]
+      : null),
+    [
+      ['INT', 1, null],
+      ['CAR', 6, null],
+      ['QUA', 0, 5],
+    ],
+  );
+
+  const intDefinition = getShipDefinitionUI('INT')!;
+  const carrierDefinition = getShipDefinitionUI('CAR')!;
+  assertEquals(
+    resolveShipGraphic(intDefinition, {
+      context: 'default',
+      explicitCharges: intPreview.previewCapturedStartOfBattleCharges,
+    })?.condition,
+    'charges_1',
+  );
+  assertEquals(
+    resolveShipGraphic(carrierDefinition, {
+      context: 'default',
+      explicitCharges: carPreview.previewCapturedStartOfBattleCharges,
+    })?.condition,
+    'charges_6',
+  );
+  assertEquals(
+    resolveShipGraphic(carrierDefinition, {
+      context: 'live',
+      currentCharges: 2,
+    })?.condition,
+    'charges_2',
+    'live copied ships continue to render their spent charge count',
+  );
+});
+
+Deno.test('Cube-triggered SSIM retains authoritative full-charge presentation beside a local manual preview', () => {
   const entries = deriveAncientSolarDisplayEntries({
     playerId: 'p1',
     ledger: {
@@ -125,9 +224,9 @@ Deno.test('Cube-triggered SSIM remains visible beside a local manual preview', (
         solarPowerId: 'SSIM',
         sourceMode: 'cube_destruction',
         simulacrum: {
-          sourceTargetInstanceId: 'target-oxi',
-          copiedShipDefId: 'OXI',
-          capturedStartOfBattleCharges: 0,
+          sourceTargetInstanceId: 'target-int',
+          copiedShipDefId: 'INT',
+          capturedStartOfBattleCharges: 1,
           permanentConfiguration: {},
         },
       }],
@@ -144,6 +243,12 @@ Deno.test('Cube-triggered SSIM remains visible beside a local manual preview', (
       ['cube_destruction', 'SSIM', 0],
       ['manual', 'SLIF', 1],
     ],
+  );
+  assertEquals(
+    entries[0].solarPowerId === 'SSIM'
+      ? entries[0].simulacrumPresentation.capturedStartOfBattleCharges
+      : null,
+    1,
   );
   assertEquals(deriveAncientCurrentTurnEstimateMode({
     viewerIsAncientPlayer: true,

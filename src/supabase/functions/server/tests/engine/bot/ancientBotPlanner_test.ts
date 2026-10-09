@@ -427,7 +427,6 @@ Deno.test('present malformed Solar policies are diagnostic configuration failure
         simulacrum: {
           mode: 'highest_value_highest_charge',
           maxCastsPerDeclaration: 'until_blue_exhausted',
-          excludeDepletedChargedTargets: true,
         },
       },
       'invalid_simulacrum_policy',
@@ -1091,7 +1090,7 @@ Deno.test('Vortex Simulacrum preserves unavailable staged progress and permits n
   assert.deepEqual(complete.solarCasts, [{ solarPowerId: 'SVOR' }]);
 });
 
-Deno.test('Silly Simulacrum ranks snapshot value and charges, excludes depleted charged targets, and stops with blue remaining', async () => {
+Deno.test('Silly Simulacrum ranks by value then instance ID and allows depleted charged targets', async () => {
   const strategy = getAncientBotStrategyById('anc_silly_simulacrum');
   assert.ok(strategy);
   const state = createState({
@@ -1100,8 +1099,8 @@ Deno.test('Silly Simulacrum ranks snapshot value and charges, excludes depleted 
     opponentShips: [
       { instanceId: 'orb', shipDefId: 'ORB' },
       { instanceId: 'carrier', shipDefId: 'CAR', chargesCurrent: 4 },
-      { instanceId: 'depleted-int', shipDefId: 'INT', chargesCurrent: 0 },
-      { instanceId: 'commander', shipDefId: 'COM' },
+      { instanceId: 'a-depleted-int', shipDefId: 'INT', chargesCurrent: 0 },
+      { instanceId: 'z-commander', shipDefId: 'COM' },
     ],
     chosenPlanId: strategy.id,
   });
@@ -1112,7 +1111,7 @@ Deno.test('Silly Simulacrum ranks snapshot value and charges, excludes depleted 
   }));
   assert.deepEqual(payload.solarCasts, [
     { solarPowerId: 'SSIM', targetInstanceId: 'carrier' },
-    { solarPowerId: 'SSIM', targetInstanceId: 'commander' },
+    { solarPowerId: 'SSIM', targetInstanceId: 'a-depleted-int' },
   ]);
   const accepted = await applyIntent(state, 'bot', {
     gameId: state.gameId,
@@ -1149,7 +1148,9 @@ Deno.test('Silly Simulacrum ranks snapshot value and charges, excludes depleted 
   const materializedCarrierState: any = materializedCarrier.state;
   assert.equal(
     materializedCarrierState.gameData.ships.bot.some((ship: any) =>
-      ship.instanceId === 'silly-copied-carrier' && ship.shipDefId === 'CAR'
+      ship.instanceId === 'silly-copied-carrier' &&
+      ship.shipDefId === 'CAR' &&
+      ship.chargesCurrent === 6
     ),
     true,
   );
@@ -1168,7 +1169,7 @@ Deno.test('Silly Simulacrum ranks snapshot value and charges, excludes depleted 
     assert.deepEqual(growth.payload.builds, [{ shipDefId: 'SPI', count: 3 }]);
   }
 
-  const noDesirableTarget = requirePayload(planAncientChargeDeclaration({
+  const depletedOnlyTarget = requirePayload(planAncientChargeDeclaration({
     state: createState({
       energy: { green: 0, red: 0, blue: 4 },
       botShips: nepFleet(6, 'silly-no-target'),
@@ -1181,8 +1182,10 @@ Deno.test('Silly Simulacrum ranks snapshot value and charges, excludes depleted 
     playerId: 'bot',
     strategy,
   }));
-  assert.deepEqual(noDesirableTarget.solarCasts, []);
-  assert.equal(noDesirableTarget.autocastEnabled, true);
+  assert.deepEqual(depletedOnlyTarget.solarCasts, [
+    { solarPowerId: 'SSIM', targetInstanceId: 'depleted-only' },
+  ]);
+  assert.equal(depletedOnlyTarget.autocastEnabled, true);
 });
 
 Deno.test('Silly Simulacrum trials canonical max quantity with Chronoswarm multiplicity and falls through', () => {

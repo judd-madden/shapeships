@@ -25,7 +25,6 @@ export type AncientSimulacrumBotPolicy =
   | {
       mode: 'highest_value_highest_charge';
       maxCastsPerDeclaration: number | 'while_legal_affordable';
-      excludeDepletedChargedTargets: true;
       activationFleetGoal?: AncientSimulacrumActivationFleetGoal;
     };
 
@@ -115,7 +114,6 @@ export const ANCIENT_NEP_BOT_STRATEGIES: readonly AncientBotStrategy[] = [
     simulacrum: {
       mode: 'highest_value_highest_charge',
       maxCastsPerDeclaration: 'while_legal_affordable',
-      excludeDepletedChargedTargets: true,
       activationFleetGoal: { shipDefId: 'NEP', targetCount: 6 },
     },
   }),

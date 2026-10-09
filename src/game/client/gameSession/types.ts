@@ -636,6 +636,7 @@ export type AncientSolarDisplaySourceMode =
 
 export interface AncientSimulacrumDisplayPresentation {
   copiedShipDefId: ShipDefId;
+  /** Historical field name; now the fresh copy's definition-backed charges. */
   capturedStartOfBattleCharges?: number;
   selectedNumber?: number;
 }

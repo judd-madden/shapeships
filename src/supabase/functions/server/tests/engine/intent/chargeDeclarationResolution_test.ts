@@ -559,7 +559,7 @@ Deno.test('production Simulacrum commits ordered queue records, exact blue payme
       {
         copiedShipDefId: 'CAR',
         queueOrder: 0,
-        capturedStartOfBattleCharges: 3,
+        capturedStartOfBattleCharges: 6,
         permanentConfiguration: {},
         status: 'queued',
       },
@@ -587,7 +587,7 @@ Deno.test('production Simulacrum commits ordered queue records, exact blue payme
         simulacrum: {
           sourceTargetInstanceId: 'enemy-car',
           copiedShipDefId: 'CAR',
-          capturedStartOfBattleCharges: 3,
+          capturedStartOfBattleCharges: 6,
           permanentConfiguration: {},
         },
       },

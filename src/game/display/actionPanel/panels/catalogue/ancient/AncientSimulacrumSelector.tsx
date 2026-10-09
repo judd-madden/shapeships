@@ -37,9 +37,10 @@ const SIMULACRUM_SELECTOR_LAYOUT: Record<
 };
 
 const FALLBACK_SIMULACRUM_RULES = [
-  'Each ship may only be targeted ONCE per turn.',
-  'Ships with charges are copied as they were at Reveal phase.',
-  "Copied ships CAN be upgraded via the opponent's species tab.",
+  'Ship is created at the start of the NEXT turn.',
+  'Each ship may only be targeted once per turn.',
+  'Ships with charges are created like new, with all charges available.',
+  'Copied ships CAN be upgraded.',
 ] as const;
 
 function splitSimulacrumRules(extraRules: string | undefined): string[] {

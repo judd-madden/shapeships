@@ -18,6 +18,29 @@ const SIMULACRUM_IMMEDIATE_CONSEQUENCE_POLICY = {
   producedShips: "suppress",
 } as const;
 
+type ExpectedSimulacrumQueueRejectionReason =
+  | "duplicate_target"
+  | "quantity_limit";
+
+class ExpectedSimulacrumQueueRejection extends Error {
+  readonly reason: ExpectedSimulacrumQueueRejectionReason;
+
+  constructor(
+    reason: ExpectedSimulacrumQueueRejectionReason,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ExpectedSimulacrumQueueRejection";
+    this.reason = reason;
+  }
+}
+
+function isExpectedSimulacrumQueueRejection(
+  error: unknown,
+): error is ExpectedSimulacrumQueueRejection {
+  return error instanceof ExpectedSimulacrumQueueRejection;
+}
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
@@ -82,6 +105,14 @@ function findFleetShipByInstanceId(
 function isChargeCapableDefinition(definition: any): boolean {
   return typeof definition?.charges === "number" &&
     Number.isFinite(definition.charges);
+}
+
+function getFreshSimulacrumInitialCharges(definition: any): number {
+  if (!isChargeCapableDefinition(definition)) return 0;
+  if (!isNonNegativeInteger(definition.charges)) {
+    throw new Error(`Invalid canonical starting charges for ${definition?.id}`);
+  }
+  return definition.charges;
 }
 
 function capturePermanentConfiguration(
@@ -178,7 +209,8 @@ export function assertSimulacrumQuantityAvailable(args: {
     currentFleetCount + queuedCount + args.proposedCount >
       definition.maxQuantity
   ) {
-    throw new Error(
+    throw new ExpectedSimulacrumQueueRejection(
+      "quantity_limit",
       `Simulacrum would exceed canonical maximum quantity for ${args.copiedShipDefId}`,
     );
   }
@@ -279,7 +311,8 @@ export function queueSimulacrumCopy(args: {
       record.sourceMode === "primary",
   );
   if (duplicatePrimary) {
-    throw new Error(
+    throw new ExpectedSimulacrumQueueRejection(
+      "duplicate_target",
       `Simulacrum primary target already selected: ${args.target.instanceId}`,
     );
   }
@@ -311,15 +344,14 @@ export function queueSimulacrumCopy(args: {
     );
   }
 
-  let capturedStartOfBattleCharges = 0;
-  if (isChargeCapableDefinition(definition)) {
-    if (!isNonNegativeInteger(args.target.chargesCurrent)) {
-      throw new Error(
-        `Simulacrum target has invalid snapshotted charges: ${args.target.instanceId}`,
-      );
-    }
-    capturedStartOfBattleCharges = args.target.chargesCurrent;
-  }
+  // Former balance rule: copy the source's Reveal-time remaining charges.
+  // let capturedStartOfBattleCharges = 0;
+  // if (isChargeCapableDefinition(definition)) {
+  //   if (!isNonNegativeInteger(args.target.chargesCurrent)) throw new Error(...);
+  //   capturedStartOfBattleCharges = args.target.chargesCurrent;
+  // }
+  const capturedStartOfBattleCharges =
+    getFreshSimulacrumInitialCharges(definition);
   const permanentConfiguration = capturePermanentConfiguration(args.target);
 
   const pendingCopy: AncientPendingSimulacrumCopy = {
@@ -361,23 +393,21 @@ export function resolveCubeDestructionSimulacrum(args: {
       args.state,
       args.controllerPlayerId,
     );
-  } catch {
+  } catch (error) {
+    console.error("[Simulacrum] Cube destruction trigger could not resolve opponent", {
+      controllerPlayerId: args.controllerPlayerId,
+      destroyedCubeInstanceId: args.destroyedCubeInstanceId,
+      destructionEffectId: args.destructionEffectId,
+      error,
+    });
     return null;
   }
 
-  const revealSnapshots = args.state.gameData.turnData
-    ?.simulacrumRevealFleetSnapshotByPlayerId;
   const liveFleet = getFleet(args.state, targetPlayerId);
-  if (!revealSnapshots || typeof revealSnapshots !== "object" || liveFleet.length === 0) {
-    return null;
-  }
+  if (liveFleet.length === 0) return null;
 
-  const liveTargetIds = new Set(liveFleet.map((ship) => ship.instanceId));
-  const revealFleet = Object.values(revealSnapshots)
-    .flatMap((fleet) => Array.isArray(fleet) ? fleet : []);
-  const candidates = revealFleet
+  const candidates = liveFleet
     .filter((ship: ShipInstance) =>
-      liveTargetIds.has(ship.instanceId) &&
       isCanonicalBasicOnlyTargetShip(ship.shipDefId)
     )
     .flatMap((target: ShipInstance) => {
@@ -456,8 +486,21 @@ export function resolveCubeDestructionSimulacrum(args: {
         },
       };
       return queued.candidateState as GameState;
-    } catch {
-      // An automatic cast skips an unavailable candidate and tries the next.
+    } catch (error) {
+      if (isExpectedSimulacrumQueueRejection(error)) {
+        // Expected reservation conflicts skip this candidate and try the next.
+        continue;
+      }
+      console.error("[Simulacrum] Unexpected Cube destruction trigger failure", {
+        controllerPlayerId: args.controllerPlayerId,
+        targetPlayerId,
+        destroyedCubeInstanceId: args.destroyedCubeInstanceId,
+        destructionEffectId: args.destructionEffectId,
+        candidateInstanceId: target.instanceId,
+        candidateShipDefId: target.shipDefId,
+        error,
+      });
+      return null;
     }
   }
   return null;
@@ -518,6 +561,7 @@ function validateQueuedMaterializationInputs(
     );
   }
   if (isChargeCapableDefinition(definition)) {
+    getFreshSimulacrumInitialCharges(definition);
     if (!isNonNegativeInteger(record.capturedStartOfBattleCharges)) {
       throw new Error(
         `Invalid queued Simulacrum charges: ${record.pendingCopyId}`,
@@ -857,7 +901,6 @@ export function materializeQueuedSimulacrumCopiesAtTurnStart(
       continue;
     }
 
-    const definition = getShipById(record.copiedShipDefId)!;
     const created = createShipDuringDrawing({
       state: workingState,
       playerId: record.ownerPlayerId,
@@ -869,9 +912,9 @@ export function materializeQueuedSimulacrumCopiesAtTurnStart(
         producedBuildOccurrence: { stage: "turn_start_materialisation" },
       },
       instanceId: plan.directInstanceId,
-      ...(isChargeCapableDefinition(definition)
-        ? { chargesOverride: record.capturedStartOfBattleCharges }
-        : {}),
+      // Former balance rule: restore this override to materialize with the
+      // source's Reveal-time remaining charges.
+      // chargesOverride: record.capturedStartOfBattleCharges,
       permanentConfiguration: record.permanentConfiguration,
     });
     const owner = workingState.players.find((player) =>

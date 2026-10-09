@@ -122,7 +122,6 @@ Deno.test('Ancient strategy registry exposes thirteen stable identities in expli
       simulacrum: {
         mode: 'highest_value_highest_charge',
         maxCastsPerDeclaration: 'while_legal_affordable',
-        excludeDepletedChargedTargets: true,
         activationFleetGoal: { shipDefId: 'NEP', targetCount: 6 },
       },
     },
