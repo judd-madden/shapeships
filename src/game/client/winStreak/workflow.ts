@@ -1,6 +1,7 @@
 import {
   observeAuthoritativeWinStreakGame,
   projectAuthoritativeWinStreakGame,
+  projectAuthoritativeWinStreakParticipants,
   registerTrackedGameDraft,
   retireTrackedGameDraft,
   settleTrackedGameDraft,
@@ -65,15 +66,6 @@ function responseMessage(status: number): string {
   return `Unable to reconcile the tracked game (HTTP ${status}).`;
 }
 
-function getControllers(state: any): Record<string, { kind?: string }> {
-  const root = state?.controllersByPlayerId;
-  const projected = state?.publicState?.controllersByPlayerId;
-  return {
-    ...(root && typeof root === 'object' ? root : {}),
-    ...(projected && typeof projected === 'object' ? projected : {}),
-  };
-}
-
 function projectStrictTrackedGame(
   state: unknown,
   tracked: WinStreakTrackedGame,
@@ -82,18 +74,11 @@ function projectStrictTrackedGame(
   if (raw?.gameId !== tracked.gameId || raw?.requester?.playerId !== tracked.humanPlayerId) {
     return null;
   }
-  const controllers = getControllers(raw);
-  const humanIds = Object.keys(controllers).filter((id) => controllers[id]?.kind === 'human');
-  const botIds = Object.keys(controllers).filter((id) => controllers[id]?.kind === 'bot');
-  if (humanIds.length !== 1 || humanIds[0] !== tracked.humanPlayerId || botIds.length !== 1) {
-    return null;
-  }
-  const players = Array.isArray(raw?.publicState?.players)
-    ? raw.publicState.players
-    : Array.isArray(raw?.players)
-      ? raw.players
-      : [];
-  if (!players.some((player: any) => player?.id === botIds[0] && player?.role === 'player')) {
+  const participants = projectAuthoritativeWinStreakParticipants(raw, tracked.humanPlayerId);
+  if (
+    !participants ||
+    participants.humanPlayerId !== tracked.humanPlayerId
+  ) {
     return null;
   }
   return projectAuthoritativeWinStreakGame(raw, tracked.humanPlayerId);
@@ -395,34 +380,20 @@ export async function verifyTrackedGameForRejoin(
     response = new Response(null, { status: 503 });
   }
 
-  const retireIfCurrent = async () => {
-    await store.mutate((profile) => {
-      if (
-        profile.generation === captured.generation &&
-        profile.trackedGame?.gameId === tracked.gameId &&
-        profile.trackedGame.status === 'unfinished' &&
-        profile.trackedGame.resultEligible
-      ) {
-        retireTrackedGameDraft(profile);
-      }
-    });
-  };
-
   if (!response.ok) {
-    await retireIfCurrent();
     return null;
   }
   const state = await response.json().catch(() => null);
   const game = projectStrictTrackedGame(state, tracked);
   if (!game) {
-    await retireIfCurrent();
     return null;
   }
   const stillCurrent = await store.inspect((profile) =>
     profile.generation === captured.generation &&
     profile.trackedGame?.gameId === tracked.gameId &&
     profile.trackedGame.status === 'unfinished' &&
-    profile.trackedGame.resultEligible
+    profile.trackedGame.resultEligible &&
+    profile.creationReservation == null
   );
   if (!stillCurrent) return null;
 
@@ -430,6 +401,7 @@ export async function verifyTrackedGameForRejoin(
     await observeAuthoritativeWinStreakGame(store, game, {
       allowDiscovery: false,
       expectedGeneration: captured.generation,
+      requireNoCreationReservation: true,
     });
     return null;
   }
@@ -439,7 +411,6 @@ export async function verifyTrackedGameForRejoin(
     game.appliedBonusCount !== captured.currentCount ||
     game.appliedBonusRecipientPlayerId !== game.botPlayerId
   ) {
-    await retireIfCurrent();
     return null;
   }
   return { gameId: tracked.gameId };

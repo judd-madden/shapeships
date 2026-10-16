@@ -181,7 +181,7 @@ export function CreatePrivateGamePanel({
 
   return (
     <div className="content-stretch flex w-full flex-col gap-[20px] sm:gap-[30px] 2xl:gap-[50px]">
-      <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[9px] leading-[normal]">
+      <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[16px] leading-[normal]">
         <div className="flex max-w-full flex-col items-start gap-[16px] sm:flex-row sm:items-center sm:gap-[60px]">
           <p
             className="text-[24px] font-black leading-[normal] sm:text-[36px]"

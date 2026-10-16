@@ -85,7 +85,7 @@ export function WinStreakBadge({ vm }: { vm: WinStreakMenuViewModel }) {
   if (!shouldShowWinStreakContent(vm)) return null;
 
   return (
-    <div className="flex items-center gap-[8px] rounded-[10px] bg-[var(--shapeships-grey-90)] px-[4px] py-[20px] text-white">
+    <div className="flex items-center gap-[8px] rounded-[10px] bg-[var(--shapeships-grey-90)] py-[8px] px-[20px] text-white">
       <span className="shrink-0 text-[40px] font-black leading-none">{vm.displayCount}</span>
       <span className="text-[20px] font-black leading-[22px]">
         {vm.streakState === 'ended' ? 'WIN STREAK ENDED' : 'WIN STREAK'}

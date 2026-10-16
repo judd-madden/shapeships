@@ -32,18 +32,74 @@ export interface AuthoritativeWinStreakGame {
   };
 }
 
-function getControllers(state: any): Record<string, { kind?: string }> {
-  const root = state?.controllersByPlayerId;
+function isControllerMap(value: unknown): value is Record<string, { kind?: string }> {
+  return value != null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getControllerProjection(state: any): {
+  controllers: Record<string, { kind?: string }>;
+  publicContract: boolean;
+} {
   const projected = state?.publicState?.controllersByPlayerId;
+  if (isControllerMap(projected)) {
+    return { controllers: projected, publicContract: true };
+  }
+
+  const root = state?.controllersByPlayerId;
+  if (isControllerMap(root)) {
+    return { controllers: root, publicContract: false };
+  }
+
+  const nested = state?.gameData?.controllersByPlayerId;
   return {
-    ...(root && typeof root === 'object' ? root : {}),
-    ...(projected && typeof projected === 'object' ? projected : {}),
+    controllers: isControllerMap(nested) ? nested : {},
+    publicContract: false,
   };
 }
 
 function getPlayers(state: any): any[] {
   if (Array.isArray(state?.publicState?.players)) return state.publicState.players;
-  return Array.isArray(state?.players) ? state.players : [];
+  if (Array.isArray(state?.players)) return state.players;
+  return Array.isArray(state?.gameData?.players) ? state.gameData.players : [];
+}
+
+export interface AuthoritativeWinStreakParticipants {
+  humanPlayerId: string;
+  botPlayerId: string;
+}
+
+export function projectAuthoritativeWinStreakParticipants(
+  state: any,
+  expectedHumanPlayerId?: string | null,
+): AuthoritativeWinStreakParticipants | null {
+  const { controllers, publicContract } = getControllerProjection(state);
+  const requesterId = typeof state?.requester?.playerId === 'string'
+    ? state.requester.playerId
+    : expectedHumanPlayerId ?? null;
+  if (!requesterId) return null;
+
+  const participatingPlayerIds = Array.from(new Set(
+    getPlayers(state)
+      .filter((player) => player?.role === 'player' && typeof player?.id === 'string')
+      .map((player) => player.id as string),
+  ));
+  if (participatingPlayerIds.length !== 2 || !participatingPlayerIds.includes(requesterId)) {
+    return null;
+  }
+
+  const requesterKind = controllers[requesterId]?.kind;
+  const requesterIsHuman = publicContract
+    ? requesterKind === 'player'
+    : requesterKind === 'player' || requesterKind === 'human';
+  if (!requesterIsHuman) return null;
+
+  const opponentId = participatingPlayerIds.find((id) => id !== requesterId) ?? null;
+  if (!opponentId || controllers[opponentId]?.kind !== 'bot') return null;
+
+  return {
+    humanPlayerId: requesterId,
+    botPlayerId: opponentId,
+  };
 }
 
 function getRestartLifecycle(state: any): AuthoritativeWinStreakGame['restartLifecycle'] {
@@ -102,19 +158,12 @@ export function projectAuthoritativeWinStreakGame(
   const gameId = typeof state?.gameId === 'string' ? state.gameId : null;
   if (!gameId) return null;
 
-  const controllers = getControllers(state);
-  const players = getPlayers(state);
-  const requesterId = typeof state?.requester?.playerId === 'string'
-    ? state.requester.playerId
-    : expectedHumanPlayerId ?? null;
-  const humanPlayerId = requesterId && controllers[requesterId]?.kind === 'human'
-    ? requesterId
-    : null;
-  const botPlayerId = Object.keys(controllers).find((id) => controllers[id]?.kind === 'bot') ?? null;
-  if (!humanPlayerId || !botPlayerId || humanPlayerId === botPlayerId) return null;
-  if (!players.some((player) => player?.id === humanPlayerId && player?.role === 'player')) {
-    return null;
-  }
+  const participants = projectAuthoritativeWinStreakParticipants(
+    state,
+    expectedHumanPlayerId,
+  );
+  if (!participants) return null;
+  const { humanPlayerId, botPlayerId } = participants;
 
   const bonus = state?.publicState?.winStreakBonus ?? state?.gameData?.winStreakBonus;
   const appliedBonusCount = Number.isSafeInteger(bonus?.appliedCount) && bonus.appliedCount >= 0
@@ -164,6 +213,7 @@ function canDiscover(profile: WinStreakProfile, game: AuthoritativeWinStreakGame
 export interface ObserveAuthoritativeOptions {
   allowDiscovery: boolean;
   expectedGeneration?: number;
+  requireNoCreationReservation?: boolean;
 }
 
 export function settleTrackedGameDraft(
@@ -207,8 +257,9 @@ export async function observeAuthoritativeWinStreakGame(
 ): Promise<'enrolled' | 'settled' | 'ignored' | 'stale'> {
   return store.mutate((profile) => {
     if (
-      options.expectedGeneration !== undefined &&
-      profile.generation !== options.expectedGeneration
+      (options.expectedGeneration !== undefined &&
+        profile.generation !== options.expectedGeneration) ||
+      (options.requireNoCreationReservation === true && profile.creationReservation != null)
     ) {
       return 'stale';
     }

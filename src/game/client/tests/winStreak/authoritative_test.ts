@@ -14,6 +14,11 @@ import {
   reserveBotGameCreation,
   resetWinStreakFromMenu,
 } from '../../winStreak/workflow';
+import {
+  acceptedIntentState,
+  legacyInternalGameState,
+  publicGameState,
+} from './fixtures';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
   if (!condition) throw new Error(message);
@@ -31,50 +36,6 @@ function serialRunner(): ExclusiveRunner {
     const run = queue.then(work, work);
     queue = run.then(() => undefined, () => undefined);
     return run;
-  };
-}
-
-function state(args: {
-  gameId: string;
-  status?: 'active' | 'finished';
-  winner?: string | null;
-  reason?: string | null;
-  canRestart?: boolean;
-  appliedCount?: number;
-  restartLifecycle?: {
-    kind: 'source' | 'replacement';
-    status: 'pending' | 'completed';
-    sourceGameId: string;
-    replacementGameId: string;
-  } | null;
-}) {
-  return {
-    gameId: args.gameId,
-    status: args.status ?? 'active',
-    turnNumber: 1,
-    players: [
-      { id: 'human', role: 'player' },
-      { id: 'bot', role: 'player' },
-    ],
-    controllersByPlayerId: {
-      human: { kind: 'human' },
-      bot: { kind: 'bot' },
-    },
-    gameData: {
-      turnNumber: 1,
-      winStreakBonus: { appliedCount: args.appliedCount ?? 0, recipientPlayerId: 'bot' },
-    },
-    requester: {
-      playerId: 'human',
-      winStreakReset: {
-        canRestart: args.canRestart === true,
-        lifecycle: args.restartLifecycle ?? null,
-      },
-    },
-    result: {
-      winnerPlayerId: args.winner ?? null,
-      resultReason: args.reason ?? null,
-    },
   };
 }
 
@@ -102,9 +63,58 @@ async function reserve(store: WinStreakProfileStore, kind: 'create' | 'rematch',
   return result.reservation;
 }
 
+Deno.test('real public controller projection identifies the participating human and bot', () => {
+  const projected = projectAuthoritativeWinStreakGame(publicGameState({
+    gameId: 'PUBLIC',
+    appliedCount: 3,
+  }));
+  assert(projected);
+  assert(projected.humanPlayerId === 'human');
+  assert(projected.botPlayerId === 'bot');
+  assert(projected.appliedBonusCount === 3);
+  assert(projected.appliedBonusRecipientPlayerId === 'bot');
+});
+
+Deno.test('public controllers take precedence while requester-less intent and legacy states stay compatible', () => {
+  const preferredPublic = publicGameState({ gameId: 'PREFERRED' });
+  preferredPublic.controllersByPlayerId.human = { kind: 'human' };
+  assert(projectAuthoritativeWinStreakGame(preferredPublic));
+
+  const contradictoryPublic = publicGameState({ gameId: 'CONTRADICTORY' });
+  contradictoryPublic.controllersByPlayerId.human = { kind: 'human' };
+  contradictoryPublic.publicState.controllersByPlayerId.human = { kind: 'human' };
+  assert(projectAuthoritativeWinStreakGame(contradictoryPublic) === null);
+
+  const intent = projectAuthoritativeWinStreakGame(acceptedIntentState({
+    gameId: 'INTENT',
+  }), 'human');
+  assert(intent?.humanPlayerId === 'human');
+  assert(projectAuthoritativeWinStreakGame(acceptedIntentState({ gameId: 'NO-IDENTITY' })) === null);
+
+  const legacy = projectAuthoritativeWinStreakGame(legacyInternalGameState({
+    gameId: 'LEGACY',
+  }));
+  assert(legacy?.humanPlayerId === 'human');
+});
+
+Deno.test('spectators, extra players, and non-bot opponents are excluded', () => {
+  const spectator = publicGameState({ gameId: 'SPECTATOR', requesterPlayerId: 'spectator' });
+  spectator.publicState.players.push({ id: 'spectator', role: 'spectator' });
+  assert(projectAuthoritativeWinStreakGame(spectator) === null);
+
+  const extraPlayer = publicGameState({ gameId: 'EXTRA' });
+  extraPlayer.publicState.players.push({ id: 'third', role: 'player' });
+  extraPlayer.publicState.controllersByPlayerId.third = { kind: 'player' };
+  assert(projectAuthoritativeWinStreakGame(extraPlayer) === null);
+
+  const nonBotOpponent = publicGameState({ gameId: 'NON-BOT' });
+  nonBotOpponent.publicState.controllersByPlayerId.bot = { kind: 'player' };
+  assert(projectAuthoritativeWinStreakGame(nonBotOpponent) === null);
+});
+
 Deno.test('positive ordinary loss saves ended streak atomically and duplicate settlement is inert', async () => {
   const store = await seededStore(5);
-  const loss = projectAuthoritativeWinStreakGame(state({
+  const loss = projectAuthoritativeWinStreakGame(publicGameState({
     gameId: 'A', status: 'finished', winner: 'bot', reason: 'decisive', appliedCount: 5,
   }), 'human');
   assert(loss);
@@ -120,15 +130,17 @@ Deno.test('positive ordinary loss saves ended streak atomically and duplicate se
 Deno.test('resignation and timeout losses end positive streaks while a zero streak creates no snapshot', async () => {
   for (const reason of ['resignation', 'timeout']) {
     const store = await seededStore(3, reason);
-    const loss = projectAuthoritativeWinStreakGame(state({
+    const loss = projectAuthoritativeWinStreakGame(publicGameState({
       gameId: reason, status: 'finished', winner: 'bot', reason,
     }), 'human');
     assert(loss);
     await observeAuthoritativeWinStreakGame(store, loss, { allowDiscovery: false });
+    assert(store.getSnapshot().currentCount === 0);
     assert(store.getSnapshot().endedStreak?.count === 3);
+    assert(store.getSnapshot().endedStreak?.endingGameId === reason);
   }
   const zero = await seededStore(0, 'ZERO');
-  const zeroLoss = projectAuthoritativeWinStreakGame(state({
+  const zeroLoss = projectAuthoritativeWinStreakGame(publicGameState({
     gameId: 'ZERO', status: 'finished', winner: 'bot', reason: 'decisive',
   }), 'human');
   assert(zeroLoss);
@@ -138,19 +150,19 @@ Deno.test('resignation and timeout losses end positive streaks while a zero stre
 
 Deno.test('win increments, draw preserves, and restart is neutral', async () => {
   const winStore = await seededStore(2, 'WIN');
-  const win = projectAuthoritativeWinStreakGame(state({ gameId: 'WIN', status: 'finished', winner: 'human', reason: 'decisive' }), 'human');
+  const win = projectAuthoritativeWinStreakGame(publicGameState({ gameId: 'WIN', status: 'finished', winner: 'human', reason: 'decisive' }), 'human');
   assert(win);
   await observeAuthoritativeWinStreakGame(winStore, win, { allowDiscovery: false });
   assert(winStore.getSnapshot().currentCount === 3);
 
   const drawStore = await seededStore(2, 'DRAW');
-  const draw = projectAuthoritativeWinStreakGame(state({ gameId: 'DRAW', status: 'finished', winner: null, reason: 'agreement' }), 'human');
+  const draw = projectAuthoritativeWinStreakGame(publicGameState({ gameId: 'DRAW', status: 'finished', winner: null, reason: 'agreement' }), 'human');
   assert(draw);
   await observeAuthoritativeWinStreakGame(drawStore, draw, { allowDiscovery: false });
   assert(drawStore.getSnapshot().currentCount === 2);
 
   const restartStore = await seededStore(2, 'RESTART');
-  const restart = projectAuthoritativeWinStreakGame(state({ gameId: 'RESTART', status: 'finished', winner: null, reason: 'restart' }), 'human');
+  const restart = projectAuthoritativeWinStreakGame(publicGameState({ gameId: 'RESTART', status: 'finished', winner: null, reason: 'restart' }), 'human');
   assert(restart);
   await observeAuthoritativeWinStreakGame(restartStore, restart, { allowDiscovery: false });
   assert(restartStore.getSnapshot().currentCount === 2);
@@ -193,14 +205,14 @@ Deno.test('multiplayer projection is ignored and sealed discovery cannot enrol a
     profile.currentCount = 3;
     profile.endedStreak = { count: 2, endingGameId: 'OLD' };
   });
-  const multiplayer = state({ gameId: 'MULTI' });
-  multiplayer.controllersByPlayerId.bot = { kind: 'human' };
+  const multiplayer = publicGameState({ gameId: 'MULTI' });
+  multiplayer.publicState.controllersByPlayerId.bot = { kind: 'player' };
   assert(projectAuthoritativeWinStreakGame(multiplayer, 'human') === null);
   assert(store.getSnapshot().currentCount === 3);
   assert(store.getSnapshot().endedStreak?.endingGameId === 'OLD');
 
   await store.mutate((profile) => { profile.automaticEnrollmentSealed = true; });
-  const botGame = projectAuthoritativeWinStreakGame(state({ gameId: 'SEALED' }), 'human');
+  const botGame = projectAuthoritativeWinStreakGame(publicGameState({ gameId: 'SEALED' }), 'human');
   assert(botGame);
   const observed = await observeAuthoritativeWinStreakGame(store, botGame, { allowDiscovery: true });
   assert(observed === 'ignored');
@@ -210,7 +222,7 @@ Deno.test('multiplayer projection is ignored and sealed discovery cannot enrol a
 Deno.test('automatic discovery requires the server-applied bonus to match progression', async () => {
   const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
   await store.mutate((profile) => { profile.currentCount = 4; });
-  const mismatched = projectAuthoritativeWinStreakGame(state({
+  const mismatched = projectAuthoritativeWinStreakGame(publicGameState({
     gameId: 'OLD', appliedCount: 0,
   }), 'human');
   assert(mismatched);
@@ -218,7 +230,7 @@ Deno.test('automatic discovery requires the server-applied bonus to match progre
   assert(ignored === 'ignored');
   assert(store.getSnapshot().trackedGame === null);
 
-  const matching = projectAuthoritativeWinStreakGame(state({
+  const matching = projectAuthoritativeWinStreakGame(publicGameState({
     gameId: 'NEXT', appliedCount: 4,
   }), 'human');
   assert(matching);
@@ -236,7 +248,7 @@ Deno.test('shared cross-tab lock settles a terminal result exactly once', async 
     profile.currentCount = 2;
     registerTrackedGameDraft(profile, 'LOCKED', 'human');
   });
-  const win = projectAuthoritativeWinStreakGame(state({
+  const win = projectAuthoritativeWinStreakGame(publicGameState({
     gameId: 'LOCKED', status: 'finished', winner: 'human', reason: 'decisive',
   }), 'human');
   assert(win);
@@ -250,7 +262,7 @@ Deno.test('shared cross-tab lock settles a terminal result exactly once', async 
 
 Deno.test('ended game presentation is scoped to its game and explicit reset prevents resurrection', async () => {
   const store = await seededStore(5);
-  const loss = projectAuthoritativeWinStreakGame(state({ gameId: 'A', status: 'finished', winner: 'bot', reason: 'timeout' }), 'human');
+  const loss = projectAuthoritativeWinStreakGame(publicGameState({ gameId: 'A', status: 'finished', winner: 'bot', reason: 'timeout' }), 'human');
   assert(loss);
   await observeAuthoritativeWinStreakGame(store, loss, { allowDiscovery: false });
   const matching = deriveWinStreakGameViewModel({
@@ -258,7 +270,7 @@ Deno.test('ended game presentation is scoped to its game and explicit reset prev
     resetRetryAvailable: false,
   });
   assert(matching.streakState === 'ended' && matching.displayCount === 5);
-  const unrelated = projectAuthoritativeWinStreakGame(state({ gameId: 'OTHER' }), 'human');
+  const unrelated = projectAuthoritativeWinStreakGame(publicGameState({ gameId: 'OTHER' }), 'human');
   assert(unrelated);
   const hidden = deriveWinStreakGameViewModel({
     profile: store.getSnapshot(), game: unrelated, resetBusy: false, resetError: null,
@@ -272,7 +284,7 @@ Deno.test('ended game presentation is scoped to its game and explicit reset prev
 
 Deno.test('in-game reset eligibility requires unfinished source without restart recovery', async () => {
   const store = await seededStore(2);
-  const active = projectAuthoritativeWinStreakGame(state({ gameId: 'A', canRestart: false }), 'human');
+  const active = projectAuthoritativeWinStreakGame(publicGameState({ gameId: 'A', canRestart: false }), 'human');
   assert(active);
   const activeVm = deriveWinStreakGameViewModel({
     profile: store.getSnapshot(), game: active, resetBusy: false, resetError: null,
@@ -281,7 +293,7 @@ Deno.test('in-game reset eligibility requires unfinished source without restart 
   assert(activeVm.reset.canSubmit);
 
   for (const status of ['pending', 'completed'] as const) {
-    const recovering = projectAuthoritativeWinStreakGame(state({
+    const recovering = projectAuthoritativeWinStreakGame(publicGameState({
       gameId: 'A',
       restartLifecycle: {
         kind: 'source',
@@ -298,7 +310,7 @@ Deno.test('in-game reset eligibility requires unfinished source without restart 
     assert(!recoveryVm.reset.canSubmit);
   }
 
-  const finished = projectAuthoritativeWinStreakGame(state({ gameId: 'A', status: 'finished' }), 'human');
+  const finished = projectAuthoritativeWinStreakGame(publicGameState({ gameId: 'A', status: 'finished' }), 'human');
   assert(finished);
   const finishedVm = deriveWinStreakGameViewModel({
     profile: store.getSnapshot(), game: finished, resetBusy: false, resetError: null,
@@ -312,10 +324,10 @@ Deno.test('retired A cannot re-enrol after B replaces and completes', async () =
   await resetWinStreakFromMenu(store);
   const reservation = await reserve(store, 'create', null);
   await completeBotGameCreation(store, reservation, 'B', 'human');
-  const bWin = projectAuthoritativeWinStreakGame(state({ gameId: 'B', status: 'finished', winner: 'human', reason: 'decisive' }), 'human');
+  const bWin = projectAuthoritativeWinStreakGame(publicGameState({ gameId: 'B', status: 'finished', winner: 'human', reason: 'decisive' }), 'human');
   assert(bWin);
   await observeAuthoritativeWinStreakGame(store, bWin, { allowDiscovery: false });
-  const reopenedA = projectAuthoritativeWinStreakGame(state({ gameId: 'A' }), 'human');
+  const reopenedA = projectAuthoritativeWinStreakGame(publicGameState({ gameId: 'A' }), 'human');
   assert(reopenedA);
   await observeAuthoritativeWinStreakGame(store, reopenedA, { allowDiscovery: true });
   assert(store.getSnapshot().trackedGame?.gameId === 'B');
