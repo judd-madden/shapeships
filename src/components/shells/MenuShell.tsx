@@ -22,6 +22,10 @@ import {
   readLoreUnread,
 } from '../../game/client/gameSession/mission/missionChallengeSession';
 import type { WinStreakMenuActions, WinStreakMenuViewModel } from '../../game/client/winStreak/types';
+import { GameMenuButton } from '../ui/primitives/buttons/GameMenuButton';
+import { WinStreakBadge } from '../../game/display/winStreak/WinStreakContent';
+import { WinStreakWorkflowFeedback } from '../../game/display/winStreak/WinStreakWorkflowFeedback';
+import { getMenuWinStreakResetAction, shouldShowWinStreakContent } from '../../game/display/winStreak/winStreakPresentation';
 
 interface MenuShellProps {
   onNavigate: (shell: string) => void;
@@ -49,8 +53,8 @@ export function MenuShell({
   user, 
   player, 
   alphaDisableAuth,
-  winStreakViewModel: _winStreakViewModel,
-  winStreakActions: _winStreakActions,
+  winStreakViewModel,
+  winStreakActions,
 }: MenuShellProps) {
   const [activePanel, setActivePanel] = useState<ActivePanel>('multiplayer');
   const [, setIsCreating] = useState(false);
@@ -294,6 +298,31 @@ export function MenuShell({
                 subheading="Start a game against a computer opponent. Includes optional Missions and Challenges."
                 primaryActionLabel="PLAY COMPUTER"
                 primaryActionStyle="emphasisWhite"
+                headingAccessory={shouldShowWinStreakContent(winStreakViewModel) ? (
+                  <div className="flex max-w-full flex-col items-start gap-[16px] sm:flex-row sm:items-center">
+                    <WinStreakBadge vm={winStreakViewModel} />
+                    {winStreakViewModel.streakState === 'active' ? (
+                      <GameMenuButton
+                        size="compact"
+                        disabled={winStreakViewModel.reset.busy}
+                        requiresConfirm
+                        confirmLabel="Reset Win Streak (Confirm)"
+                        pendingLabel="RESETTING..."
+                        onClick={getMenuWinStreakResetAction(winStreakActions)}
+                      >
+                        Reset Win Streak
+                      </GameMenuButton>
+                    ) : null}
+                  </div>
+                ) : undefined}
+                subheadingAccessory={(
+                  <WinStreakWorkflowFeedback
+                    creation={winStreakViewModel.creation}
+                    unfinishedGame={winStreakViewModel.unfinishedGame}
+                    actions={winStreakActions}
+                    showUnfinishedNotice
+                  />
+                )}
               />
             )}
           </div>

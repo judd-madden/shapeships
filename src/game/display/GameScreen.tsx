@@ -206,6 +206,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             viewer={vm.viewer}
             matchupIntro={presentedMatchupIntro}
             missionChallenge={vm.missionChallenge}
+            winStreak={vm.winStreak}
             actions={mainStageActions}
             firstTurnBuildHelperEligible={firstTurnBuildHelper.firstTurnBuildHelperEligible}
             firstTurnBuildHelperDismissSignal={firstTurnBuildHelper.firstTurnBuildHelperDismissSignal}
@@ -233,6 +234,8 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             turnPhases={vm.turnPhases}
             turnPhasePresentation={vm.turnPhasePresentation}
             actions={actions}
+            winStreak={vm.winStreak}
+            canResign={vm.actionPanel.menu.canResign}
             isFinished={isFinished}
             isPlayerViewer={vm.viewer.isPlayerViewer}
             firstTurnBuildHelperEligible={firstTurnBuildHelper.firstTurnBuildHelperEligible}
@@ -253,6 +256,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             viewer={vm.viewer}
             matchupIntro={presentedMatchupIntro}
             missionChallenge={vm.missionChallenge}
+            winStreak={vm.winStreak}
             actions={mainStageActions}
             soundEnabled={soundEnabled}
             boardFlashEnabled={boardFlashEnabled}

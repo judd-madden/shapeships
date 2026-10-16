@@ -41,6 +41,12 @@ function state(args: {
   reason?: string | null;
   canRestart?: boolean;
   appliedCount?: number;
+  restartLifecycle?: {
+    kind: 'source' | 'replacement';
+    status: 'pending' | 'completed';
+    sourceGameId: string;
+    replacementGameId: string;
+  } | null;
 }) {
   return {
     gameId: args.gameId,
@@ -60,7 +66,10 @@ function state(args: {
     },
     requester: {
       playerId: 'human',
-      winStreakReset: { canRestart: args.canRestart === true, lifecycle: null },
+      winStreakReset: {
+        canRestart: args.canRestart === true,
+        lifecycle: args.restartLifecycle ?? null,
+      },
     },
     result: {
       winnerPlayerId: args.winner ?? null,
@@ -275,6 +284,43 @@ Deno.test('ended game presentation is scoped to its game and explicit reset prev
   await resetWinStreakFromMenu(store);
   await observeAuthoritativeWinStreakGame(store, loss, { allowDiscovery: true });
   assert(store.getSnapshot().endedStreak === null);
+});
+
+Deno.test('in-game reset eligibility requires unfinished source without restart recovery', async () => {
+  const store = await seededStore(2);
+  const active = projectAuthoritativeWinStreakGame(state({ gameId: 'A', canRestart: false }), 'human');
+  assert(active);
+  const activeVm = deriveWinStreakGameViewModel({
+    profile: store.getSnapshot(), game: active, resetBusy: false, resetError: null,
+    resetRetryAvailable: false, creation: emptyCreation, unfinishedGame: emptyUnfinished,
+  });
+  assert(activeVm.reset.canSubmit);
+
+  for (const status of ['pending', 'completed'] as const) {
+    const recovering = projectAuthoritativeWinStreakGame(state({
+      gameId: 'A',
+      restartLifecycle: {
+        kind: 'source',
+        status,
+        sourceGameId: 'A',
+        replacementGameId: 'B',
+      },
+    }), 'human');
+    assert(recovering);
+    const recoveryVm = deriveWinStreakGameViewModel({
+      profile: store.getSnapshot(), game: recovering, resetBusy: false, resetError: null,
+      resetRetryAvailable: false, creation: emptyCreation, unfinishedGame: emptyUnfinished,
+    });
+    assert(!recoveryVm.reset.canSubmit);
+  }
+
+  const finished = projectAuthoritativeWinStreakGame(state({ gameId: 'A', status: 'finished' }), 'human');
+  assert(finished);
+  const finishedVm = deriveWinStreakGameViewModel({
+    profile: store.getSnapshot(), game: finished, resetBusy: false, resetError: null,
+    resetRetryAvailable: false, creation: emptyCreation, unfinishedGame: emptyUnfinished,
+  });
+  assert(!finishedVm.reset.canSubmit);
 });
 
 Deno.test('retired A cannot re-enrol after B replaces and completes', async () => {

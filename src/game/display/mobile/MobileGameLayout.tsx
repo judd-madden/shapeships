@@ -64,6 +64,7 @@ interface MobileGameLayoutProps {
   viewer: GameSessionViewModel['viewer'];
   matchupIntro: GameSessionViewModel['matchupIntro'];
   missionChallenge: GameSessionViewModel['missionChallenge'];
+  winStreak: GameSessionViewModel['winStreak'];
   actions: GameSessionActions;
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
@@ -125,6 +126,7 @@ export function MobileGameLayout({
   viewer,
   matchupIntro,
   missionChallenge,
+  winStreak,
   actions,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
@@ -983,10 +985,13 @@ export function MobileGameLayout({
                 onReturnToMainMenu={onReturnToMainMenu}
                 onRematch={actions.onRematch}
                 onDownloadBattleLog={actions.onDownloadBattleLog}
+                winStreak={winStreak}
+                winStreakActions={actions}
               />
             ) : (
               <MobileMenuTakeover
                 vm={actionPanelVm.menu}
+                winStreak={winStreak}
                 turnPhasesVm={turnPhasesVm}
                 turnPhasePresentation={turnPhasePresentation}
                 actions={actions}
@@ -1068,6 +1073,7 @@ export function MobileGameLayout({
           topPopoverRef={topPopoverRef}
           bottomPopoverRef={bottomPopoverRef}
           onDismiss={handleClosePopoverPair}
+          winStreak={winStreak}
         />
       ) : null}
 

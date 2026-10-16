@@ -18,6 +18,7 @@ interface GameMenuButtonProps {
   requiresConfirm?: boolean; // Requires two clicks to activate (shows red on first click)
   confirmLabel?: string; // Custom label shown during confirmation state
   pendingLabel?: string; // Custom label shown while async click is in flight
+  size?: 'default' | 'compact';
   className?: string;
   children: React.ReactNode;
 }
@@ -28,6 +29,7 @@ export function GameMenuButton({
   requiresConfirm = false,
   confirmLabel = 'Confirm?',
   pendingLabel,
+  size = 'default',
   className = "", 
   children 
 }: GameMenuButtonProps) {
@@ -109,10 +111,10 @@ export function GameMenuButton({
       disabled={isDisabled}
       className={`
         ${awaitingConfirm ? 'bg-[var(--shapeships-pastel-red)]' : 'bg-[var(--shapeships-grey-20)]'}
-        content-stretch flex h-[50px] items-center justify-center 
-        px-[30px] py-[19px] 
+        content-stretch flex items-center justify-center
+        ${size === 'compact' ? 'min-h-[36px] px-[20px] py-[9px]' : 'h-[50px] px-[30px] py-[19px]'}
         relative rounded-[10px] 
-        w-[210px]
+        ${size === 'compact' ? 'w-auto max-w-full' : 'w-[210px]'}
         ${awaitingConfirm || isPending ? '' : 'hover:bg-white'}
         transition-colors
         cursor-pointer
@@ -122,7 +124,7 @@ export function GameMenuButton({
       `}
     >
       <p 
-        className="font-bold leading-[normal] relative shrink-0 text-[16px] text-black text-nowrap"
+        className={`${size === 'compact' ? 'font-normal text-[14px]' : 'font-bold text-[16px]'} leading-[normal] relative shrink-0 text-black text-nowrap`}
       >
         <AnimatedEllipsisText text={buttonLabel} />
       </p>

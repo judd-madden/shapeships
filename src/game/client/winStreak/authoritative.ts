@@ -277,7 +277,11 @@ export function deriveWinStreakGameViewModel(args: {
     },
     reset: {
       serverCanRestart: game?.serverCanRestart === true,
-      canSubmit: game?.serverCanRestart === true && !args.resetBusy,
+      canSubmit:
+        game != null &&
+        game.status !== 'finished' &&
+        game.restartLifecycle == null &&
+        !args.resetBusy,
       busy: args.resetBusy,
       retryAvailable: args.resetRetryAvailable,
       error: args.resetError,

@@ -911,6 +911,8 @@ export function useGameSession(
   // Server state
   const [rawState, setRawState] = useState<any>(null);
   const rawStateRef = useRef<any>(null);
+  const resignSubmissionRef = useRef(false);
+  const [isResignSubmitting, setIsResignSubmitting] = useState(false);
   const winStreakSettlementQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const [minimizeMissionsThisSession, setMinimizeMissionsThisSession] =
     useState(readMinimizeMissionsThisSession);
@@ -1989,6 +1991,18 @@ export function useGameSession(
     } catch (err: any) {
       console.error(`[useGameSession] ${intentType} error:`, err.message);
       await refreshGameStateOnce();
+    }
+  }
+
+  async function handleResignGame() {
+    if (resignSubmissionRef.current) return;
+    resignSubmissionRef.current = true;
+    setIsResignSubmitting(true);
+    try {
+      await submitMenuIntent('SURRENDER');
+    } finally {
+      resignSubmissionRef.current = false;
+      setIsResignSubmitting(false);
     }
   }
   
@@ -6442,6 +6456,7 @@ useEffect(() => {
       (await ensureSession(displayName)).sessionId,
     refreshGameStateOnce,
     navigateToGame: navigateToGameId,
+    resignBusy: isResignSubmitting,
     store: winStreakStore,
   });
   const missionChallengeVm = buildMissionChallengeViewModel({
@@ -7482,7 +7497,7 @@ useEffect(() => {
     },
     
     onResignGame: async () => {
-      await submitMenuIntent('SURRENDER');
+      await handleResignGame();
     },
     
     onRematch: handleRematch,

@@ -9,7 +9,7 @@ import { Dice } from '../../../components/ui/primitives';
 import { CloseIcon } from '../../../components/ui/primitives/icons/CloseIcon';
 import { OpenFullIcon } from '../../../components/ui/primitives/icons/OpenFullIcon';
 import { Cube } from '../../../graphics/ancient/Cube';
-import type { LeftRailViewModel, GameSessionActions, TurnPhasePresentationVm, TurnPhaseVm } from '../../client/useGameSession';
+import type { LeftRailViewModel, GameSessionActions, GameSessionViewModel, TurnPhasePresentationVm, TurnPhaseVm } from '../../client/useGameSession';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
 import { BattleLogPanelContent } from '../shared/BattleLogPanelContent';
@@ -17,12 +17,22 @@ import { ChatPanelContent } from '../shared/ChatPanelContent';
 import { TurnPhaseIndicator } from '../shared/TurnPhaseIndicator';
 import { TurnPhaseList } from '../shared/TurnPhaseList';
 import { LeftRailScrollArea } from './leftRail/LeftRailScrollArea';
+import { WinStreakPanelContent } from '../winStreak/WinStreakContent';
+import {
+  canSubmitInGameWinStreakReset,
+  getInGameWinStreakResetAction,
+  resolveWinStreakSisterView,
+  shouldShowWinStreakContent,
+  type WinStreakSisterView,
+} from '../winStreak/winStreakPresentation';
 
 interface LeftRailProps {
   vm: LeftRailViewModel;
   turnPhases: TurnPhaseVm;
   turnPhasePresentation: TurnPhasePresentationVm;
   actions: GameSessionActions;
+  winStreak: GameSessionViewModel['winStreak'];
+  canResign: boolean;
   isFinished: boolean;
   isPlayerViewer: boolean;
   firstTurnBuildHelperEligible?: boolean;
@@ -30,7 +40,7 @@ interface LeftRailProps {
   onFirstTurnBuildHelperDismiss?: () => void;
 }
 
-type SisterView = 'battleLog' | 'turnPhases';
+type SisterView = WinStreakSisterView;
 
 const FIRST_TURN_BUILD_HELPER_SHOW_DELAY_MS = 500;
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
@@ -95,6 +105,8 @@ export function LeftRail({
   turnPhases,
   turnPhasePresentation,
   actions,
+  winStreak,
+  canResign,
   isFinished,
   isPlayerViewer,
   firstTurnBuildHelperEligible = false,
@@ -117,6 +129,11 @@ export function LeftRail({
   const firstTurnBuildHelperShowTimeoutRef = useRef<number | null>(null);
   const firstTurnBuildHelperDismissTimeoutRef = useRef<number | null>(null);
   const previousIsFinishedRef = useRef(isFinished);
+  const showWinStreak = shouldShowWinStreakContent(winStreak);
+
+  useEffect(() => {
+    setSelectedSisterView((current) => resolveWinStreakSisterView(current, showWinStreak));
+  }, [showWinStreak]);
   function clearBattleLogScrollRestoreTimers() {
     if (battleLogScrollRestoreFrameRef.current !== null) {
       window.cancelAnimationFrame(battleLogScrollRestoreFrameRef.current);
@@ -391,7 +408,7 @@ export function LeftRail({
     setIsBattleLogExpanded((current) => !current);
   }
 
-  function handleSisterViewSelect(nextView: 'battleLog' | 'turnPhases') {
+  function handleSisterViewSelect(nextView: SisterView) {
     if (nextView === 'turnPhases' && isBattleLogExpanded) {
       handleBattleLogExpandToggle();
     }
@@ -512,8 +529,8 @@ export function LeftRail({
               : `top ${BATTLE_LOG_TRANSITION_MS}ms ease-out, bottom ${BATTLE_LOG_TRANSITION_MS}ms ease-out`,
         }}
       >
-        <div className="flex h-[48px] shrink-0 items-center justify-between px-[18px]">
-          <div className="flex min-w-0 items-center gap-[18px]">
+        <div className="flex h-[48px] shrink-0 items-center justify-between px-[12px]">
+          <div className="flex min-w-0 items-center gap-[8px]">
             <button
               type="button"
               className={`text-[16px] font-bold ${
@@ -539,6 +556,17 @@ export function LeftRail({
                 ? ` (${vm.battleLogCompletedTurnCount})`
                 : null}
             </button>
+            {showWinStreak ? (
+              <button
+                type="button"
+                className={`shrink-0 text-[16px] font-bold text-[var(--shapeships-pastel-green)] transition-opacity ${
+                  selectedSisterView === 'winStreak' ? 'opacity-100' : 'opacity-60'
+                }`}
+                onClick={() => handleSisterViewSelect('winStreak')}
+              >
+                {winStreak.displayCount}W
+              </button>
+            ) : null}
           </div>
           {selectedSisterView === 'battleLog' ? (
             <button
@@ -584,6 +612,26 @@ export function LeftRail({
               <TurnPhaseList vm={turnPhases} presentation={turnPhasePresentation} />
             </LeftRailScrollArea>
           </div>
+          {showWinStreak ? (
+            <div
+              aria-hidden={selectedSisterView !== 'winStreak'}
+              inert={
+                (selectedSisterView !== 'winStreak' ? '' : undefined) as unknown as boolean | undefined
+              }
+              className={`absolute inset-0 flex min-h-0 flex-col ${
+                selectedSisterView === 'winStreak' ? 'opacity-100' : 'pointer-events-none opacity-0'
+              }`}
+            >
+              <LeftRailScrollArea outerClassName="basis-0 flex-1 px-[18px] py-[14px]">
+                <WinStreakPanelContent
+                  vm={winStreak}
+                  canReset={canSubmitInGameWinStreakReset(winStreak, canResign)}
+                  onReset={getInGameWinStreakResetAction(actions)}
+                  onRetryRecovery={actions.onRetryWinStreakReset}
+                />
+              </LeftRailScrollArea>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

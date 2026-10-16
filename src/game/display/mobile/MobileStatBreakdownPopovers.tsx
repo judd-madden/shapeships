@@ -12,6 +12,11 @@ import {
   type MobileMetricBreakdownSectionVm,
 } from './mobileStatPresentation';
 import type { HealthBreakdownCardVm } from '../layout/boardStage/healthBreakdownPresentation';
+import type { WinStreakGameViewModel } from '../../client/winStreak/types';
+import {
+  shouldShowWinStreakBonusDetail,
+  withoutWinStreakBreakdownRow,
+} from '../winStreak/winStreakPresentation';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 type PopoverSide = 'top' | 'bottom';
@@ -34,6 +39,7 @@ interface MobileStatBreakdownPopoversProps {
   topPopoverRef?: RefObject<HTMLDivElement | null>;
   bottomPopoverRef?: RefObject<HTMLDivElement | null>;
   onDismiss: () => void;
+  winStreak: WinStreakGameViewModel;
 }
 
 interface StatSectionVm {
@@ -45,6 +51,7 @@ interface StatSectionVm {
   secondaryRows?: Array<{ label: string; amountText: string }>;
   signlessContributions?: boolean;
   estimateLabel?: 'ESTIMATE' | 'AUTOCAST ESTIMATE';
+  streakBonusCount?: number;
 }
 
 const HORIZONTAL_MARGIN_PX = 16;
@@ -58,6 +65,7 @@ export function MobileStatBreakdownPopovers({
   topPopoverRef,
   bottomPopoverRef,
   onDismiss,
+  winStreak,
 }: MobileStatBreakdownPopoversProps) {
   const myDisplayedBonus =
     toSpeciesKey(boardVm.mySpeciesId) === 'centaur'
@@ -82,6 +90,9 @@ export function MobileStatBreakdownPopovers({
       bonusRows: boardVm.opponentBonusBreakdownRows,
       savedLines: boardVm.opponentDisplayedSavedLines,
       savedJoiningLines: boardVm.opponentDisplayedSavedJoiningLines,
+      streakBonusCount: shouldShowWinStreakBonusDetail(winStreak)
+        ? winStreak.appliedBonus.count
+        : undefined,
     }),
     ...topMetricGroups.primary.map(toStatSection),
   ];
@@ -170,11 +181,13 @@ function buildEconomySections({
   bonusRows,
   savedLines,
   savedJoiningLines,
+  streakBonusCount,
 }: {
   bonus: number;
   bonusRows: BoardStatBreakdownRowVm[];
   savedLines: number;
   savedJoiningLines: number;
+  streakBonusCount?: number;
 }): StatSectionVm[] {
   return [
     {
@@ -192,7 +205,8 @@ function buildEconomySections({
       title: 'Bonus lines',
       totalText: String(bonus),
       tone: 'bonus',
-      rows: bonusRows,
+      rows: streakBonusCount ? withoutWinStreakBreakdownRow(bonusRows) : bonusRows,
+      streakBonusCount,
     },
   ];
 }
@@ -392,6 +406,18 @@ function BreakdownSection({
         <p className="mb-[5px] text-[12px] font-normal leading-[15px] text-[var(--shapeships-grey-20)]">
           ({section.estimateLabel})
         </p>
+      ) : null}
+
+      {section.streakBonusCount ? (
+        <div className="mb-[8px]">
+          <div className="flex items-center justify-between gap-[8px] text-[14px] font-black leading-[16px]">
+            <span className="text-white">{section.streakBonusCount} WIN STREAK</span>
+            <span className="text-[var(--shapeships-pastel-green)]">{section.streakBonusCount}W</span>
+          </div>
+          <p className="mt-[4px] text-[12px] font-medium leading-[15px] text-[var(--shapeships-pastel-red)]">
+            Computer opponent gains {section.streakBonusCount} bonus {section.streakBonusCount === 1 ? 'line' : 'lines'} at the start of the game.
+          </p>
+        </div>
       ) : null}
 
       {section.rows.length > 0 || section.secondaryRows?.length ? (

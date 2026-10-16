@@ -1,7 +1,8 @@
-import type { ActionPanelViewModel } from '../../../client/useGameSession';
+import type { ActionPanelViewModel, GameSessionActions, GameSessionViewModel } from '../../../client/useGameSession';
 import { GameMenuButton } from '../../../../components/ui/primitives';
 import { ChallengeIcon } from '../../../../components/ui/primitives/icons/ChallengeIcon';
 import { MobileTakeoverShell } from './MobileTakeoverShell';
+import { WinStreakWorkflowFeedback } from '../../winStreak/WinStreakWorkflowFeedback';
 
 interface MobileEndOfGameMenuTakeoverProps {
   endOfGame: NonNullable<ActionPanelViewModel['endOfGame']>;
@@ -13,6 +14,8 @@ interface MobileEndOfGameMenuTakeoverProps {
   onReturnToMainMenu: () => void;
   onRematch: () => void;
   onDownloadBattleLog: () => void;
+  winStreak: GameSessionViewModel['winStreak'];
+  winStreakActions: GameSessionActions;
 }
 
 export function MobileEndOfGameMenuTakeover({
@@ -25,6 +28,8 @@ export function MobileEndOfGameMenuTakeover({
   onReturnToMainMenu,
   onRematch,
   onDownloadBattleLog,
+  winStreak,
+  winStreakActions,
 }: MobileEndOfGameMenuTakeoverProps) {
   return (
     <MobileTakeoverShell
@@ -48,6 +53,14 @@ export function MobileEndOfGameMenuTakeover({
               >
                 {endOfGame.rematchHelperText}
               </p>
+              <div className="mt-[8px] w-full">
+                <WinStreakWorkflowFeedback
+                  creation={winStreak.creation}
+                  unfinishedGame={winStreak.unfinishedGame}
+                  actions={winStreakActions}
+                  showUnfinishedNotice
+                />
+              </div>
             </div>
 
             <GameMenuButton

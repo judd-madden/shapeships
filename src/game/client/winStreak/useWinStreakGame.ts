@@ -38,6 +38,7 @@ interface UseWinStreakGameArgs {
   getCurrentHumanPlayerId: (displayName: string) => Promise<string>;
   refreshGameStateOnce: () => Promise<unknown>;
   navigateToGame: (gameId: string) => void;
+  resignBusy?: boolean;
   store?: WinStreakProfileStore;
 }
 
@@ -359,7 +360,7 @@ export function useWinStreakGame(args: UseWinStreakGameArgs): {
   const viewModel = deriveWinStreakGameViewModel({
     profile,
     game: args.authoritativeGame,
-    resetBusy,
+    resetBusy: resetBusy || args.resignBusy === true,
     resetError,
     resetRetryAvailable,
     creation: creationViewModelFromReservation(

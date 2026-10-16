@@ -16,6 +16,7 @@ import {
 
 export type BoardStatBreakdownHoverCardContent =
   | { kind: 'breakdown'; rows: BoardStatBreakdownRowVm[] }
+  | { kind: 'win_streak'; count: number; rows: BoardStatBreakdownRowVm[] }
   | { kind: 'health'; card: HealthBreakdownCardVm }
   | {
       kind: 'metric';
@@ -145,6 +146,9 @@ function HealthSection({ card }: { card: HealthBreakdownCardVm }) {
 }
 
 function contentKey(content: BoardStatBreakdownHoverCardContent): string {
+  if (content.kind === 'win_streak') {
+    return `win-streak:${content.count}:${content.rows.map((row) => `${row.label}:${row.amount}`).join('|')}`;
+  }
   if (content.kind === 'breakdown') {
     return content.rows
       .map((row) =>
@@ -244,7 +248,31 @@ export function BoardStatBreakdownHoverCard({
           className="w-full"
         >
           <div className="flex max-h-[calc(100vh-24px)] w-full flex-col overflow-hidden px-[20px] py-[16px]">
-            {content.kind === 'metric' ? (
+            {content.kind === 'win_streak' ? (
+              <div className="flex flex-col">
+                <div className="flex items-center justify-between gap-[12px]">
+                  <h3 className="text-[20px] font-black leading-[22px] text-white">
+                    {content.count} WIN STREAK
+                  </h3>
+                  <span className="shrink-0 text-[20px] font-black leading-[22px] text-[var(--shapeships-pastel-green)]">
+                    {content.count}W
+                  </span>
+                </div>
+                <p className="mt-[8px] text-[16px] font-medium leading-[20px] text-[var(--shapeships-pastel-red)]">
+                  Computer opponent gains {content.count} bonus {content.count === 1 ? 'line' : 'lines'} at the start of the game.
+                </p>
+                {content.rows.length > 0 ? (
+                  <div className="mt-[12px] flex flex-col gap-[4px] border-t border-[var(--shapeships-grey-70)] pt-[12px]">
+                    {content.rows.map((row, index) => (
+                      <BreakdownRow
+                        key={`${row.rowKind}:${row.label}:${row.amount}:${'count' in row ? row.count ?? index : index}`}
+                        row={row}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : content.kind === 'metric' ? (
               content.sections.map((section, index) => (
                 <div key={section.kind}>
                   {index > 0 ? (

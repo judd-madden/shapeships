@@ -31,6 +31,10 @@ import {
 } from '../matchup/MatchupIntroPresentation';
 import type { MatchupIntroViewModel } from '../../client/gameSession/matchupIntro';
 import { buildHealthBreakdownPresentation } from './boardStage/healthBreakdownPresentation';
+import {
+  shouldShowWinStreakBonusDetail,
+  withoutWinStreakBreakdownRow,
+} from '../winStreak/winStreakPresentation';
 
 interface BoardStageProps {
   vm: BoardViewModel;
@@ -41,6 +45,7 @@ interface BoardStageProps {
   matchupIntro: MatchupIntroViewModel | null;
   actions: GameSessionActions;
   phaseKey: string;
+  winStreak: GameSessionViewModel['winStreak'];
 }
 
 function cx(...parts: Array<string | undefined | false>) {
@@ -450,6 +455,7 @@ export function BoardStage({
   matchupIntro,
   actions,
   phaseKey,
+  winStreak,
 }: BoardStageProps) {
   const isBattleReveal = phaseKey === 'battle.reveal';
   const fleetHover = useFleetShipHover();
@@ -528,7 +534,9 @@ export function BoardStage({
     (myBonusClusterHasVisibleContent || vm.myBonusBreakdownRows.length > 0);
   const opponentBonusHoverTrackable =
     vm.showTurnStartEconomyPresentation &&
-    (opponentBonusClusterHasVisibleContent || vm.opponentBonusBreakdownRows.length > 0);
+    (opponentBonusClusterHasVisibleContent ||
+      vm.opponentBonusBreakdownRows.length > 0 ||
+      shouldShowWinStreakBonusDetail(winStreak));
   const opponentBonusAnchorRef =
     vm.opponentJoiningBonusLines > 0 ? opponentBonusJoiningAnchorRef : opponentBonusPrimaryAnchorRef;
   type ActiveStatHover = {
@@ -574,7 +582,13 @@ export function BoardStage({
     },
     'opponent-bonus': {
       side: 'right',
-      content: { kind: 'breakdown', rows: vm.opponentBonusBreakdownRows },
+      content: shouldShowWinStreakBonusDetail(winStreak)
+        ? {
+            kind: 'win_streak',
+            count: winStreak.appliedBonus.count,
+            rows: withoutWinStreakBreakdownRow(vm.opponentBonusBreakdownRows),
+          }
+        : { kind: 'breakdown', rows: vm.opponentBonusBreakdownRows },
     },
   };
   const activeStatHover =
@@ -583,7 +597,7 @@ export function BoardStage({
       : null;
   const shouldRenderActiveStatHover = activeStatHover?.content.kind === 'metric'
     ? activeStatHover.content.sections.length > 0
-    : activeStatHover?.content.kind === 'health'
+    : activeStatHover?.content.kind === 'health' || activeStatHover?.content.kind === 'win_streak'
       ? true
       : (activeStatHover?.content.rows.length ?? 0) > 0;
 

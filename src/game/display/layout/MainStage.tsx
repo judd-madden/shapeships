@@ -42,6 +42,7 @@ interface MainStageProps {
   viewer: GameSessionViewModel['viewer'];
   matchupIntro: GameSessionViewModel['matchupIntro'];
   missionChallenge: GameSessionViewModel['missionChallenge'];
+  winStreak: GameSessionViewModel['winStreak'];
   actions: GameSessionActions;
   soundEnabled: boolean;
   boardFlashEnabled: boolean;
@@ -67,6 +68,7 @@ export function MainStage({
   viewer,
   matchupIntro,
   missionChallenge,
+  winStreak,
   actions,
   soundEnabled,
   boardFlashEnabled,
@@ -334,6 +336,7 @@ export function MainStage({
           matchupIntro={matchupIntro}
           actions={actions}
           phaseKey={actionPanelVm.menu.phaseKey}
+          winStreak={winStreak}
         />
 
         {isGameStatsOpen && gameStats ? (
@@ -450,6 +453,7 @@ export function MainStage({
           <ActionPanelFrame
             vm={actionPanelVm}
             actions={actions}
+            winStreak={winStreak}
             isGameStatsOpen={isGameStatsOpen}
             canViewGameStats={canViewGameStats}
             onOpenGameStats={handleOpenGameStats}

@@ -5,7 +5,7 @@
  * Pure UI component with local state and callbacks
  */
 
-import React, { useState } from 'react';
+import React, { useState, type ReactNode } from 'react';
 import { MenuButton } from '../ui/primitives/buttons/MenuButton';
 import { RadioButton } from '../ui/primitives/controls/RadioButton';
 
@@ -23,6 +23,8 @@ interface CreatePrivateGamePanelProps {
   subheading?: string;
   primaryActionLabel?: string;
   primaryActionStyle?: 'private' | 'emphasisWhite';
+  headingAccessory?: ReactNode;
+  subheadingAccessory?: ReactNode;
 }
 
 type TimerPresetKey = '5_3' | '10_5' | '15_10' | '30_20';
@@ -143,6 +145,8 @@ export function CreatePrivateGamePanel({
   subheading = 'Share the game URL with a friend.',
   primaryActionLabel = 'CREATE PRIVATE GAME',
   primaryActionStyle = 'private',
+  headingAccessory,
+  subheadingAccessory,
 }: CreatePrivateGamePanelProps) {
   const [isTimed, setIsTimed] = useState(true);
   const [selectedPresetKey, setSelectedPresetKey] = useState<TimerPresetKey>('15_10');
@@ -178,16 +182,20 @@ export function CreatePrivateGamePanel({
   return (
     <div className="content-stretch flex w-full flex-col gap-[20px] sm:gap-[30px] 2xl:gap-[50px]">
       <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[9px] leading-[normal]">
-        <p
-          className="text-[24px] font-black leading-[normal] sm:text-[36px]"
-        >
-          {heading}
-        </p>
+        <div className="flex max-w-full flex-col items-start gap-[16px] sm:flex-row sm:items-center sm:gap-[60px]">
+          <p
+            className="text-[24px] font-black leading-[normal] sm:text-[36px]"
+          >
+            {heading}
+          </p>
+          {headingAccessory}
+        </div>
         <p
           className="text-[15px] font-normal sm:text-[20px]"
         >
           {subheading}
         </p>
+        {subheadingAccessory}
       </div>
 
       <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] via-[var(--shapeships-white)] via-50% to-[rgba(255,255,255,0)] h-px w-full shrink-0 opacity-70" />

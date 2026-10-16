@@ -6,7 +6,7 @@
 import type { ReactNode } from 'react';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { ACTION_PANEL_DISPLAY_NAMES } from './ActionPanelRegistry';
-import type { ActionPanelViewModel, GameSessionActions } from '../../client/useGameSession';
+import type { ActionPanelViewModel, GameSessionActions, GameSessionViewModel } from '../../client/useGameSession';
 import { HumanShipCataloguePanel } from './panels/catalogue/human/HumanShipCataloguePanel';
 import { XeniteShipCataloguePanel } from './panels/catalogue/xenite/XeniteShipCataloguePanel';
 import { CentaurShipCataloguePanel } from './panels/catalogue/centaur/CentaurShipCataloguePanel';
@@ -33,6 +33,7 @@ import { CubeDiceChoicePanel } from './panels/CubeDiceChoicePanel';
 interface ActionPanelFrameProps {
   vm: ActionPanelViewModel;
   actions: GameSessionActions;
+  winStreak?: GameSessionViewModel['winStreak'];
   isGameStatsOpen?: boolean;
   canViewGameStats?: boolean;
   onOpenGameStats?: () => void;
@@ -59,6 +60,7 @@ const ANCIENT_ENERGY_ROW_HEIGHT_PX = 26;
 export function ActionPanelFrame({
   vm,
   actions,
+  winStreak,
   isGameStatsOpen = false,
   canViewGameStats = false,
   onOpenGameStats,
@@ -417,6 +419,8 @@ export function ActionPanelFrame({
           onReturnToMainMenu={onReturnToMainMenu}
           onRematch={actions.onRematch}
           onDownloadBattleLog={actions.onDownloadBattleLog}
+          winStreak={winStreak}
+          winStreakActions={winStreak ? actions : undefined}
         />
       </div>
     );

@@ -1,14 +1,17 @@
-import type { ActionPanelViewModel, GameSessionActions, TurnPhasePresentationVm, TurnPhaseVm } from '../../../client/useGameSession';
+import type { ActionPanelViewModel, GameSessionActions, GameSessionViewModel, TurnPhasePresentationVm, TurnPhaseVm } from '../../../client/useGameSession';
 import { Checkbox, GameMenuButton } from '../../../../components/ui/primitives';
 import { ChallengeIcon } from '../../../../components/ui/primitives/icons/ChallengeIcon';
 import { MobileTakeoverShell } from './MobileTakeoverShell';
 import { TurnPhaseList } from '../../shared/TurnPhaseList';
+import { WinStreakPanelContent } from '../../winStreak/WinStreakContent';
+import { canSubmitInGameWinStreakReset, getInGameWinStreakResetAction, shouldShowWinStreakContent } from '../../winStreak/winStreakPresentation';
 
 interface MobileMenuTakeoverProps {
   vm: ActionPanelViewModel['menu'];
   turnPhasesVm: TurnPhaseVm;
   turnPhasePresentation: TurnPhasePresentationVm;
   actions: GameSessionActions;
+  winStreak: GameSessionViewModel['winStreak'];
   showChallengeAction: boolean;
   onOpenChallenge: () => void;
   onClose: () => void;
@@ -55,6 +58,7 @@ export function MobileMenuTakeover({
   turnPhasesVm,
   turnPhasePresentation,
   actions,
+  winStreak,
   showChallengeAction,
   onOpenChallenge,
   onClose,
@@ -162,6 +166,16 @@ export function MobileMenuTakeover({
               onToggle={onToggleBoardFlash}
             />
           </div>
+        {shouldShowWinStreakContent(winStreak) ? (
+          <div className="w-full border-t-2 border-[var(--shapeships-grey-70)] px-[18px] py-[24px]">
+            <WinStreakPanelContent
+              vm={winStreak}
+              canReset={canSubmitInGameWinStreakReset(winStreak, vm.canResign)}
+              onReset={getInGameWinStreakResetAction(actions)}
+              onRetryRecovery={actions.onRetryWinStreakReset}
+            />
+          </div>
+        ) : null}
         <div className="w-full grow shrink-0 bg-[var(--shapeships-grey-90)] px-[18px] py-[22px]">
           <h2 className="mb-[16px] text-[16px] font-bold text-[var(--shapeships-white)]">Turn Phases</h2>
           <TurnPhaseList vm={turnPhasesVm} presentation={turnPhasePresentation} />
