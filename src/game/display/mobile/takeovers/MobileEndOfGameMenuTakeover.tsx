@@ -1,10 +1,13 @@
-import type { ActionPanelViewModel } from '../../../client/useGameSession';
+import type { ActionPanelViewModel, GameSessionViewModel } from '../../../client/useGameSession';
 import { GameMenuButton } from '../../../../components/ui/primitives';
 import { ChallengeIcon } from '../../../../components/ui/primitives/icons/ChallengeIcon';
+import { WinStreakFinishedGameContent } from '../../winStreak/WinStreakContent';
+import { shouldShowWinStreakContent } from '../../winStreak/winStreakPresentation';
 import { MobileTakeoverShell } from './MobileTakeoverShell';
 
 interface MobileEndOfGameMenuTakeoverProps {
   endOfGame: NonNullable<ActionPanelViewModel['endOfGame']>;
+  winStreak: GameSessionViewModel['winStreak'];
   canViewGameStats: boolean;
   showChallengeAction: boolean;
   onOpenChallenge: () => void;
@@ -17,6 +20,7 @@ interface MobileEndOfGameMenuTakeoverProps {
 
 export function MobileEndOfGameMenuTakeover({
   endOfGame,
+  winStreak,
   canViewGameStats,
   showChallengeAction,
   onOpenChallenge,
@@ -86,23 +90,16 @@ export function MobileEndOfGameMenuTakeover({
           </div>
         </div>
 
+        {shouldShowWinStreakContent(winStreak) ? (
+          <div className="w-full shrink-0 border-t-1 border-[var(--shapeships-grey-70)] bg-black px-[18px] py-[24px]">
+            <WinStreakFinishedGameContent vm={winStreak} />
+          </div>
+        ) : null}
+
         <div
-          className="flex grow shrink-0 flex-col items-center justify-center gap-[14px] px-[18px] py-[24px] text-center text-black"
+          className="flex shrink-0 flex-col items-center justify-center px-[18px] py-[24px] text-center text-black"
           style={{ background: endOfGame.bannerBgCssVar }}
         >
-          <div className="flex min-w-0 max-w-full flex-col items-center gap-[7px]">
-            <p
-              className="max-w-full text-[32px] font-black leading-[34px]"
-            >
-              {endOfGame.bannerText}
-            </p>
-            <p
-              className="max-w-full text-[16px] font-bold leading-[20px]"
-            >
-              {endOfGame.metaLeftText} {endOfGame.metaRightText}
-            </p>
-          </div>
-
           <button
             type="button"
             onClick={onClose}

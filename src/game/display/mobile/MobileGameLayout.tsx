@@ -977,6 +977,7 @@ export function MobileGameLayout({
             ) : actionPanelVm.endOfGame != null ? (
               <MobileEndOfGameMenuTakeover
                 endOfGame={actionPanelVm.endOfGame}
+                winStreak={winStreak}
                 canViewGameStats={canViewGameStats}
                 showChallengeAction={canShowPostgameMissionChallengeAction}
                 onOpenChallenge={handleOpenPostgameMissionChallenge}

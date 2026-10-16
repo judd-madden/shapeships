@@ -81,6 +81,48 @@ export function WinStreakPanelContent({
   );
 }
 
+export function WinStreakFinishedGameContent({
+  vm,
+  className = '',
+}: {
+  vm: WinStreakGameViewModel;
+  className?: string;
+}) {
+  if (!shouldShowWinStreakContent(vm)) return null;
+
+  const ended = vm.streakState === 'ended';
+  const useNextGameCopy = shouldUseNextGameBonusCopy(vm);
+  const bonusCount = useNextGameCopy ? vm.displayCount : vm.appliedBonus.count;
+
+  return (
+    <section className={`flex min-w-0 flex-col items-stretch ${className}`}>
+      <div className="flex min-w-0 items-center justify-between gap-[12px]">
+        <h2 className="min-w-0 text-left text-[20px] font-black leading-[22px] text-white">
+          {vm.displayCount} {ended ? 'WIN STREAK ENDED' : 'WIN STREAK'}
+        </h2>
+        <span className="shrink-0 text-[16px] font-black leading-[20px] text-[var(--shapeships-pastel-green)]">
+          {vm.displayCount}W
+        </span>
+      </div>
+
+      <p className="mt-[8px] text-[16px] font-medium leading-[20px] text-[var(--shapeships-pastel-red)]">
+        {ended ? 'Well done!' : getWinStreakBonusCopy(bonusCount, useNextGameCopy)}
+      </p>
+
+      {ended ? (
+        <a
+          href={WIN_STREAK_DISCORD_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-[32px] flex min-h-[36px] max-w-full self-start items-center justify-center rounded-[10px] bg-[var(--shapeships-grey-20)] px-[20px] py-[9px] text-[14px] font-normal leading-normal text-black transition-colors hover:bg-white"
+        >
+          Join Discord to Share
+        </a>
+      ) : null}
+    </section>
+  );
+}
+
 export function WinStreakBadge({ vm }: { vm: WinStreakMenuViewModel }) {
   if (!shouldShowWinStreakContent(vm)) return null;
 

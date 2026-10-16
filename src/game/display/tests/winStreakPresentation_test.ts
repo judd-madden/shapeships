@@ -41,7 +41,9 @@ function gameVm(overrides: Partial<WinStreakGameViewModel> = {}): WinStreakGameV
   };
 }
 
-Deno.test('win streak content hides zero and falls back from a disappearing tab', () => {
+Deno.test('win streak content selects active and ended states while hiding absent content', () => {
+  assert(shouldShowWinStreakContent(gameVm({ streakState: 'active' })));
+  assert(shouldShowWinStreakContent(gameVm({ streakState: 'ended' })));
   assert(!shouldShowWinStreakContent(gameVm({ displayCount: 0, shouldShowContent: true })));
   assert(!shouldShowWinStreakContent(gameVm({ displayCount: 4, shouldShowContent: false })));
   assert(resolveWinStreakSisterView('winStreak', false) === 'turnPhases');
@@ -52,6 +54,8 @@ Deno.test('bonus copy pluralizes and distinguishes the completed-win next game',
   assert(getWinStreakBonusCopy(1) === 'Computer opponent gains 1 bonus line at the start of the game.');
   assert(getWinStreakBonusCopy(3, true) === 'Computer opponent gains 3 bonus lines at the start of the next game.');
   assert(shouldUseNextGameBonusCopy(gameVm({ displayCount: 3, appliedBonus: { count: 2, recipientPlayerId: 'bot', recipientSide: 'opponent', turnOneHoverEligible: false } })));
+  assert(!shouldUseNextGameBonusCopy(gameVm({ streakState: 'ended', displayCount: 3, appliedBonus: { count: 2, recipientPlayerId: 'bot', recipientSide: 'opponent', turnOneHoverEligible: false } })));
+  assert(!shouldUseNextGameBonusCopy(gameVm({ displayCount: 2, appliedBonus: { count: 2, recipientPlayerId: 'bot', recipientSide: 'opponent', turnOneHoverEligible: false } })));
 });
 
 Deno.test('streak bonus detail uses fixed opponent bonus and preserves ordinary rows', () => {
