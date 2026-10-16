@@ -40,6 +40,12 @@ import { downloadBattleLog } from './downloadBattleLog';
 import { generateNonce, makeCommitHash } from './hashUtils';
 import { isValidPhaseKey } from '../../engine/phase/PhaseTable';
 import { getPlayerName } from './gameSession/playerName';
+import { getWinStreakProfileStore } from './winStreak/profile';
+import {
+  observeAuthoritativeWinStreakGame,
+  projectAuthoritativeWinStreakGame,
+} from './winStreak/authoritative';
+import { useWinStreakGame } from './winStreak/useWinStreakGame';
 import { getMajorPhaseLabel, getSubphaseLabelFromPhaseKey } from './gameSession/phaseLabels';
 import {
   findPlayerByIdentity,
@@ -851,6 +857,7 @@ export function useGameSession(
   options: UseGameSessionOptions = {}
 ) {
   const boardFlashEnabled = options.boardFlashEnabled ?? true;
+  const winStreakStore = getWinStreakProfileStore();
 
   // Stop /game-state polling once an authoritative finished payload has been stored.
   const POSTGAME_POLL_MS = 0;
@@ -904,6 +911,7 @@ export function useGameSession(
   // Server state
   const [rawState, setRawState] = useState<any>(null);
   const rawStateRef = useRef<any>(null);
+  const winStreakSettlementQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const [minimizeMissionsThisSession, setMinimizeMissionsThisSession] =
     useState(readMinimizeMissionsThisSession);
   const minimizeMissionsThisSessionRef = useRef(minimizeMissionsThisSession);
@@ -1063,6 +1071,20 @@ export function useGameSession(
     setResumeSyncLockedState(false);
   }
 
+  function enqueueWinStreakObservation(nextState: any, allowDiscovery: boolean): Promise<unknown> {
+    const tracked = winStreakStore.getSnapshot().trackedGame;
+    const expectedHumanPlayerId = tracked && tracked.gameId === nextState?.gameId
+      ? tracked.humanPlayerId
+      : null;
+    const projected = projectAuthoritativeWinStreakGame(nextState, expectedHumanPlayerId);
+    if (!projected) return winStreakSettlementQueueRef.current;
+    const queued = winStreakSettlementQueueRef.current.then(() =>
+      observeAuthoritativeWinStreakGame(winStreakStore, projected, { allowDiscovery })
+    );
+    winStreakSettlementQueueRef.current = queued.catch(() => undefined);
+    return queued;
+  }
+
   function applyAuthoritativeRawState(
     nextState: any,
     meta: AuthoritativeStateApplyMeta
@@ -1093,6 +1115,7 @@ export function useGameSession(
     lastAcceptedFullFingerprintRef.current = extractAcceptedFullStateFingerprint(nextState);
     lastAcceptedFullSyncAtMsRef.current = Date.now();
     setRawState(nextState);
+    void enqueueWinStreakObservation(nextState, true);
     return true;
   }
 
@@ -1380,6 +1403,7 @@ export function useGameSession(
     rawState.gameData.clock == null;
   const terminalWinnerPlayerId = getWinnerPlayerId(rawState);
   const terminalResultReason = getResultReason(rawState);
+  const isOrdinaryFinished = isFinished && terminalResultReason !== 'restart';
 
   useEffect(() => {
     setResumeSyncLockedState(false);
@@ -1960,6 +1984,7 @@ export function useGameSession(
       }
 
       appendEventsToTape(setEventTape, result.events ?? [], { label: intentType });
+      void enqueueWinStreakObservation(result.state, false);
       await refreshGameStateOnce();
     } catch (err: any) {
       console.error(`[useGameSession] ${intentType} error:`, err.message);
@@ -2333,6 +2358,7 @@ export function useGameSession(
       compact.includes('abandon') ||
       compact.includes('cancelled') ||
       compact.includes('canceled') ||
+      compact === 'restart' ||
       compact.includes('empty_private_game') ||
       compact.includes('timeout') ||
       compact.includes('clock') ||
@@ -2624,6 +2650,7 @@ export function useGameSession(
     result: any,
     meta?: { label?: string; turn?: number; phaseKey?: string }
   ): void {
+    void enqueueWinStreakObservation(result?.state, false);
     const localPlayerId = getPlayerIdentityKey(displayLeftPlayer);
     const opponentPlayerId = getPlayerIdentityKey(displayRightPlayer);
     if (
@@ -2762,6 +2789,10 @@ export function useGameSession(
       Object.values(controllersByPlayerId).some((controller: any) => controller?.kind === 'bot')
     );
   }, [rawState]);
+  const authoritativeWinStreakGame = useMemo(
+    () => projectAuthoritativeWinStreakGame(rawState, mySessionId),
+    [mySessionId, rawState],
+  );
 
   // Helper: normalize species from server data
   function normalizeSpecies(serverValue: string | null | undefined): SpeciesId | null {
@@ -5343,7 +5374,7 @@ useEffect(() => {
         activeHealthPresentationKey:
           healthResolutionOverlay?.presentationKey ?? null,
         healthResolutionPresentationActive,
-        isFinished,
+        isFinished: isOrdinaryFinished,
         isPlayerViewer: isViewerPlayer,
         minimizeMissionsThisSession,
         hasResult: normalizedMissionChallenge?.result !== null &&
@@ -5356,7 +5387,7 @@ useEffect(() => {
     effectiveGameId,
     healthResolutionOverlay?.presentationKey,
     healthResolutionPresentationActive,
-    isFinished,
+    isOrdinaryFinished,
     isViewerPlayer,
     liveTerminalHealthPresentationKey,
     minimizeMissionsThisSession,
@@ -5741,7 +5772,7 @@ useEffect(() => {
     !!actionsTargetPanelId &&
     (hasServerActionsAvailable || hasClientActionsAvailable);
 
-  const menuTargetPanelId: ActionPanelId = isFinished && !healthResolutionPresentationActive
+  const menuTargetPanelId: ActionPanelId = isOrdinaryFinished && !healthResolutionPresentationActive
     ? 'ap.end_of_game.result'
     : 'ap.menu.root';
 
@@ -6223,12 +6254,12 @@ useEffect(() => {
   ]);
 
   useLayoutEffect(() => {
-    if (!effectiveGameId || !isFinished) return;
+    if (!effectiveGameId || !isOrdinaryFinished) return;
     if (finishedRedirectHandledGameIdRef.current === effectiveGameId) return;
 
     finishedRedirectHandledGameIdRef.current = effectiveGameId;
     setActivePanelId('ap.end_of_game.result');
-  }, [effectiveGameId, isFinished]);
+  }, [effectiveGameId, isOrdinaryFinished]);
 
   useEffect(() => {
     if (!phaseKey || isFinished) {
@@ -6393,9 +6424,29 @@ useEffect(() => {
   const p1ClockFormatted = formatPlayerClock(displayLeftPlayer?.id, p1IsReady);
   const p2ClockFormatted = formatPlayerClock(displayRightPlayer?.id, p2IsReady);
   const clockIncrementSeconds = getConfiguredClockIncrementSeconds(rawState);
+  const winStreakGame = useWinStreakGame({
+    effectiveGameId,
+    effectivePlayerName,
+    humanPlayerId: mySessionId,
+    authoritativeGame: authoritativeWinStreakGame,
+    awaitPendingObservation: async () => {
+      await enqueueWinStreakObservation(rawStateRef.current, false);
+      await winStreakSettlementQueueRef.current;
+    },
+    getGameState: (trackedGameId) => authenticatedGet(`/game-state/${trackedGameId}`),
+    createBotRematch: (sourceGameId, winStreakCount) =>
+      authenticatedPost(`/new-game-from/${sourceGameId}`, { winStreakCount }),
+    resetWinStreak: (sourceGameId) =>
+      authenticatedPost(`/reset-win-streak/${sourceGameId}`, {}),
+    getCurrentHumanPlayerId: async (displayName) =>
+      (await ensureSession(displayName)).sessionId,
+    refreshGameStateOnce,
+    navigateToGame: navigateToGameId,
+    store: winStreakStore,
+  });
   const missionChallengeVm = buildMissionChallengeViewModel({
     normalized: normalizedMissionChallenge,
-    isFinished,
+    isFinished: isOrdinaryFinished,
     isIntroAcknowledgementPending: missionAutoAckStateRef.current.inFlight,
     minimizeMissionsThisSession,
     shouldPresentInitialIntro: shouldPresentInitialMissionIntro({
@@ -6421,6 +6472,7 @@ useEffect(() => {
     },
     matchupIntro: matchupIntroVm,
     missionChallenge: missionChallengeVm,
+    winStreak: winStreakGame.viewModel,
 
     me,
     opponent,
@@ -6486,9 +6538,9 @@ useEffect(() => {
     controllersByPlayerId: rawState?.controllersByPlayerId,
 
     // New params for menu/end-of-game panels
-    isFinished,
+    isFinished: isOrdinaryFinished,
     winnerPlayerId: terminalWinnerPlayerId,
-    resultReason: terminalResultReason,
+    resultReason: terminalResultReason === 'restart' ? null : terminalResultReason,
     
     // Ready UX state (SENDING/WAITING labels)
     readyUx: readyUxForCurrentPhase,
@@ -6610,6 +6662,11 @@ useEffect(() => {
     }
 
     attemptMobileGameFullscreen();
+
+    if (isComputerGame) {
+      await winStreakGame.actions.requestBotRematch();
+      return;
+    }
 
     try {
       const response = await authenticatedPost(`/new-game-from/${effectiveGameId}`, {});
@@ -7430,6 +7487,22 @@ useEffect(() => {
     
     onRematch: handleRematch,
 
+    onResetWinStreak: winStreakGame.actions.resetWinStreak,
+
+    onRetryWinStreakReset: winStreakGame.actions.resetWinStreak,
+
+    onConfirmWinStreakAbandonment: winStreakGame.actions.confirmAbandonment,
+
+    onCancelWinStreakAbandonment: winStreakGame.actions.cancelAbandonment,
+
+    onRetryWinStreakReconciliation: winStreakGame.actions.retryReconciliation,
+
+    onRejoinTrackedGame: winStreakGame.actions.rejoinTrackedGame,
+
+    onReleaseAmbiguousWinStreakCreation: winStreakGame.actions.releaseAmbiguousCreation,
+
+    onRejoinRecoveredCreatedGame: winStreakGame.actions.recoverCreatedGame,
+
     onJoinRematchInvite: handleJoinRematchInvite,
     
     onDownloadBattleLog: () => {
@@ -8228,6 +8301,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         healthResolutionOverlay: undefined,
         ancientAutocastEnabled,
       },
+      winStreak: winStreakGame.viewModel,
     };
     
     const bootstrapActions: GameSessionActions = {
@@ -8252,6 +8326,14 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       onOfferDraw: () => {},
       onResignGame: () => {},
       onRematch: () => {},
+      onResetWinStreak: async () => {},
+      onRetryWinStreakReset: async () => {},
+      onConfirmWinStreakAbandonment: async () => {},
+      onCancelWinStreakAbandonment: () => {},
+      onRetryWinStreakReconciliation: async () => {},
+      onRejoinTrackedGame: () => {},
+      onReleaseAmbiguousWinStreakCreation: async () => {},
+      onRejoinRecoveredCreatedGame: async () => {},
       onDownloadBattleLog: () => { },
       onSelectShipChoiceForInstance: () => { },
       onCastAncientSolarPower: () => { },

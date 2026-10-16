@@ -10,11 +10,12 @@ import { Input } from './components/ui/input';
 import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
 import { gameFunctionBaseUrl } from './utils/supabase/runtimeConfig';
-import { ensureSession, authenticatedFetch, authenticatedPostWithSessionRecovery, getSessionToken, clearSession } from './utils/sessionManager';
+import { ensureSession, authenticatedFetch, authenticatedGet, authenticatedPostWithSessionRecovery, getSessionToken, clearSession } from './utils/sessionManager';
 import ScreenManager from './components/ScreenManager';
 import type { CreatePrivateGameSettings } from './components/panels/CreatePrivateGamePanel';
 import GameScreen from './game/display/GameScreen';
 import { usePlayer } from './game/hooks/usePlayer';
+import { useWinStreakMenu } from './game/client/winStreak/useWinStreakProfile';
 
 const GraphicsTest = React.lazy(() => import('./components/dev/GraphicsTest'));
 const BuildKitShowcase = React.lazy(() =>
@@ -265,6 +266,28 @@ export default function App() {
     setMode('game');
   };
 
+  const winStreakMenu = useWinStreakMenu({
+    createComputerGameRequest: async (settings, winStreakCount) => {
+      if (!player?.name) {
+        throw new Error('Player not initialized');
+      }
+      return authenticatedPostWithSessionRecovery('/create-computer-game', {
+        playerName: player.name,
+        timed: settings.timed,
+        minutes: settings.minutes,
+        incrementSeconds: settings.incrementSeconds,
+        variantKey: settings.variantKey,
+        winStreakCount,
+      }, player.name);
+    },
+    getGameState: (trackedGameId) => authenticatedGet(`/game-state/${trackedGameId}`),
+    getCurrentSession: async () => {
+      const session = await ensureSession(player?.name);
+      return { sessionId: session.sessionId };
+    },
+    navigateToGame: launchGame,
+  });
+
   const startPlayerSession = async (displayName: string) => {
     await ensureSession(displayName);
     updatePlayerName(displayName);
@@ -293,27 +316,8 @@ export default function App() {
     return result.gameId;
   };
 
-  const createComputerGame = async (settings: CreatePrivateGameSettings): Promise<string> => {
-    if (!player?.name) {
-      throw new Error('Player not initialized');
-    }
-
-    const response = await authenticatedPostWithSessionRecovery('/create-computer-game', {
-      playerName: player.name,
-      timed: settings.timed,
-      minutes: settings.minutes,
-      incrementSeconds: settings.incrementSeconds,
-      variantKey: settings.variantKey,
-    }, player.name);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create computer game: ${errorText}`);
-    }
-
-    const result = await response.json();
-    return result.gameId;
-  };
+  const createComputerGame = async (settings: CreatePrivateGameSettings): Promise<string | null> =>
+    winStreakMenu.requestComputerGame(settings);
 
   const resetPlayerSession = () => {
     clearPlayer();
@@ -385,6 +389,8 @@ export default function App() {
           onStartSession={startPlayerSession}
           onSwitchToDevMode={switchToDevMode}
           isDevModeAvailable={IS_LOCAL_VITE_DEV}
+          winStreakViewModel={winStreakMenu.viewModel}
+          winStreakActions={winStreakMenu.actions}
         />
       </>
     );

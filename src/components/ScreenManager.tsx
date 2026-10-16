@@ -6,6 +6,7 @@ import { LoginShell } from './shells/LoginShell';
 import { MenuShell } from './shells/MenuShell';
 import { attemptMobileGameFullscreen } from '../utils/mobileFullscreen';
 import { StarsBackground } from '../game/display/graphics/StarsBackground';
+import type { WinStreakMenuActions, WinStreakMenuViewModel } from '../game/client/winStreak/types';
 
 const ALPHA_DISABLE_AUTH = true;
 
@@ -16,12 +17,14 @@ interface ScreenManagerProps {
   initialShell: ShellId;
   pendingInviteGameId: string | null;
   onCreatePrivateGame: (settings: CreatePrivateGameSettings) => Promise<string>;
-  onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<string>;
+  onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<string | null>;
   onLaunchGame: (gameId: string) => void;
   onResetPlayerSession: () => void;
   onStartSession: (displayName: string) => Promise<void>;
   onSwitchToDevMode: () => void;
   isDevModeAvailable: boolean;
+  winStreakViewModel: WinStreakMenuViewModel;
+  winStreakActions: WinStreakMenuActions;
 }
 
 export default function ScreenManager({
@@ -35,6 +38,8 @@ export default function ScreenManager({
   onStartSession,
   onSwitchToDevMode,
   isDevModeAvailable,
+  winStreakViewModel,
+  winStreakActions,
 }: ScreenManagerProps) {
   const [currentShell, setCurrentShell] = useState<ShellId>(initialShell);
   const [user, setUser] = useState(null);
@@ -110,6 +115,8 @@ export default function ScreenManager({
             user={user}
             player={player}
             alphaDisableAuth={ALPHA_DISABLE_AUTH}
+            winStreakViewModel={winStreakViewModel}
+            winStreakActions={winStreakActions}
           />
         );
       case 'login':

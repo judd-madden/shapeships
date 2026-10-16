@@ -20,6 +20,7 @@ import type {
 } from './ancient/ancientChargeDeclaration';
 import type { AncientSolarHoverValue } from './ancient/ancientSolarHoverValues';
 import type { MatchupIntroViewModel } from './matchupIntro';
+import type { WinStreakGameViewModel } from '../winStreak/types';
 
 export type ReadySendingKind = 'default' | 'ancient-autocast';
 
@@ -1003,6 +1004,7 @@ export interface GameSessionViewModel {
   board: BoardViewModel;
   bottomActionRail: BottomActionRailViewModel;
   actionPanel: ActionPanelViewModel;
+  winStreak: WinStreakGameViewModel;
 }
 
 // ============================================================================
@@ -1031,6 +1033,14 @@ export interface GameSessionActions {
   onOfferDraw: () => void;
   onResignGame: () => void;
   onRematch: () => void;
+  onResetWinStreak: () => Promise<void>;
+  onRetryWinStreakReset: () => Promise<void>;
+  onConfirmWinStreakAbandonment: () => Promise<void>;
+  onCancelWinStreakAbandonment: () => void;
+  onRetryWinStreakReconciliation: () => Promise<void>;
+  onRejoinTrackedGame: () => void;
+  onReleaseAmbiguousWinStreakCreation: () => Promise<void>;
+  onRejoinRecoveredCreatedGame: () => Promise<void>;
   onJoinRematchInvite?: (gameId: string) => void;
   onDownloadBattleLog: () => void;
   onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void;

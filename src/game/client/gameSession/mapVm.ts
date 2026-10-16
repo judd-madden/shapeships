@@ -164,6 +164,7 @@ export function mapGameSessionVm(args: {
   viewer: GameSessionViewModel['viewer'];
   matchupIntro: GameSessionViewModel['matchupIntro'];
   missionChallenge: GameSessionViewModel['missionChallenge'];
+  winStreak: GameSessionViewModel['winStreak'];
 
   me: any;
   opponent: any;
@@ -309,6 +310,7 @@ export function mapGameSessionVm(args: {
     viewer,
     matchupIntro,
     missionChallenge,
+    winStreak,
     me,
     opponent,
     displayLeftPlayer,
@@ -1614,6 +1616,7 @@ export function mapGameSessionVm(args: {
       availableActions: availableActionsSafe,
       selectedChoiceIdBySourceInstanceId,
     },
+    winStreak,
   };
 
   return vm;

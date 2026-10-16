@@ -21,6 +21,7 @@ import {
   clearLoreUnread,
   readLoreUnread,
 } from '../../game/client/gameSession/mission/missionChallengeSession';
+import type { WinStreakMenuActions, WinStreakMenuViewModel } from '../../game/client/winStreak/types';
 
 interface MenuShellProps {
   onNavigate: (shell: string) => void;
@@ -28,10 +29,12 @@ interface MenuShellProps {
   onLogout: () => void;
   onGameCreated: (gameId: string) => void;
   onCreatePrivateGame: (settings: CreatePrivateGameSettings) => Promise<string>;
-  onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<string>;
+  onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<string | null>;
   user: any;
   player: any;
   alphaDisableAuth: boolean;
+  winStreakViewModel: WinStreakMenuViewModel;
+  winStreakActions: WinStreakMenuActions;
 }
 
 type ActivePanel = 'multiplayer' | 'createPrivateGame' | 'playComputer' | 'rules' | 'lore';
@@ -45,7 +48,9 @@ export function MenuShell({
   onCreateComputerGame,
   user, 
   player, 
-  alphaDisableAuth 
+  alphaDisableAuth,
+  winStreakViewModel: _winStreakViewModel,
+  winStreakActions: _winStreakActions,
 }: MenuShellProps) {
   const [activePanel, setActivePanel] = useState<ActivePanel>('multiplayer');
   const [, setIsCreating] = useState(false);
@@ -89,7 +94,7 @@ export function MenuShell({
     setIsCreating(true);
     try {
       const gameId = await onCreateComputerGame(settings);
-      onGameCreated(gameId);
+      if (gameId) onGameCreated(gameId);
     } catch (error: any) {
       console.error('Failed to create computer game:', error);
       throw error;
