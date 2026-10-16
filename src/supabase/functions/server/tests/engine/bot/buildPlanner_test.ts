@@ -224,3 +224,15 @@ Deno.test('generic planner applies the canonical QUA maximum across repeated end
     [],
   );
 });
+
+Deno.test('planner consumes a larger canonical ordinary-line balance without special handling', () => {
+  const plan = ancientEndLoopPlan(['QUA']);
+  assert.deepEqual(
+    planBotBuildSubmit(createState({ lines: 6 }), 'bot', plan).builds,
+    [{ shipDefId: 'QUA', count: 1 }],
+  );
+  assert.deepEqual(
+    planBotBuildSubmit(createState({ lines: 12 }), 'bot', plan).builds,
+    [{ shipDefId: 'QUA', count: 2 }],
+  );
+});

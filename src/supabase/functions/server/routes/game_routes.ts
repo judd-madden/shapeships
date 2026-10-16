@@ -14,7 +14,11 @@ import { syncPhaseFields } from '../engine/phase/syncPhaseFields.ts';
 import { initializeClocks, ensurePlayerClock, accrueClocks, clocksAreLive } from '../engine/clock/clock.ts';
 import type { TimeControlConfig } from '../engine/clock/clock.ts';
 import { getBuildCommitKey } from '../engine/intent/IntentTypes.ts';
-import { hasRevealed, projectCommitmentsForViewer } from '../engine/intent/CommitStore.ts';
+import {
+  hasRevealed,
+  peekCommitRecord,
+  projectCommitmentsForViewer,
+} from '../engine/intent/CommitStore.ts';
 import { resolveBuildSubmitAuthoritatively } from '../engine/intent/buildSubmitResolution.ts';
 import {
   getAcceptedDeclarationForCurrentBattle,
@@ -26,6 +30,7 @@ import {
 import type {
   LastTurnBreakdownRow,
   ShipInstance,
+  WinStreakRestartLifecycle,
 } from '../engine/state/GameStateTypes.ts';
 import { getShipActivationCueBatches } from '../engine/state/shipActivationCues.ts';
 import {
@@ -97,7 +102,10 @@ import {
   projectMissionChallengeForRequester,
   stripMissionChallengeAssignment,
 } from '../engine/mission/MissionChallenge.ts';
-import { allocateGameId } from './game_id_allocation.ts';
+import {
+  allocateGameId,
+  allocateReservedGameId,
+} from './game_id_allocation.ts';
 import {
   projectCurrentTurnFieldsForFullState,
   registerCurrentTurnProjectionRoutes,
@@ -147,7 +155,21 @@ type CreateGameRequestBody = {
 
 type CreateComputerGameRequestBody = CreateGameRequestBody & {
   planId?: unknown;
+  winStreakCount?: unknown;
 };
+
+type NewGameFromRequestBody = {
+  winStreakCount?: unknown;
+};
+
+function resolveWinStreakCount(body: { winStreakCount?: unknown }): number {
+  const value = body?.winStreakCount;
+  if (typeof value === 'undefined') return 0;
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    throw new Error('winStreakCount must be a nonnegative safe integer when provided');
+  }
+  return value as number;
+}
 
 function toTimeControlConfig(preset: (typeof PRIVATE_GAME_TIMED_PRESETS)[keyof typeof PRIVATE_GAME_TIMED_PRESETS]): TimeControlConfig {
   return {
@@ -265,7 +287,8 @@ function createFreshComputerGameData(
   playerId: string,
   playerName: string,
   timeControl?: TimeControlConfig | null,
-){
+  winStreakCount = 0,
+): any {
   const nowIso = new Date().toISOString();
   const botPlayerId = `bot_${gameId}`;
 
@@ -309,6 +332,10 @@ function createFreshComputerGameData(
       ships: {
         [playerId]: [],
         [botPlayerId]: [],
+      },
+      winStreakBonus: {
+        appliedCount: winStreakCount,
+        recipientPlayerId: botPlayerId,
       },
       currentPhase: 'setup',
       currentSubPhase: 'species_selection',
@@ -634,6 +661,141 @@ function getPublicSavedResourcesForPlayer(state: any, phaseKey: string | null, p
     savedLines: snapshot?.savedLines ?? player?.lines ?? 0,
     savedJoiningLines: snapshot?.savedJoiningLines ?? player?.joiningLines ?? 0,
   };
+}
+
+function getBotPlayerId(state: any): string | null {
+  const player = (state?.players ?? []).find((candidate: any) =>
+    candidate?.role === 'player' &&
+    state?.controllersByPlayerId?.[candidate.id]?.kind === 'bot'
+  );
+  return typeof player?.id === 'string' ? player.id : null;
+}
+
+function getWinStreakBonusProjection(state: any): {
+  appliedCount: number;
+  recipientPlayerId: string | null;
+} {
+  const botPlayerId = getBotPlayerId(state);
+  const metadata = state?.gameData?.winStreakBonus;
+  const metadataIsValid =
+    botPlayerId !== null &&
+    metadata?.recipientPlayerId === botPlayerId &&
+    Number.isSafeInteger(metadata?.appliedCount) &&
+    metadata.appliedCount >= 0;
+  return {
+    appliedCount: metadataIsValid ? metadata.appliedCount : 0,
+    recipientPlayerId: botPlayerId,
+  };
+}
+
+function projectWinStreakRestartLifecycle(state: any): null | {
+  kind: 'source' | 'replacement';
+  status: 'pending' | 'completed';
+  sourceGameId: string;
+  replacementGameId: string;
+} {
+  const lifecycle = state?.winStreakRestart as
+    | WinStreakRestartLifecycle
+    | undefined;
+  if (
+    lifecycle?.kind === 'source' &&
+    (lifecycle.status === 'pending' || lifecycle.status === 'completed') &&
+    typeof lifecycle.replacementGameId === 'string'
+  ) {
+    return {
+      kind: 'source',
+      status: lifecycle.status,
+      sourceGameId: state.gameId,
+      replacementGameId: lifecycle.replacementGameId,
+    };
+  }
+  if (
+    lifecycle?.kind === 'replacement' &&
+    typeof lifecycle.sourceGameId === 'string'
+  ) {
+    return {
+      kind: 'replacement',
+      status: 'completed',
+      sourceGameId: lifecycle.sourceGameId,
+      replacementGameId: state.gameId,
+    };
+  }
+  return null;
+}
+
+function canResetWinStreak(state: any, requestingPlayerId: string): boolean {
+  if (state?.status !== 'active' || state?.winStreakRestart) return false;
+  const requester = (state?.players ?? []).find((candidate: any) =>
+    candidate?.id === requestingPlayerId
+  );
+  if (
+    requester?.role !== 'player' ||
+    state?.controllersByPlayerId?.[requestingPlayerId]?.kind !== 'human'
+  ) {
+    return false;
+  }
+
+  const bonus = getWinStreakBonusProjection(state);
+  if (
+    bonus.appliedCount <= 0 ||
+    bonus.recipientPlayerId === null ||
+    state?.controllersByPlayerId?.[bonus.recipientPlayerId]?.kind !== 'bot'
+  ) {
+    return false;
+  }
+
+  const turnNumber = state?.gameData?.turnNumber ?? state?.turnNumber ?? 0;
+  if (turnNumber !== 0 && turnNumber !== 1) return false;
+  const phaseKey = getPhaseKey(state);
+  if (
+    phaseKey !== 'setup.species_selection' &&
+    phaseKey !== 'build.dice_roll' &&
+    phaseKey !== 'build.line_generation' &&
+    phaseKey !== 'build.drawing'
+  ) {
+    return false;
+  }
+  if (state?.gameData?.turnData?.buildAppliedTurnNumber === 1) return false;
+
+  const humanBuild = peekCommitRecord(
+    state,
+    getBuildCommitKey(1),
+    requestingPlayerId,
+  );
+  return humanBuild?.commitHash === undefined &&
+    humanBuild?.revealPayload === undefined;
+}
+
+function isWellFormedReplacementHistory(
+  rawHistory: any,
+  replacementGameId: string,
+): boolean {
+  if (
+    !rawHistory ||
+    typeof rawHistory !== 'object' ||
+    rawHistory.gameId !== replacementGameId ||
+    !Number.isSafeInteger(rawHistory.revision) ||
+    rawHistory.revision < 0 ||
+    !Number.isSafeInteger(rawHistory.completedTurnCount) ||
+    rawHistory.completedTurnCount < 0 ||
+    !Array.isArray(rawHistory.turns) ||
+    rawHistory.completedTurnCount !== rawHistory.turns.length ||
+    !Object.prototype.hasOwnProperty.call(rawHistory, 'currentTurnCapture') ||
+    (rawHistory.currentTurnCapture !== null &&
+      typeof rawHistory.currentTurnCapture !== 'object')
+  ) {
+    return false;
+  }
+
+  const seenTurns = new Set<number>();
+  return rawHistory.turns.every((turn: any) => {
+    const turnNumber = turn?.turnNumber;
+    if (!Number.isSafeInteger(turnNumber) || turnNumber <= 0 || seenTurns.has(turnNumber)) {
+      return false;
+    }
+    seenTurns.add(turnNumber);
+    return true;
+  });
 }
 
 // ============================================================================
@@ -1254,8 +1416,10 @@ export function registerGameRoutes(
       }
 
       let timeControl: TimeControlConfig | null;
+      let winStreakCount: number;
       try {
         timeControl = resolveCreateGameTimeControl(requestBody);
+        winStreakCount = resolveWinStreakCount(requestBody);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Invalid create-computer-game settings';
         return c.json({ error: message }, 400);
@@ -1270,6 +1434,7 @@ export function registerGameRoutes(
               playerId,
               playerName,
               timeControl,
+              winStreakCount,
             ),
           ),
         insertIfMissing: (key, value) =>
@@ -1307,6 +1472,297 @@ export function registerGameRoutes(
     }
   });
 
+  app.post("/make-server-825e19ab/reset-win-streak/:gameId", async (c) => {
+    try {
+      const session = await requireSession(c);
+      if (session instanceof Response) return session;
+
+      const sourceGameId = c.req.param('gameId');
+      const sourceKey = `game_${sourceGameId}`;
+      const requestingPlayerId = session.sessionId;
+      let maintenanceNowMs: number | null = null;
+
+      for (
+        let attempt = 0;
+        attempt <= MAX_GAME_RECORD_CONFLICT_RETRIES;
+        attempt += 1
+      ) {
+        const loaded = await persistence.load(sourceKey);
+        if (loaded.status === 'error') {
+          console.error('Win-streak restart source load failed:', loaded.error);
+          return c.json({ error: 'Internal server error' }, 500);
+        }
+        if (loaded.status === 'missing') {
+          return c.json({ error: 'Game not found' }, 404);
+        }
+
+        let sourceState = structuredClone(loaded.value);
+        let sourceRevisionToken = getPersistedStateRevisionToken(sourceState);
+        if (sourceRevisionToken.kind === 'invalid') {
+          console.error('Win-streak restart found invalid source revision', {
+            sourceGameId,
+            rawValue: sourceRevisionToken.rawValue,
+          });
+          return c.json({ error: 'Internal server error' }, 500);
+        }
+
+        const humanPlayer = (sourceState?.players ?? []).find((player: any) =>
+          player?.id === requestingPlayerId && player?.role === 'player'
+        );
+        if (
+          !humanPlayer ||
+          sourceState?.controllersByPlayerId?.[requestingPlayerId]?.kind !== 'human'
+        ) {
+          return c.json({ error: 'Only the human player can restart this game' }, 403);
+        }
+
+        const existingLifecycle = sourceState?.winStreakRestart as
+          | WinStreakRestartLifecycle
+          | undefined;
+        if (
+          existingLifecycle?.kind === 'source' &&
+          existingLifecycle.status === 'completed'
+        ) {
+          return c.json({
+            gameId: existingLifecycle.replacementGameId,
+            sourceGameId,
+            resetStatus: 'completed',
+          });
+        }
+        if (existingLifecycle && existingLifecycle.kind !== 'source') {
+          return c.json({ error: 'Replacement games cannot be restarted as sources' }, 409);
+        }
+        if (!existingLifecycle) {
+          maintenanceNowMs ??= Date.now();
+          const previousStatus = sourceState?.status;
+          let maintainedSource = applyGameStateMaintenance(
+            ensureStateRevision(sourceState),
+            maintenanceNowMs,
+          );
+          const timeoutOccurred =
+            previousStatus !== 'finished' && maintainedSource?.status === 'finished';
+          const ancientNormalization = normalizeAncientGameState(maintainedSource);
+          maintainedSource = ancientNormalization.state;
+
+          if (timeoutOccurred) {
+            maintainedSource = withStateRevisionFromBase(
+              maintainedSource,
+              getStateRevisionBase(sourceRevisionToken),
+            );
+            const timeoutWrite = await persistence.conditionalUpdate({
+              key: sourceKey,
+              value: maintainedSource,
+              revisionField: 'stateRevision',
+              expected: sourceRevisionToken,
+            });
+            if (timeoutWrite.status === 'conflict') {
+              continue;
+            }
+            if (timeoutWrite.status === 'error') {
+              console.error(
+                'Win-streak restart timeout persistence failed:',
+                timeoutWrite.error,
+              );
+              return c.json({ error: 'Internal server error' }, 500);
+            }
+            logAncientCompatibilityRisks(
+              'win-streak-restart-timeout',
+              ancientNormalization.compatibilityRisks,
+            );
+            sourceRevisionToken = getPersistedStateRevisionToken(maintainedSource);
+          }
+
+          sourceState = maintainedSource;
+          if (!canResetWinStreak(sourceState, requestingPlayerId)) {
+            return c.json({ error: 'Win-streak restart is not available' }, 409);
+          }
+        }
+
+        const playerName = typeof humanPlayer.name === 'string'
+          ? humanPlayer.name.trim()
+          : '';
+        if (!playerName) {
+          return c.json({ error: 'Player name is required' }, 400);
+        }
+        const inheritedTimeControl = sourceState?.gameData?.clock?.timeControl ?? null;
+        const createReplacementState = (replacementGameId: string) => {
+          const replacement = ensureStateRevision(createFreshComputerGameData(
+            replacementGameId,
+            requestingPlayerId,
+            playerName,
+            inheritedTimeControl,
+            0,
+          ));
+          replacement.winStreakRestart = {
+            kind: 'replacement',
+            sourceGameId,
+          };
+          return replacement;
+        };
+        const candidateMatchesSource = async (candidateGameId: string) => {
+          const candidateLoad = await persistence.load(`game_${candidateGameId}`);
+          if (candidateLoad.status === 'error') {
+            return { status: 'error' as const, error: candidateLoad.error };
+          }
+          if (candidateLoad.status === 'missing') {
+            return { status: 'unrelated' as const };
+          }
+          const candidate = candidateLoad.value;
+          return {
+            status: candidate?.gameId === candidateGameId &&
+                candidate?.winStreakRestart?.kind === 'replacement' &&
+                candidate.winStreakRestart.sourceGameId === sourceGameId
+              ? 'matching' as const
+              : 'unrelated' as const,
+          };
+        };
+
+        let replacementGameId: string | null = null;
+        let replacementState: any = null;
+        let mustAllocateNewCandidate = existingLifecycle?.kind !== 'source';
+
+        if (existingLifecycle?.kind === 'source') {
+          replacementGameId = existingLifecycle.replacementGameId;
+          replacementState = createReplacementState(replacementGameId);
+          const insert = await persistence.insertIfMissing(
+            `game_${replacementGameId}`,
+            replacementState,
+          );
+          if (insert.status === 'error') {
+            console.error('Win-streak replacement insertion failed:', insert.error);
+            return c.json({ error: 'Internal server error' }, 500);
+          }
+          if (insert.status === 'conflict') {
+            const existing = await candidateMatchesSource(replacementGameId);
+            if (existing.status === 'error') {
+              console.error('Win-streak replacement recovery load failed:', existing.error);
+              return c.json({ error: 'Internal server error' }, 500);
+            }
+            mustAllocateNewCandidate = existing.status === 'unrelated';
+          }
+        }
+
+        if (mustAllocateNewCandidate) {
+          const allocation = await allocateReservedGameId({
+            generateGameId,
+            createGameState: createReplacementState,
+            reserveCandidate: async (candidateGameId) => {
+              const reservedSource = structuredClone(sourceState);
+              reservedSource.status = 'finished';
+              delete reservedSource.result;
+              delete reservedSource.winnerPlayerId;
+              reservedSource.resultReason = 'restart';
+              reservedSource.winStreakRestart = {
+                kind: 'source',
+                status: 'pending',
+                replacementGameId: candidateGameId,
+              };
+              const nextSource = withStateRevisionFromBase(
+                reservedSource,
+                getStateRevisionBase(sourceRevisionToken),
+              );
+              const write = await persistence.conditionalUpdate({
+                key: sourceKey,
+                value: nextSource,
+                revisionField: 'stateRevision',
+                expected: sourceRevisionToken,
+              });
+              if (write.status === 'updated') {
+                sourceState = nextSource;
+                sourceRevisionToken = getPersistedStateRevisionToken(nextSource);
+              }
+              return write;
+            },
+            insertIfMissing: (key, value) =>
+              persistence.insertIfMissing(key, value),
+            existingCandidateMatches: (candidateGameId) =>
+              candidateMatchesSource(candidateGameId),
+          });
+
+          if (allocation.status === 'reservation_conflict') {
+            continue;
+          }
+          if (allocation.status === 'error') {
+            console.error('Win-streak replacement allocation failed:', allocation.error);
+            return c.json({ error: 'Internal server error' }, 500);
+          }
+          if (allocation.status === 'exhausted') {
+            return c.json({ error: 'Could not allocate a replacement game ID' }, 503);
+          }
+          replacementGameId = allocation.gameId;
+          replacementState = allocation.gameState;
+        }
+
+        if (!replacementGameId || !replacementState) {
+          return c.json({ error: 'Internal server error' }, 500);
+        }
+
+        const historyKey = getBattleLogHistoryKey(replacementGameId);
+        const emptyHistory = createEmptyBattleLogHistoryStore(replacementGameId);
+        const historyInsert = await persistence.insertIfMissing(
+          historyKey,
+          emptyHistory,
+        );
+        if (historyInsert.status === 'error') {
+          console.error('Win-streak replacement history insertion failed:', historyInsert.error);
+          return c.json({ error: 'Internal server error' }, 500);
+        }
+        if (historyInsert.status === 'conflict') {
+          const historyLoad = await persistence.load(historyKey);
+          if (
+            historyLoad.status === 'error' ||
+            historyLoad.status === 'missing' ||
+            !isWellFormedReplacementHistory(
+              historyLoad.value,
+              replacementGameId,
+            )
+          ) {
+            console.error('Win-streak replacement history recovery failed', {
+              replacementGameId,
+              status: historyLoad.status,
+            });
+            return c.json({ error: 'Internal server error' }, 500);
+          }
+        }
+
+        const completedSource = structuredClone(sourceState);
+        completedSource.winStreakRestart = {
+          kind: 'source',
+          status: 'completed',
+          replacementGameId,
+        };
+        const completedWithRevision = withStateRevisionFromBase(
+          completedSource,
+          getStateRevisionBase(sourceRevisionToken),
+        );
+        const completionWrite = await persistence.conditionalUpdate({
+          key: sourceKey,
+          value: completedWithRevision,
+          revisionField: 'stateRevision',
+          expected: sourceRevisionToken,
+        });
+        if (completionWrite.status === 'conflict') {
+          continue;
+        }
+        if (completionWrite.status === 'error') {
+          console.error('Win-streak restart completion failed:', completionWrite.error);
+          return c.json({ error: 'Internal server error' }, 500);
+        }
+
+        return c.json({
+          gameId: replacementGameId,
+          sourceGameId,
+          resetStatus: 'completed',
+        });
+      }
+
+      return c.json({ error: 'Game changed during restart; retry the request' }, 409);
+    } catch (error) {
+      console.error('Win-streak restart error:', error);
+      return c.json({ error: 'Internal server error' }, 500);
+    }
+  });
+
   app.post("/make-server-825e19ab/new-game-from/:gameId", async (c) => {
     try {
       const session = await requireSession(c);
@@ -1338,6 +1794,12 @@ export function registerGameRoutes(
       if (sourceGame.status !== 'finished') {
         return c.json({ error: "New game can only be created from a finished game" }, 400);
       }
+      if (
+        sourceGame.resultReason === 'restart' ||
+        sourceGame.winStreakRestart?.kind === 'source'
+      ) {
+        return c.json({ error: "Restarted games cannot create ordinary rematches" }, 409);
+      }
 
       const inheritedTimeControl = sourceGame?.gameData?.clock?.timeControl ?? null;
       const opponentPlayer = sourceGame.players.find((player: any) =>
@@ -1347,6 +1809,14 @@ export function registerGameRoutes(
         ? sourceGame.controllersByPlayerId?.[opponentPlayer.id]
         : null;
       const isBotRematch = opponentController?.kind === 'bot';
+      const requestBody = await c.req.json().catch(() => ({})) as NewGameFromRequestBody;
+      let winStreakCount: number;
+      try {
+        winStreakCount = resolveWinStreakCount(requestBody);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Invalid rematch settings';
+        return c.json({ error: message }, 400);
+      }
 
       const allocation = await allocateGameId({
         generateGameId,
@@ -1358,6 +1828,7 @@ export function registerGameRoutes(
                 playerId,
                 playerName,
                 inheritedTimeControl,
+                winStreakCount,
               )
               : createFreshGameData(
                 candidateGameId,
@@ -2349,6 +2820,8 @@ export function registerGameRoutes(
       };
       const turnPhaseProgress = projectPublicTurnPhaseProgress(gameData);
       const speciesSelectionResolved = hasCompletedSpeciesSelection(gameData);
+      const winStreakBonus = getWinStreakBonusProjection(gameData);
+      const winStreakRestartLifecycle = projectWinStreakRestartLifecycle(gameData);
       const publicPhaseReadiness = phaseKey === 'battle.charge_declaration'
         ? phaseReadiness.filter(
           (entry: any) => entry?.playerId === requestingPlayerId,
@@ -2382,6 +2855,7 @@ export function registerGameRoutes(
             gameData.gameData?.controllersByPlayerId,
           { speciesSelectionResolved },
         ),
+        winStreakBonus,
         savedLinesByPlayerId,
         joiningLinesByPlayerId,
         bonusLinesByPlayerId,
@@ -2435,6 +2909,10 @@ export function registerGameRoutes(
       const requester = {
         playerId: requestingPlayerId,
         availableActions,
+        winStreakReset: {
+          canRestart: canResetWinStreak(gameData, requestingPlayerId),
+          lifecycle: winStreakRestartLifecycle,
+        },
         ...(drawingPrelude ? { drawingPrelude } : {}),
         ...(missionChallenge ? { missionChallenge } : {}),
         ...(speciesSelection ? { speciesSelection } : {}),

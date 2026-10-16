@@ -140,6 +140,24 @@ export type LegacyDrawAgreement = {
   acceptedBy: string[];
 };
 
+export type WinStreakBonus = {
+  /** Locally selected difficulty amount fixed for this game's lifetime. */
+  appliedCount: number;
+  /** Bot seat that receives the one-time turn-1 ordinary-line contribution. */
+  recipientPlayerId: string;
+};
+
+export type WinStreakRestartLifecycle =
+  | {
+      kind: 'source';
+      status: 'pending' | 'completed';
+      replacementGameId: string;
+    }
+  | {
+      kind: 'replacement';
+      sourceGameId: string;
+    };
+
 export type ShipActivationCueSource = {
   playerId: string;
   sourceInstanceId: string;
@@ -407,6 +425,9 @@ export type GameData = {
   /** Ship fleets indexed by player ID */
   ships?: Record<string, ShipInstance[]>;
 
+  /** Fixed per-game bot difficulty contribution; absent on multiplayer/legacy games. */
+  winStreakBonus?: WinStreakBonus;
+
   /** Durable server-authoritative Ancient state (never turn scratch) */
   ancient?: AncientState;
   
@@ -609,7 +630,8 @@ export type GameState = {
     | 'resignation'
     | 'timeout'
     | 'timeout_draw'
-    | 'agreement';
+    | 'agreement'
+    | 'restart';
   
   /** Player states */
   players: PlayerState[];
@@ -619,6 +641,9 @@ export type GameState = {
 
   /** Server-private durable Mission/Challenge assignment for Play Computer. */
   missionChallengeAssignment?: MissionChallengeAssignment;
+
+  /** Durable source/replacement link for a neutral win-streak restart. */
+  winStreakRestart?: WinStreakRestartLifecycle;
   
   /** Game data container */
   gameData: GameData;

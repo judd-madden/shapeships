@@ -14,10 +14,33 @@ import {
   createBattleLogBuildCubeChangeCaptureEvent,
   createBattleLogBuildCubeRollsCaptureEvent,
   createBattleLogBuildProducedCaptureEvent,
+  detectCompletedBattleTurnFromStateTransition,
   foldBattleLogCaptureEventsIntoScratch,
   normalizeBattleLogHistoryStore,
   normalizeBattleLogScratch,
 } from "../../../engine/state/battleLogHistory.ts";
+
+Deno.test("restart terminalization is not a completed battle-log turn", () => {
+  const previous = {
+    status: "active",
+    resultReason: null,
+    gameData: {
+      turnNumber: 1,
+      currentPhase: "battle",
+      currentSubPhase: "resolution",
+    },
+  };
+  const restarted = {
+    ...previous,
+    status: "finished",
+    resultReason: "restart",
+  };
+
+  assert.equal(
+    detectCompletedBattleTurnFromStateTransition(previous, restarted),
+    null,
+  );
+});
 
 function buildSummaryForAtoms(buildAtoms: any[]) {
   return buildBattleLogTurnSummaryFromScratch({

@@ -254,10 +254,10 @@ export function ensureMissionChallengeAssignment<T extends Record<string, any>>(
 }
 
 export function evaluateMissionChallengeResult(
-  state: Pick<GameState, "status" | "winnerPlayerId" | "gameData">,
+  state: Pick<GameState, "status" | "winnerPlayerId" | "resultReason" | "gameData">,
   assignment: MissionChallengeAssignment,
 ): MissionChallengeResult | null {
-  if (state.status !== "finished") return null;
+  if (state.status !== "finished" || state.resultReason === "restart") return null;
 
   const finalFleet = Array.isArray(state.gameData?.ships?.[assignment.playerId])
     ? state.gameData.ships![assignment.playerId]

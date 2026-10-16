@@ -632,6 +632,13 @@ Deno.test("finished results use only winner truth and the assigned active final 
     ),
     null,
   );
+  assert.equal(
+    evaluateMissionChallengeResult(
+      { ...finished, resultReason: "restart", winnerPlayerId: undefined },
+      assignment,
+    ),
+    null,
+  );
 
   for (
     const resultReason of [

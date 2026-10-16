@@ -198,3 +198,30 @@ Deno.test('player-relative Cube effective value drives parity without changing t
   assert.equal(gameData.turnData.baseDiceRoll, 2);
   assert.equal(gameData.turnData.effectiveDiceRoll, 2);
 });
+
+Deno.test('Win Streak is a turn-1 recipient-only adjustment across both call shapes', () => {
+  const gameData = createGameData();
+  gameData.turnNumber = 1;
+  gameData.winStreakBonus = {
+    appliedCount: 5,
+    recipientPlayerId: 'p2',
+  };
+  gameData.ancient.solarLedgerByPlayerId = {};
+
+  const fromInner = computeLineBonusesForPlayer(gameData, 'p2');
+  const fromFull = computeLineBonusesForPlayer({ gameData }, 'p2');
+  assert.deepEqual(fromFull, fromInner);
+  assert.equal(fromInner.bonusLines, 5);
+  assert.deepEqual(fromInner.ordinaryRows, [{
+    rowKind: 'adjustment',
+    label: 'Win Streak',
+    amount: 5,
+    amountText: '5',
+  }]);
+  assert.equal(computeLineBonusesForPlayer(gameData, 'p1').bonusLines, 0);
+
+  gameData.turnNumber = 2;
+  assert.equal(computeLineBonusesForPlayer(gameData, 'p2').bonusLines, 0);
+  delete gameData.winStreakBonus;
+  assert.equal(computeLineBonusesForPlayer(gameData, 'p2').bonusLines, 0);
+});

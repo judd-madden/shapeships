@@ -202,6 +202,14 @@ export function computeLineBonusesForPlayer(
   const fleet = authoritativeGameData?.ships?.[playerId];
   const ships = Array.isArray(fleet) ? fleet : [];
   const currentTurnNumber = authoritativeGameData?.turnNumber;
+  const winStreakBonus = authoritativeGameData?.winStreakBonus;
+  const winStreakBonusLines =
+    currentTurnNumber === 1 &&
+      winStreakBonus?.recipientPlayerId === playerId &&
+      Number.isSafeInteger(winStreakBonus?.appliedCount) &&
+      winStreakBonus.appliedCount > 0
+      ? winStreakBonus.appliedCount
+      : 0;
   const convertCount = getQualifyingConvertCount(
     authoritativeGameData,
     playerId,
@@ -238,7 +246,7 @@ export function computeLineBonusesForPlayer(
   const hasEvenEffectiveDiceRoll =
     typeof effectiveDiceRoll === 'number' && effectiveDiceRoll % 2 === 0;
 
-  let bonusLines = convertCount;
+  let bonusLines = convertCount + winStreakBonusLines;
   let bonusLinesOnEven = 0;
   let joiningBonusLines = 0;
   const ordinaryRows: LineBonusBreakdown['ordinaryRows'] = [];
@@ -256,6 +264,10 @@ export function computeLineBonusesForPlayer(
       amount: convertCount,
       amountText: String(convertCount),
     });
+  }
+
+  if (winStreakBonusLines > 0) {
+    ordinaryRows.push(buildAdjustmentRow('Win Streak', winStreakBonusLines));
   }
 
   const addContributors = (shipDefId: string, count: number) => {

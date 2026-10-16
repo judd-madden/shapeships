@@ -801,6 +801,21 @@ export async function applyIntent(
     };
   }
 
+  // A restart reservation terminalizes the source before the replacement is
+  // inserted. Block every intent, including the normal finished-game
+  // exceptions, so a pending source cannot mutate or become a played result.
+  if (state?.winStreakRestart?.kind === 'source') {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.GAME_FINISHED,
+        message: 'Game was replaced by a win-streak restart',
+      },
+    };
+  }
+
   if (!state.gameData) state.gameData = {};
   
   // Accrue server-authoritative clocks before applying intent (authoritative timekeeping)

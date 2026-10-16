@@ -580,6 +580,7 @@ async function handleIntentRequest(args: {
         previousStatus !== 'finished' && candidateState?.status === 'finished';
       if (
         terminalOccurred &&
+        candidateState?.resultReason !== 'restart' &&
         !successfulEvents.some((event) => event?.type === 'GAME_OVER')
       ) {
         successfulEvents.push({
