@@ -1,9 +1,7 @@
 import type { BoardStatBreakdownRowVm } from '../../client/gameSession/types';
 import type {
-  WinStreakCreationViewModel,
   WinStreakGameViewModel,
   WinStreakMenuViewModel,
-  WinStreakUnfinishedGameViewModel,
 } from '../../client/winStreak/types';
 import type { GameSessionActions } from '../../client/gameSession/types';
 import type { WinStreakMenuActions } from '../../client/winStreak/types';
@@ -65,16 +63,6 @@ export function resolveWinStreakSisterView(
   return selected === 'winStreak' && !showWinStreak ? 'turnPhases' : selected;
 }
 
-export function getWinStreakWorkflowControls(
-  creation: WinStreakCreationViewModel,
-  unfinishedGame: WinStreakUnfinishedGameViewModel,
-) {
-  return {
-    busy: creation.busy || unfinishedGame.status === 'reconciling',
-    showConfirm: unfinishedGame.canConfirmAbandonment,
-    showRejoin: unfinishedGame.gameId != null && unfinishedGame.canRejoin,
-    showRetry: unfinishedGame.status === 'error' || creation.status === 'error',
-    showRecovered: creation.status === 'stale_success' && creation.recoveryGameId != null,
-    showRelease: creation.requiresExplicitRelease,
-  };
+export function getWinStreakTabLayout(showWinStreak: boolean): 'two-tab' | 'three-tab' {
+  return showWinStreak ? 'three-tab' : 'two-tab';
 }

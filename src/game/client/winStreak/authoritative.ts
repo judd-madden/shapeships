@@ -239,8 +239,6 @@ export function deriveWinStreakGameViewModel(args: {
   resetBusy: boolean;
   resetError: string | null;
   resetRetryAvailable: boolean;
-  creation: WinStreakGameViewModel['creation'];
-  unfinishedGame: WinStreakGameViewModel['unfinishedGame'];
 }): WinStreakGameViewModel {
   const { profile, game } = args;
   const trackedMatches = Boolean(game && profile.trackedGame?.gameId === game.gameId);
@@ -286,8 +284,6 @@ export function deriveWinStreakGameViewModel(args: {
       retryAvailable: args.resetRetryAvailable,
       error: args.resetError,
     },
-    creation: args.creation,
-    unfinishedGame: args.unfinishedGame,
   };
 }
 

@@ -453,7 +453,6 @@ export function MainStage({
           <ActionPanelFrame
             vm={actionPanelVm}
             actions={actions}
-            winStreak={winStreak}
             isGameStatsOpen={isGameStatsOpen}
             canViewGameStats={canViewGameStats}
             onOpenGameStats={handleOpenGameStats}

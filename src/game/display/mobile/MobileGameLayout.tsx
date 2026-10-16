@@ -985,8 +985,6 @@ export function MobileGameLayout({
                 onReturnToMainMenu={onReturnToMainMenu}
                 onRematch={actions.onRematch}
                 onDownloadBattleLog={actions.onDownloadBattleLog}
-                winStreak={winStreak}
-                winStreakActions={actions}
               />
             ) : (
               <MobileMenuTakeover

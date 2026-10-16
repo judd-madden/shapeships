@@ -7,8 +7,6 @@
 import { useEffect, useState } from 'react';
 import { GameMenuButton } from '../../../../components/ui/primitives/buttons/GameMenuButton';
 import { ChallengeIcon } from '../../../../components/ui/primitives/icons/ChallengeIcon';
-import type { GameSessionActions, GameSessionViewModel } from '../../../client/useGameSession';
-import { WinStreakWorkflowFeedback } from '../../winStreak/WinStreakWorkflowFeedback';
 
 interface EndOfGameActionPanelProps {
   bannerText: string;       // headline (already composed in VM)
@@ -26,8 +24,6 @@ interface EndOfGameActionPanelProps {
   onReturnToMainMenu: () => void;
   onRematch: () => void;
   onDownloadBattleLog: () => void;
-  winStreak?: GameSessionViewModel['winStreak'];
-  winStreakActions?: GameSessionActions;
 }
 
 export function EndOfGameActionPanel({
@@ -46,8 +42,6 @@ export function EndOfGameActionPanel({
   onReturnToMainMenu,
   onRematch,
   onDownloadBattleLog,
-  winStreak,
-  winStreakActions,
 }: EndOfGameActionPanelProps) {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -136,16 +130,6 @@ export function EndOfGameActionPanel({
             >
               {rematchHelperText}
             </p>
-            {winStreak && winStreakActions ? (
-              <div className="mt-[8px] w-[260px] max-w-[calc(100vw-24px)]">
-                <WinStreakWorkflowFeedback
-                  creation={winStreak.creation}
-                  unfinishedGame={winStreak.unfinishedGame}
-                  actions={winStreakActions}
-                  showUnfinishedNotice
-                />
-              </div>
-            ) : null}
           </div>
 
           <GameMenuButton

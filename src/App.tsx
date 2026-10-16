@@ -16,6 +16,7 @@ import type { CreatePrivateGameSettings } from './components/panels/CreatePrivat
 import GameScreen from './game/display/GameScreen';
 import { usePlayer } from './game/hooks/usePlayer';
 import { useWinStreakMenu } from './game/client/winStreak/useWinStreakProfile';
+import { WIN_STREAK_RECONCILIATION_TIMEOUT_MS } from './game/client/winStreak/workflow';
 
 const GraphicsTest = React.lazy(() => import('./components/dev/GraphicsTest'));
 const BuildKitShowcase = React.lazy(() =>
@@ -280,7 +281,10 @@ export default function App() {
         winStreakCount,
       }, player.name);
     },
-    getGameState: (trackedGameId) => authenticatedGet(`/game-state/${trackedGameId}`),
+    getGameState: (trackedGameId) => authenticatedGet(
+      `/game-state/${trackedGameId}`,
+      WIN_STREAK_RECONCILIATION_TIMEOUT_MS,
+    ),
     getCurrentSession: async () => {
       const session = await ensureSession(player?.name);
       return { sessionId: session.sessionId };
@@ -316,7 +320,7 @@ export default function App() {
     return result.gameId;
   };
 
-  const createComputerGame = async (settings: CreatePrivateGameSettings): Promise<string | null> =>
+  const createComputerGame = async (settings: CreatePrivateGameSettings): Promise<string> =>
     winStreakMenu.requestComputerGame(settings);
 
   const resetPlayerSession = () => {

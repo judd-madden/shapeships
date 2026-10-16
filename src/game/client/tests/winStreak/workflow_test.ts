@@ -13,15 +13,16 @@ import {
 import {
   completeBotGameCreation,
   completeWinStreakRestart,
-  creationViewModelFromReservation,
   failBotGameCreation,
   markBotGameCreationStarted,
+  prepareBotGameCreation,
   reconcileTrackedWinStreakGame,
   recordCreatedGameForRecovery,
   recoverCreatedBotGame,
   releaseCreationReservation,
-  reserveAfterConfirmedAbandonment,
   reserveBotGameCreation,
+  visibleRejoinCandidate,
+  verifyTrackedGameForRejoin,
 } from '../../winStreak/workflow';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
@@ -165,17 +166,30 @@ Deno.test('reconciliation discards a response after the tracked generation chang
   assert(result.kind === 'stale');
 });
 
-Deno.test('ambiguous creation is retained until explicit release while rejection is cleared', async () => {
+Deno.test('a deliberate new attempt releases ambiguity without replaying the old request', async () => {
   const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
   const ambiguous = await reserve(store);
   assert(await markBotGameCreationStarted(store, ambiguous));
   await failBotGameCreation(store, ambiguous, { ambiguous: true, error: 'lost response' });
   assert(store.getSnapshot().creationReservation?.status === 'ambiguous');
-  assert(creationViewModelFromReservation(store.getSnapshot().creationReservation).requiresExplicitRelease);
   assert((await reserveBotGameCreation(store, 'create', null, preflight(store))).kind === 'blocked');
-  await releaseCreationReservation(store);
-  assert(store.getSnapshot().creationReservation === null);
+  let reconciliationReads = 0;
+  const distinct = await prepareBotGameCreation({
+    store,
+    kind: 'create',
+    sourceGameId: null,
+    transport: {
+      getGameState: async () => {
+        reconciliationReads += 1;
+        throw new Error('no tracked game should be read');
+      },
+    },
+  });
+  assert(distinct.kind === 'reserved');
+  assert(distinct.reservation.token !== ambiguous.token);
+  assert(reconciliationReads === 0);
 
+  await releaseCreationReservation(store);
   const rejected = await reserve(store);
   await failBotGameCreation(store, rejected, { ambiguous: false, error: 'bad request' });
   assert(store.getSnapshot().creationReservation === null);
@@ -206,23 +220,6 @@ Deno.test('success arriving after explicit release is retained as recovery data'
   assert(store.getSnapshot().trackedGame === null);
   assert(store.getSnapshot().creationReservation?.status === 'stale_success');
   assert(store.getSnapshot().creationReservation?.recoveryGameId === 'LATE');
-});
-
-Deno.test('persisted unowned reservation projects as ambiguous, never as active creation', async () => {
-  const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
-  const reservation = await reserve(store);
-  assert(await markBotGameCreationStarted(store, reservation));
-
-  const interrupted = creationViewModelFromReservation(store.getSnapshot().creationReservation);
-  const locallyOwned = creationViewModelFromReservation(
-    store.getSnapshot().creationReservation,
-    'idle',
-    null,
-    reservation.token,
-  );
-  assert(interrupted.status === 'ambiguous');
-  assert(interrupted.requiresExplicitRelease);
-  assert(locallyOwned.status === 'creating');
 });
 
 Deno.test('restart completion cannot overwrite a changed profile generation', async () => {
@@ -261,61 +258,23 @@ Deno.test('clear preflight becomes stale after another caller registers a game',
   assert(store.getSnapshot().currentCount === 4);
 });
 
-Deno.test('stale abandonment confirmation cannot retire a newer tracked game', async () => {
-  const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
-  await store.mutate((profile) => {
-    profile.currentCount = 5;
-    registerTrackedGameDraft(profile, 'A', 'human');
-  });
-  const confirmation = await reconcileTrackedWinStreakGame(store, {
-    getGameState: async () => new Response(JSON.stringify(gameState({
-      gameId: 'A', appliedCount: 5,
-    })), { status: 200 }),
-  });
-  assert(confirmation.kind === 'unfinished');
-  await store.mutate((profile) => registerTrackedGameDraft(profile, 'B', 'human'));
-  const rebound = await reconcileTrackedWinStreakGame(
-    store,
-    { getGameState: async () => { throw new Error('must not fetch game B'); } },
-    { expectedTrackedGameId: 'A' },
-  );
-  assert(rebound.kind === 'stale');
-
-  const result = await reserveAfterConfirmedAbandonment(
-    store,
-    'create',
-    null,
-    'A',
-    confirmation.preflight,
-  );
-
-  assert(result.kind === 'stale');
-  assert(store.getSnapshot().trackedGame?.gameId === 'B');
-  assert(store.getSnapshot().trackedGame?.status === 'unfinished');
-  assert(store.getSnapshot().currentCount === 5);
-});
-
-Deno.test('confirmed abandonment retires and reserves atomically', async () => {
+Deno.test('direct creation retires an authoritative unfinished game and reserves at zero', async () => {
   const storage = new FakeStorage();
   const store = new WinStreakProfileStore(storage, serialRunner());
   await store.mutate((profile) => {
     profile.currentCount = 5;
     registerTrackedGameDraft(profile, 'A', 'human');
   });
-  const confirmation = await reconcileTrackedWinStreakGame(store, {
+  const result = await prepareBotGameCreation({
+    store,
+    kind: 'create',
+    sourceGameId: null,
+    transport: {
     getGameState: async () => new Response(JSON.stringify(gameState({
       gameId: 'A', appliedCount: 5,
     })), { status: 200 }),
+    },
   });
-  assert(confirmation.kind === 'unfinished');
-
-  const result = await reserveAfterConfirmedAbandonment(
-    store,
-    'create',
-    null,
-    'A',
-    confirmation.preflight,
-  );
 
   assert(result.kind === 'reserved');
   const persisted = JSON.parse(storage.values.values().next().value as string);
@@ -326,15 +285,17 @@ Deno.test('confirmed abandonment retires and reserves atomically', async () => {
   assert(result.reservation.requestedCount === 0);
 });
 
-Deno.test('confirmation-time terminal result settles before creation reservation', async () => {
+Deno.test('direct creation settles a terminal win before reserving', async () => {
   const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
   await store.mutate((profile) => {
     profile.currentCount = 2;
     registerTrackedGameDraft(profile, 'A', 'human');
   });
-  const reconciled = await reconcileTrackedWinStreakGame(
+  const prepared = await prepareBotGameCreation({
     store,
-    {
+    kind: 'create',
+    sourceGameId: null,
+    transport: {
       getGameState: async () => new Response(JSON.stringify(gameState({
         gameId: 'A',
         status: 'finished',
@@ -343,14 +304,165 @@ Deno.test('confirmation-time terminal result settles before creation reservation
         appliedCount: 2,
       })), { status: 200 }),
     },
-    { expectedTrackedGameId: 'A' },
-  );
-  assert(reconciled.kind === 'clear');
+  });
+  assert(prepared.kind === 'reserved');
   assert(store.getSnapshot().currentCount === 3);
+  assert(prepared.reservation.requestedCount === 3);
+});
 
-  const reserved = await reserveBotGameCreation(store, 'create', null, reconciled.preflight);
-  assert(reserved.kind === 'reserved');
-  assert(reserved.reservation.requestedCount === 3);
+Deno.test('direct creation resets losses and preserves draws', async () => {
+  for (const reason of ['decisive', 'resignation', 'timeout']) {
+    const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
+    await store.mutate((profile) => {
+      profile.currentCount = 4;
+      registerTrackedGameDraft(profile, reason, 'human');
+    });
+    const prepared = await prepareBotGameCreation({
+      store,
+      kind: 'create',
+      sourceGameId: null,
+      transport: {
+        getGameState: async () => new Response(JSON.stringify(gameState({
+          gameId: reason,
+          status: 'finished',
+          winner: 'bot',
+          reason,
+          appliedCount: 4,
+        })), { status: 200 }),
+      },
+    });
+    assert(prepared.kind === 'reserved');
+    assert(prepared.reservation.requestedCount === 0);
+  }
+
+  const drawStore = new WinStreakProfileStore(new FakeStorage(), serialRunner());
+  await drawStore.mutate((profile) => {
+    profile.currentCount = 4;
+    registerTrackedGameDraft(profile, 'DRAW', 'human');
+  });
+  const draw = await prepareBotGameCreation({
+    store: drawStore,
+    kind: 'create',
+    sourceGameId: null,
+    transport: {
+      getGameState: async () => new Response(JSON.stringify(gameState({
+        gameId: 'DRAW',
+        status: 'finished',
+        reason: 'agreement',
+        appliedCount: 4,
+      })), { status: 200 }),
+    },
+  });
+  assert(draw.kind === 'reserved');
+  assert(draw.reservation.requestedCount === 4);
+});
+
+Deno.test('failed reconciliation retires the association but preserves settled progression', async () => {
+  for (const response of [
+    () => Promise.reject(new Error('timeout')),
+    () => Promise.resolve(new Response(null, { status: 503 })),
+    () => Promise.resolve(new Response('{', { status: 200 })),
+  ]) {
+    const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
+    await store.mutate((profile) => {
+      profile.currentCount = 6;
+      registerTrackedGameDraft(profile, 'UNRESOLVED', 'human');
+    });
+    const prepared = await prepareBotGameCreation({
+      store,
+      kind: 'create',
+      sourceGameId: null,
+      transport: { getGameState: response },
+    });
+    assert(prepared.kind === 'reserved');
+    assert(prepared.reservation.requestedCount === 6);
+    assert(store.getSnapshot().trackedGame?.status === 'retired');
+  }
+});
+
+Deno.test('verified rejoin requires current identity, active bot state, and matching bonus', async () => {
+  const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
+  await store.mutate((profile) => {
+    profile.currentCount = 2;
+    registerTrackedGameDraft(profile, 'ACTIVE', 'human');
+  });
+  const candidate = await verifyTrackedGameForRejoin(store, {
+    getGameState: async () => new Response(JSON.stringify(gameState({
+      gameId: 'ACTIVE', appliedCount: 2,
+    })), { status: 200 }),
+  });
+  assert(candidate?.gameId === 'ACTIVE');
+  assert(visibleRejoinCandidate(2, candidate, false)?.gameId === 'ACTIVE');
+  assert(visibleRejoinCandidate(0, candidate, false) === null);
+  assert(visibleRejoinCandidate(2, candidate, true) === null);
+
+  const identityStore = new WinStreakProfileStore(new FakeStorage(), serialRunner());
+  await identityStore.mutate((profile) => {
+    profile.currentCount = 2;
+    registerTrackedGameDraft(profile, 'IDENTITY', 'human');
+  });
+  const wrongRequesterState = gameState({ gameId: 'IDENTITY', appliedCount: 2 });
+  wrongRequesterState.requester.playerId = 'someone-else';
+  assert(await verifyTrackedGameForRejoin(identityStore, {
+    getGameState: async () => new Response(JSON.stringify(wrongRequesterState), { status: 200 }),
+  }) === null);
+  assert(identityStore.getSnapshot().trackedGame?.status === 'retired');
+  assert(identityStore.getSnapshot().currentCount === 2);
+
+  const mismatch = await verifyTrackedGameForRejoin(store, {
+    getGameState: async () => new Response(JSON.stringify(gameState({
+      gameId: 'ACTIVE', appliedCount: 1,
+    })), { status: 200 }),
+  });
+  assert(mismatch === null);
+  assert(store.getSnapshot().trackedGame?.status === 'retired');
+  assert(store.getSnapshot().currentCount === 2);
+});
+
+Deno.test('zero streak hides rejoin but still settles a first win', async () => {
+  const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
+  await store.mutate((profile) => registerTrackedGameDraft(profile, 'FIRST', 'human'));
+  const candidate = await verifyTrackedGameForRejoin(store, {
+    getGameState: async () => new Response(JSON.stringify(gameState({
+      gameId: 'FIRST',
+      status: 'finished',
+      winner: 'human',
+      reason: 'decisive',
+      appliedCount: 0,
+    })), { status: 200 }),
+  });
+  assert(candidate === null);
+  assert(store.getSnapshot().currentCount === 1);
+  assert(store.getSnapshot().trackedGame?.status === 'settled');
+});
+
+Deno.test('retired and inaccessible records never produce rejoin candidates', async () => {
+  const retired = new WinStreakProfileStore(new FakeStorage(), serialRunner());
+  await retired.mutate((profile) => {
+    profile.currentCount = 3;
+    registerTrackedGameDraft(profile, 'RETIRED', 'human');
+    profile.trackedGame!.status = 'retired';
+    profile.trackedGame!.resultEligible = false;
+  });
+  let fetched = false;
+  assert(await verifyTrackedGameForRejoin(retired, {
+    getGameState: async () => {
+      fetched = true;
+      return new Response(null, { status: 200 });
+    },
+  }) === null);
+  assert(!fetched);
+
+  const inaccessible = new WinStreakProfileStore(new FakeStorage(), serialRunner());
+  await inaccessible.mutate((profile) => {
+    profile.currentCount = 3;
+    registerTrackedGameDraft(profile, 'MISSING', 'human');
+  });
+  assert(await verifyTrackedGameForRejoin(inaccessible, {
+    getGameState: async () => new Response(null, { status: 404 }),
+  }) === null);
+  assert(inaccessible.getSnapshot().trackedGame?.status === 'retired');
+  assert(inaccessible.getSnapshot().currentCount === 3);
 });
 
 Deno.test('recovered active creation is tracked before its result settles exactly once', async () => {

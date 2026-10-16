@@ -5,7 +5,7 @@ import {
   canSubmitInGameWinStreakReset,
   getInGameWinStreakResetAction,
   getMenuWinStreakResetAction,
-  getWinStreakWorkflowControls,
+  getWinStreakTabLayout,
   getWinStreakBonusCopy,
   resolveWinStreakSisterView,
   shouldShowWinStreakBonusDetail,
@@ -35,21 +35,6 @@ function gameVm(overrides: Partial<WinStreakGameViewModel> = {}): WinStreakGameV
       canSubmit: true,
       busy: false,
       retryAvailable: false,
-      error: null,
-    },
-    creation: {
-      status: 'idle',
-      busy: false,
-      error: null,
-      recoveryGameId: null,
-      requiresExplicitRelease: false,
-    },
-    unfinishedGame: {
-      status: 'none',
-      gameId: null,
-      rejoinUrl: null,
-      canRejoin: false,
-      canConfirmAbandonment: false,
       error: null,
     },
     ...overrides,
@@ -92,25 +77,7 @@ Deno.test('in-game eligibility requires canResign and reset actions remain disti
   assert(getMenuWinStreakResetAction({ onResetWinStreak: localReset }) === localReset);
 });
 
-Deno.test('workflow controls expose confirmation, recovery, retry, and deliberate release', () => {
-  const vm = gameVm();
-  const confirmation = getWinStreakWorkflowControls(vm.creation, {
-    ...vm.unfinishedGame,
-    status: 'confirmation_required',
-    gameId: 'GAME-1',
-    canRejoin: true,
-    canConfirmAbandonment: true,
-  });
-  assert(confirmation.showConfirm && confirmation.showRejoin);
-
-  const recovery = getWinStreakWorkflowControls({
-    ...vm.creation,
-    status: 'stale_success',
-    recoveryGameId: 'GAME-2',
-    requiresExplicitRelease: true,
-  }, vm.unfinishedGame);
-  assert(recovery.showRecovered && recovery.showRelease);
-
-  const retry = getWinStreakWorkflowControls({ ...vm.creation, status: 'error' }, vm.unfinishedGame);
-  assert(retry.showRetry);
+Deno.test('left rail selects restored two-tab spacing only when XW is absent', () => {
+  assert(getWinStreakTabLayout(false) === 'two-tab');
+  assert(getWinStreakTabLayout(true) === 'three-tab');
 });

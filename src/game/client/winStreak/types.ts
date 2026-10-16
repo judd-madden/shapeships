@@ -1,51 +1,15 @@
 export type WinStreakState = 'hidden' | 'active' | 'ended';
 
-export type WinStreakCreationStatus =
-  | 'idle'
-  | 'reconciling'
-  | 'reserved'
-  | 'creating'
-  | 'ambiguous'
-  | 'stale_success'
-  | 'error';
-
-export type WinStreakUnfinishedStatus =
-  | 'none'
-  | 'known_unfinished'
-  | 'reconciling'
-  | 'confirmation_required'
-  | 'inaccessible'
-  | 'restart_recovery'
-  | 'error';
-
-export interface WinStreakUnfinishedGameViewModel {
-  status: WinStreakUnfinishedStatus;
-  gameId: string | null;
-  rejoinUrl: string | null;
-  canRejoin: boolean;
-  canConfirmAbandonment: boolean;
-  error: string | null;
-}
-
-export interface WinStreakCreationViewModel {
-  status: WinStreakCreationStatus;
-  busy: boolean;
-  error: string | null;
-  recoveryGameId: string | null;
-  requiresExplicitRelease: boolean;
-}
-
 export interface WinStreakMenuViewModel {
   currentCount: number;
   displayCount: number;
   streakState: WinStreakState;
   shouldShowContent: boolean;
-  creation: WinStreakCreationViewModel;
   reset: {
     busy: boolean;
     error: string | null;
   };
-  unfinishedGame: WinStreakUnfinishedGameViewModel;
+  rejoinCandidate: { gameId: string } | null;
 }
 
 export interface WinStreakGameViewModel {
@@ -66,18 +30,12 @@ export interface WinStreakGameViewModel {
     retryAvailable: boolean;
     error: string | null;
   };
-  creation: WinStreakCreationViewModel;
-  unfinishedGame: WinStreakUnfinishedGameViewModel;
 }
 
 export interface WinStreakMenuActions {
   onResetWinStreak: () => Promise<void>;
-  onConfirmWinStreakAbandonment: () => Promise<string | null>;
-  onCancelWinStreakAbandonment: () => void;
-  onRetryWinStreakReconciliation: () => Promise<string | null>;
+  onEnterPlayComputer: () => void;
   onRejoinTrackedGame: () => void;
-  onReleaseAmbiguousWinStreakCreation: () => Promise<void>;
-  onRejoinRecoveredCreatedGame: () => Promise<void>;
 }
 
 export interface WinStreakTrackedGame {

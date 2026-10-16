@@ -102,22 +102,6 @@ async function reserve(store: WinStreakProfileStore, kind: 'create' | 'rematch',
   return result.reservation;
 }
 
-const emptyCreation = {
-  status: 'idle' as const,
-  busy: false,
-  error: null,
-  recoveryGameId: null,
-  requiresExplicitRelease: false,
-};
-const emptyUnfinished = {
-  status: 'none' as const,
-  gameId: null,
-  rejoinUrl: null,
-  canRejoin: false,
-  canConfirmAbandonment: false,
-  error: null,
-};
-
 Deno.test('positive ordinary loss saves ended streak atomically and duplicate settlement is inert', async () => {
   const store = await seededStore(5);
   const loss = projectAuthoritativeWinStreakGame(state({
@@ -271,14 +255,14 @@ Deno.test('ended game presentation is scoped to its game and explicit reset prev
   await observeAuthoritativeWinStreakGame(store, loss, { allowDiscovery: false });
   const matching = deriveWinStreakGameViewModel({
     profile: store.getSnapshot(), game: loss, resetBusy: false, resetError: null,
-    resetRetryAvailable: false, creation: emptyCreation, unfinishedGame: emptyUnfinished,
+    resetRetryAvailable: false,
   });
   assert(matching.streakState === 'ended' && matching.displayCount === 5);
   const unrelated = projectAuthoritativeWinStreakGame(state({ gameId: 'OTHER' }), 'human');
   assert(unrelated);
   const hidden = deriveWinStreakGameViewModel({
     profile: store.getSnapshot(), game: unrelated, resetBusy: false, resetError: null,
-    resetRetryAvailable: false, creation: emptyCreation, unfinishedGame: emptyUnfinished,
+    resetRetryAvailable: false,
   });
   assert(hidden.streakState === 'hidden');
   await resetWinStreakFromMenu(store);
@@ -292,7 +276,7 @@ Deno.test('in-game reset eligibility requires unfinished source without restart 
   assert(active);
   const activeVm = deriveWinStreakGameViewModel({
     profile: store.getSnapshot(), game: active, resetBusy: false, resetError: null,
-    resetRetryAvailable: false, creation: emptyCreation, unfinishedGame: emptyUnfinished,
+    resetRetryAvailable: false,
   });
   assert(activeVm.reset.canSubmit);
 
@@ -309,7 +293,7 @@ Deno.test('in-game reset eligibility requires unfinished source without restart 
     assert(recovering);
     const recoveryVm = deriveWinStreakGameViewModel({
       profile: store.getSnapshot(), game: recovering, resetBusy: false, resetError: null,
-      resetRetryAvailable: false, creation: emptyCreation, unfinishedGame: emptyUnfinished,
+      resetRetryAvailable: false,
     });
     assert(!recoveryVm.reset.canSubmit);
   }
@@ -318,7 +302,7 @@ Deno.test('in-game reset eligibility requires unfinished source without restart 
   assert(finished);
   const finishedVm = deriveWinStreakGameViewModel({
     profile: store.getSnapshot(), game: finished, resetBusy: false, resetError: null,
-    resetRetryAvailable: false, creation: emptyCreation, unfinishedGame: emptyUnfinished,
+    resetRetryAvailable: false,
   });
   assert(!finishedVm.reset.canSubmit);
 });

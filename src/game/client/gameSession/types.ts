@@ -1035,12 +1035,6 @@ export interface GameSessionActions {
   onRematch: () => void;
   onResetWinStreak: () => Promise<void>;
   onRetryWinStreakReset: () => Promise<void>;
-  onConfirmWinStreakAbandonment: () => Promise<void>;
-  onCancelWinStreakAbandonment: () => void;
-  onRetryWinStreakReconciliation: () => Promise<void>;
-  onRejoinTrackedGame: () => void;
-  onReleaseAmbiguousWinStreakCreation: () => Promise<void>;
-  onRejoinRecoveredCreatedGame: () => Promise<void>;
   onJoinRematchInvite?: (gameId: string) => void;
   onDownloadBattleLog: () => void;
   onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void;

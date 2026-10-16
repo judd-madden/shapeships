@@ -46,6 +46,7 @@ import {
   projectAuthoritativeWinStreakGame,
 } from './winStreak/authoritative';
 import { useWinStreakGame } from './winStreak/useWinStreakGame';
+import { WIN_STREAK_RECONCILIATION_TIMEOUT_MS } from './winStreak/workflow';
 import { getMajorPhaseLabel, getSubphaseLabelFromPhaseKey } from './gameSession/phaseLabels';
 import {
   findPlayerByIdentity,
@@ -6447,7 +6448,10 @@ useEffect(() => {
       await enqueueWinStreakObservation(rawStateRef.current, false);
       await winStreakSettlementQueueRef.current;
     },
-    getGameState: (trackedGameId) => authenticatedGet(`/game-state/${trackedGameId}`),
+    getGameState: (trackedGameId) => authenticatedGet(
+      `/game-state/${trackedGameId}`,
+      WIN_STREAK_RECONCILIATION_TIMEOUT_MS,
+    ),
     createBotRematch: (sourceGameId, winStreakCount) =>
       authenticatedPost(`/new-game-from/${sourceGameId}`, { winStreakCount }),
     resetWinStreak: (sourceGameId) =>
@@ -7506,18 +7510,6 @@ useEffect(() => {
 
     onRetryWinStreakReset: winStreakGame.actions.resetWinStreak,
 
-    onConfirmWinStreakAbandonment: winStreakGame.actions.confirmAbandonment,
-
-    onCancelWinStreakAbandonment: winStreakGame.actions.cancelAbandonment,
-
-    onRetryWinStreakReconciliation: winStreakGame.actions.retryReconciliation,
-
-    onRejoinTrackedGame: winStreakGame.actions.rejoinTrackedGame,
-
-    onReleaseAmbiguousWinStreakCreation: winStreakGame.actions.releaseAmbiguousCreation,
-
-    onRejoinRecoveredCreatedGame: winStreakGame.actions.recoverCreatedGame,
-
     onJoinRematchInvite: handleJoinRematchInvite,
     
     onDownloadBattleLog: () => {
@@ -8343,12 +8335,6 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       onRematch: () => {},
       onResetWinStreak: async () => {},
       onRetryWinStreakReset: async () => {},
-      onConfirmWinStreakAbandonment: async () => {},
-      onCancelWinStreakAbandonment: () => {},
-      onRetryWinStreakReconciliation: async () => {},
-      onRejoinTrackedGame: () => {},
-      onReleaseAmbiguousWinStreakCreation: async () => {},
-      onRejoinRecoveredCreatedGame: async () => {},
       onDownloadBattleLog: () => { },
       onSelectShipChoiceForInstance: () => { },
       onCastAncientSolarPower: () => { },

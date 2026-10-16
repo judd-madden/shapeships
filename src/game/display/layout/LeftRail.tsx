@@ -21,6 +21,7 @@ import { WinStreakPanelContent } from '../winStreak/WinStreakContent';
 import {
   canSubmitInGameWinStreakReset,
   getInGameWinStreakResetAction,
+  getWinStreakTabLayout,
   resolveWinStreakSisterView,
   shouldShowWinStreakContent,
   type WinStreakSisterView,
@@ -130,6 +131,7 @@ export function LeftRail({
   const firstTurnBuildHelperDismissTimeoutRef = useRef<number | null>(null);
   const previousIsFinishedRef = useRef(isFinished);
   const showWinStreak = shouldShowWinStreakContent(winStreak);
+  const winStreakTabLayout = getWinStreakTabLayout(showWinStreak);
 
   useEffect(() => {
     setSelectedSisterView((current) => resolveWinStreakSisterView(current, showWinStreak));
@@ -529,8 +531,12 @@ export function LeftRail({
               : `top ${BATTLE_LOG_TRANSITION_MS}ms ease-out, bottom ${BATTLE_LOG_TRANSITION_MS}ms ease-out`,
         }}
       >
-        <div className="flex h-[48px] shrink-0 items-center justify-between px-[12px]">
-          <div className="flex min-w-0 items-center gap-[8px]">
+        <div className={`flex h-[48px] shrink-0 items-center justify-between ${
+          winStreakTabLayout === 'two-tab' ? 'px-[18px]' : 'px-[12px]'
+        }`}>
+          <div className={`flex min-w-0 items-center ${
+            winStreakTabLayout === 'two-tab' ? 'gap-[18px]' : 'gap-[8px]'
+          }`}>
             <button
               type="button"
               className={`text-[16px] font-bold ${

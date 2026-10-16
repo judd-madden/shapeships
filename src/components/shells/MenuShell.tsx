@@ -9,7 +9,7 @@
  * If player is missing, it returns null (parent handles state management).
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MultiplayerPanel } from '../panels/MultiplayerPanel';
 import { RulesPanel } from '../panels/RulesPanel';
 import { LorePanel } from '../panels/lore/LorePanel';
@@ -24,7 +24,6 @@ import {
 import type { WinStreakMenuActions, WinStreakMenuViewModel } from '../../game/client/winStreak/types';
 import { GameMenuButton } from '../ui/primitives/buttons/GameMenuButton';
 import { WinStreakBadge } from '../../game/display/winStreak/WinStreakContent';
-import { WinStreakWorkflowFeedback } from '../../game/display/winStreak/WinStreakWorkflowFeedback';
 import { getMenuWinStreakResetAction, shouldShowWinStreakContent } from '../../game/display/winStreak/winStreakPresentation';
 
 interface MenuShellProps {
@@ -33,7 +32,7 @@ interface MenuShellProps {
   onLogout: () => void;
   onGameCreated: (gameId: string) => void;
   onCreatePrivateGame: (settings: CreatePrivateGameSettings) => Promise<string>;
-  onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<string | null>;
+  onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<string>;
   user: any;
   player: any;
   alphaDisableAuth: boolean;
@@ -59,11 +58,19 @@ export function MenuShell({
   const [activePanel, setActivePanel] = useState<ActivePanel>('multiplayer');
   const [, setIsCreating] = useState(false);
   const [isLoreUnread, setIsLoreUnread] = useState(() => readLoreUnread());
+  const onEnterPlayComputerRef = useRef(winStreakActions.onEnterPlayComputer);
+  onEnterPlayComputerRef.current = winStreakActions.onEnterPlayComputer;
 
   useEffect(() => {
     if (activePanel !== 'lore') return;
     clearLoreUnread();
     setIsLoreUnread(false);
+  }, [activePanel]);
+
+  useEffect(() => {
+    if (activePanel === 'playComputer') {
+      onEnterPlayComputerRef.current();
+    }
   }, [activePanel]);
 
   // SESSION INVARIANT GUARD:
@@ -98,7 +105,7 @@ export function MenuShell({
     setIsCreating(true);
     try {
       const gameId = await onCreateComputerGame(settings);
-      if (gameId) onGameCreated(gameId);
+      onGameCreated(gameId);
     } catch (error: any) {
       console.error('Failed to create computer game:', error);
       throw error;
@@ -315,14 +322,18 @@ export function MenuShell({
                     ) : null}
                   </div>
                 ) : undefined}
-                subheadingAccessory={(
-                  <WinStreakWorkflowFeedback
-                    creation={winStreakViewModel.creation}
-                    unfinishedGame={winStreakViewModel.unfinishedGame}
-                    actions={winStreakActions}
-                    showUnfinishedNotice
-                  />
-                )}
+                subheadingAccessory={winStreakViewModel.rejoinCandidate ? (
+                  <p className="max-w-full text-[15px] font-medium text-[var(--shapeships-pastel-red)] sm:text-[20px]">
+                    <button
+                      type="button"
+                      className="underline hover:opacity-80"
+                      onClick={winStreakActions.onRejoinTrackedGame}
+                    >
+                      REJOIN CURRENT GAME: {winStreakViewModel.rejoinCandidate.gameId}.
+                    </button>{' '}
+                    Starting a new game now will reset your Win Streak.
+                  </p>
+                ) : undefined}
               />
             )}
           </div>

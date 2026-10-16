@@ -17,7 +17,7 @@ interface ScreenManagerProps {
   initialShell: ShellId;
   pendingInviteGameId: string | null;
   onCreatePrivateGame: (settings: CreatePrivateGameSettings) => Promise<string>;
-  onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<string | null>;
+  onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<string>;
   onLaunchGame: (gameId: string) => void;
   onResetPlayerSession: () => void;
   onStartSession: (displayName: string) => Promise<void>;

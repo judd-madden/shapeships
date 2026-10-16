@@ -1,4 +1,3 @@
-import { buildShareGameUrl } from '../config';
 import {
   observeAuthoritativeWinStreakGame,
   projectAuthoritativeWinStreakGame,
@@ -10,16 +9,16 @@ import {
 import type { WinStreakProfileStore } from './profile';
 import type {
   WinStreakCreationReservation,
-  WinStreakCreationViewModel,
   WinStreakProfile,
   WinStreakTrackedGame,
-  WinStreakUnfinishedGameViewModel,
 } from './types';
+
+export const WIN_STREAK_RECONCILIATION_TIMEOUT_MS = 8_000;
+export const WIN_STREAK_CREATION_RESERVATION_LEASE_MS = 30_000;
 
 export interface ReconcileTransport {
   getGameState(gameId: string): Promise<Response>;
 }
-
 export interface WinStreakCreationPreflight {
   generation: number;
   trackedGameId: string | null;
@@ -30,8 +29,8 @@ export type ReconcileResult =
   | { kind: 'clear'; preflight: WinStreakCreationPreflight }
   | { kind: 'unfinished'; game: AuthoritativeWinStreakGame; preflight: WinStreakCreationPreflight }
   | { kind: 'inaccessible'; gameId: string; error: string; preflight: WinStreakCreationPreflight }
-  | { kind: 'restart'; game: AuthoritativeWinStreakGame }
-  | { kind: 'error'; gameId: string; error: string }
+  | { kind: 'restart'; game: AuthoritativeWinStreakGame; preflight: WinStreakCreationPreflight }
+  | { kind: 'error'; gameId: string; error: string; preflight: WinStreakCreationPreflight }
   | { kind: 'stale' };
 
 function creationPreflight(profile: WinStreakProfile): WinStreakCreationPreflight {
@@ -66,6 +65,40 @@ function responseMessage(status: number): string {
   return `Unable to reconcile the tracked game (HTTP ${status}).`;
 }
 
+function getControllers(state: any): Record<string, { kind?: string }> {
+  const root = state?.controllersByPlayerId;
+  const projected = state?.publicState?.controllersByPlayerId;
+  return {
+    ...(root && typeof root === 'object' ? root : {}),
+    ...(projected && typeof projected === 'object' ? projected : {}),
+  };
+}
+
+function projectStrictTrackedGame(
+  state: unknown,
+  tracked: WinStreakTrackedGame,
+): AuthoritativeWinStreakGame | null {
+  const raw = state as any;
+  if (raw?.gameId !== tracked.gameId || raw?.requester?.playerId !== tracked.humanPlayerId) {
+    return null;
+  }
+  const controllers = getControllers(raw);
+  const humanIds = Object.keys(controllers).filter((id) => controllers[id]?.kind === 'human');
+  const botIds = Object.keys(controllers).filter((id) => controllers[id]?.kind === 'bot');
+  if (humanIds.length !== 1 || humanIds[0] !== tracked.humanPlayerId || botIds.length !== 1) {
+    return null;
+  }
+  const players = Array.isArray(raw?.publicState?.players)
+    ? raw.publicState.players
+    : Array.isArray(raw?.players)
+      ? raw.players
+      : [];
+  if (!players.some((player: any) => player?.id === botIds[0] && player?.role === 'player')) {
+    return null;
+  }
+  return projectAuthoritativeWinStreakGame(raw, tracked.humanPlayerId);
+}
+
 export async function reconcileTrackedWinStreakGame(
   store: WinStreakProfileStore,
   transport: ReconcileTransport,
@@ -77,7 +110,12 @@ export async function reconcileTrackedWinStreakGame(
     reservation: profile.creationReservation,
   }));
   if (captured.reservation) {
-    return { kind: 'error', gameId: captured.trackedGame?.gameId ?? '', error: 'A bot-game creation request is already reserved.' };
+    return {
+      kind: 'error',
+      gameId: captured.trackedGame?.gameId ?? '',
+      error: 'A bot-game creation request is already reserved.',
+      preflight: captured.preflight,
+    };
   }
   const tracked = captured.trackedGame;
   if (
@@ -86,7 +124,7 @@ export async function reconcileTrackedWinStreakGame(
   ) {
     return { kind: 'stale' };
   }
-  if (!tracked || tracked.status === 'settled') {
+  if (!tracked || tracked.status !== 'unfinished' || !tracked.resultEligible) {
     return { kind: 'clear', preflight: captured.preflight };
   }
 
@@ -98,6 +136,7 @@ export async function reconcileTrackedWinStreakGame(
       kind: 'error',
       gameId: tracked.gameId,
       error: error instanceof Error ? error.message : 'Unable to reconcile the tracked game.',
+      preflight: captured.preflight,
     };
   }
 
@@ -111,18 +150,28 @@ export async function reconcileTrackedWinStreakGame(
     const error = responseMessage(response.status);
     return response.status === 401 || response.status === 403 || response.status === 404
       ? { kind: 'inaccessible', gameId: tracked.gameId, error, preflight: captured.preflight }
-      : { kind: 'error', gameId: tracked.gameId, error };
+      : { kind: 'error', gameId: tracked.gameId, error, preflight: captured.preflight };
   }
 
   let state: unknown;
   try {
     state = await response.json();
   } catch {
-    return { kind: 'error', gameId: tracked.gameId, error: 'The tracked game returned malformed state.' };
+    return {
+      kind: 'error',
+      gameId: tracked.gameId,
+      error: 'The tracked game returned malformed state.',
+      preflight: captured.preflight,
+    };
   }
-  const game = projectAuthoritativeWinStreakGame(state, tracked.humanPlayerId);
+  const game = projectStrictTrackedGame(state, tracked);
   if (!game || game.gameId !== tracked.gameId || game.humanPlayerId !== tracked.humanPlayerId) {
-    return { kind: 'error', gameId: tracked.gameId, error: 'The tracked game identity could not be validated.' };
+    return {
+      kind: 'error',
+      gameId: tracked.gameId,
+      error: 'The tracked game identity could not be validated.',
+      preflight: captured.preflight,
+    };
   }
   const associationStillCurrent = await store.inspect((profile) =>
     matchesPreflight(profile, captured.preflight) &&
@@ -130,7 +179,7 @@ export async function reconcileTrackedWinStreakGame(
   );
   if (!associationStillCurrent) return { kind: 'stale' };
   if (game.resultReason === 'restart' || game.restartLifecycle?.kind === 'source') {
-    return { kind: 'restart', game };
+    return { kind: 'restart', game, preflight: captured.preflight };
   }
   if (game.status === 'finished') {
     const observed = await observeAuthoritativeWinStreakGame(store, game, {
@@ -142,6 +191,14 @@ export async function reconcileTrackedWinStreakGame(
     return settledPreflight.trackedGameId === tracked.gameId
       ? { kind: 'clear', preflight: settledPreflight }
       : { kind: 'stale' };
+  }
+  if (game.status !== 'active') {
+    return {
+      kind: 'error',
+      gameId: tracked.gameId,
+      error: 'The tracked game did not return an active or finished status.',
+      preflight: captured.preflight,
+    };
   }
   return { kind: 'unfinished', game, preflight: captured.preflight };
 }
@@ -193,27 +250,207 @@ export async function reserveBotGameCreation(
   });
 }
 
-export async function reserveAfterConfirmedAbandonment(
+async function retireAndReserveBotGameCreation(
   store: WinStreakProfileStore,
   kind: 'create' | 'rematch',
   sourceGameId: string | null,
-  confirmedGameId: string,
+  trackedGameId: string,
   preflight: WinStreakCreationPreflight,
+  resetCount: boolean,
 ): Promise<CreationReservationResult> {
   return store.mutate((profile) => {
     if (
       !matchesPreflight(profile, preflight) ||
-      profile.trackedGame?.gameId !== confirmedGameId
+      profile.trackedGame?.gameId !== trackedGameId
     ) {
       return { kind: 'stale' };
     }
     if (profile.creationReservation) return { kind: 'blocked' };
     retireTrackedGameDraft(profile);
-    profile.currentCount = 0;
+    if (resetCount) profile.currentCount = 0;
     const reservation = makeCreationReservation(profile, kind, sourceGameId);
     profile.creationReservation = reservation;
     return { kind: 'reserved', reservation };
   });
+}
+
+async function resolvePersistedCreationReservation(
+  store: WinStreakProfileStore,
+  transport: ReconcileTransport,
+  activeReservationToken: string | null,
+): Promise<{ kind: 'clear' } | { kind: 'blocked'; error: string }> {
+  const reservation = await store.inspect((profile) =>
+    profile.creationReservation ? { ...profile.creationReservation } : null
+  );
+  if (!reservation) return { kind: 'clear' };
+  if (reservation.token === activeReservationToken) {
+    return { kind: 'blocked', error: 'A bot-game creation request is already in progress.' };
+  }
+
+  if (reservation.status === 'stale_success' && reservation.recoveryGameId) {
+    await recoverCreatedBotGame(store, transport);
+    const remains = await store.inspect((profile) => profile.creationReservation?.token === reservation.token);
+    if (!remains) return { kind: 'clear' };
+  }
+
+  const reservationAgeMs = Date.now() - reservation.createdAtMs;
+  const leased =
+    (reservation.status === 'reserved' || reservation.status === 'creating') &&
+    reservationAgeMs >= 0 &&
+    reservationAgeMs < WIN_STREAK_CREATION_RESERVATION_LEASE_MS;
+  if (leased) {
+    return { kind: 'blocked', error: 'A bot-game creation request is already in progress.' };
+  }
+
+  // This is a new deliberate attempt. Never replay the earlier non-idempotent request.
+  await store.mutate((profile) => {
+    if (profile.creationReservation?.token === reservation.token) {
+      profile.creationReservation = null;
+    }
+  });
+  return { kind: 'clear' };
+}
+
+export type PrepareBotGameCreationResult =
+  | { kind: 'reserved'; reservation: WinStreakCreationReservation }
+  | { kind: 'blocked'; error: string }
+  | { kind: 'error'; error: string };
+
+export async function prepareBotGameCreation(args: {
+  store: WinStreakProfileStore;
+  transport: ReconcileTransport;
+  kind: 'create' | 'rematch';
+  sourceGameId: string | null;
+  activeReservationToken?: string | null;
+}): Promise<PrepareBotGameCreationResult> {
+  const existing = await resolvePersistedCreationReservation(
+    args.store,
+    args.transport,
+    args.activeReservationToken ?? null,
+  );
+  if (existing.kind === 'blocked') return existing;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const reconciled = await reconcileTrackedWinStreakGame(args.store, args.transport);
+    if (reconciled.kind === 'stale') continue;
+
+    if (reconciled.kind === 'clear') {
+      const reserved = await reserveBotGameCreation(
+        args.store,
+        args.kind,
+        args.sourceGameId,
+        reconciled.preflight,
+      );
+      if (reserved.kind === 'reserved') return reserved;
+      if (reserved.kind === 'stale') continue;
+      return { kind: 'blocked', error: 'A bot-game creation request is already in progress.' };
+    }
+
+    const resetCount = reconciled.kind === 'unfinished';
+    const trackedGameId = reconciled.kind === 'unfinished'
+      ? reconciled.game.gameId
+      : reconciled.kind === 'restart'
+        ? reconciled.game.gameId
+        : reconciled.gameId;
+    const reserved = await retireAndReserveBotGameCreation(
+      args.store,
+      args.kind,
+      args.sourceGameId,
+      trackedGameId,
+      reconciled.preflight,
+      resetCount,
+    );
+    if (reserved.kind === 'reserved') return reserved;
+    if (reserved.kind === 'stale') continue;
+    return { kind: 'blocked', error: 'A bot-game creation request is already in progress.' };
+  }
+
+  return { kind: 'error', error: 'The win-streak profile changed during reconciliation. Please retry.' };
+}
+
+export async function verifyTrackedGameForRejoin(
+  store: WinStreakProfileStore,
+  transport: ReconcileTransport,
+): Promise<{ gameId: string } | null> {
+  const captured = await store.inspect((profile) => ({
+    generation: profile.generation,
+    currentCount: profile.currentCount,
+    trackedGame: profile.trackedGame ? { ...profile.trackedGame } : null,
+    hasReservation: profile.creationReservation != null,
+  }));
+  const tracked = captured.trackedGame;
+  if (
+    captured.hasReservation ||
+    !tracked ||
+    tracked.status !== 'unfinished' ||
+    !tracked.resultEligible
+  ) {
+    return null;
+  }
+
+  let response: Response;
+  try {
+    response = await transport.getGameState(tracked.gameId);
+  } catch {
+    response = new Response(null, { status: 503 });
+  }
+
+  const retireIfCurrent = async () => {
+    await store.mutate((profile) => {
+      if (
+        profile.generation === captured.generation &&
+        profile.trackedGame?.gameId === tracked.gameId &&
+        profile.trackedGame.status === 'unfinished' &&
+        profile.trackedGame.resultEligible
+      ) {
+        retireTrackedGameDraft(profile);
+      }
+    });
+  };
+
+  if (!response.ok) {
+    await retireIfCurrent();
+    return null;
+  }
+  const state = await response.json().catch(() => null);
+  const game = projectStrictTrackedGame(state, tracked);
+  if (!game) {
+    await retireIfCurrent();
+    return null;
+  }
+  const stillCurrent = await store.inspect((profile) =>
+    profile.generation === captured.generation &&
+    profile.trackedGame?.gameId === tracked.gameId &&
+    profile.trackedGame.status === 'unfinished' &&
+    profile.trackedGame.resultEligible
+  );
+  if (!stillCurrent) return null;
+
+  if (game.status === 'finished') {
+    await observeAuthoritativeWinStreakGame(store, game, {
+      allowDiscovery: false,
+      expectedGeneration: captured.generation,
+    });
+    return null;
+  }
+  if (
+    game.status !== 'active' ||
+    captured.currentCount <= 0 ||
+    game.appliedBonusCount !== captured.currentCount ||
+    game.appliedBonusRecipientPlayerId !== game.botPlayerId
+  ) {
+    await retireIfCurrent();
+    return null;
+  }
+  return { gameId: tracked.gameId };
+}
+
+export function visibleRejoinCandidate(
+  currentCount: number,
+  candidate: { gameId: string } | null,
+  creationHandoff: boolean,
+): { gameId: string } | null {
+  return currentCount > 0 && !creationHandoff ? candidate : null;
 }
 
 export async function markBotGameCreationStarted(
@@ -534,46 +771,4 @@ export async function completeWinStreakRestart(
     registerTrackedGameDraft(profile, replacementGameId, humanPlayerId);
     return 'registered';
   });
-}
-
-export function creationViewModelFromReservation(
-  reservation: WinStreakCreationReservation | null,
-  localStatus: WinStreakCreationViewModel['status'] = 'idle',
-  localError: string | null = null,
-  activeReservationToken: string | null = null,
-): WinStreakCreationViewModel {
-  const isLocallyActive = reservation?.token === activeReservationToken;
-  const status = reservation?.status === 'reserved'
-    ? isLocallyActive ? 'reserved' : 'ambiguous'
-    : reservation?.status === 'creating'
-      ? isLocallyActive ? 'creating' : 'ambiguous'
-    : reservation?.status === 'ambiguous'
-      ? 'ambiguous'
-      : reservation?.status === 'stale_success'
-        ? 'stale_success'
-        : localStatus;
-  return {
-    status,
-    busy: status === 'reconciling' || status === 'reserved' || status === 'creating',
-    error: localError ?? reservation?.error ?? null,
-    recoveryGameId: reservation?.recoveryGameId ?? null,
-    requiresExplicitRelease:
-      status === 'creating' || status === 'ambiguous' || status === 'stale_success',
-  };
-}
-
-export function unfinishedViewModel(args: {
-  status: WinStreakUnfinishedGameViewModel['status'];
-  gameId: string | null;
-  error?: string | null;
-  canConfirm?: boolean;
-}): WinStreakUnfinishedGameViewModel {
-  return {
-    status: args.status,
-    gameId: args.gameId,
-    rejoinUrl: args.gameId ? buildShareGameUrl(args.gameId) : null,
-    canRejoin: Boolean(args.gameId),
-    canConfirmAbandonment: args.canConfirm === true,
-    error: args.error ?? null,
-  };
 }
