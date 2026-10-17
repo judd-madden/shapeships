@@ -306,7 +306,7 @@ export function MenuShell({
                 primaryActionLabel="PLAY COMPUTER"
                 primaryActionStyle="emphasisWhite"
                 headingAccessory={shouldShowWinStreakContent(winStreakViewModel) ? (
-                  <div className="flex max-w-full flex-col items-start gap-[16px] sm:flex-row sm:items-center">
+                  <div className="flex max-w-full gap-[24px] flex-row items-center">
                     <WinStreakBadge vm={winStreakViewModel} />
                     {winStreakViewModel.streakState === 'active' ? (
                       <GameMenuButton

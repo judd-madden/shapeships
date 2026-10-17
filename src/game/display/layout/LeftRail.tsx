@@ -535,11 +535,22 @@ export function LeftRail({
           winStreakTabLayout === 'two-tab' ? 'px-[18px]' : 'px-[12px]'
         }`}>
           <div className={`flex min-w-0 items-center ${
-            winStreakTabLayout === 'two-tab' ? 'gap-[18px]' : 'gap-[8px]'
+            winStreakTabLayout === 'two-tab' ? 'gap-[18px]' : 'gap-[12px]'
           }`}>
+            {showWinStreak ? (
+              <button
+                type="button"
+                className={`shrink-0 text-[16px] font-bold hover:underline cursor-pointer transition-opacity ${
+                  selectedSisterView === 'winStreak' ? 'text-white' : 'text-[var(--shapeships-pastel-green)]'
+                }`}
+                onClick={() => handleSisterViewSelect('winStreak')}
+              >
+                {winStreak.displayCount}W
+              </button>
+            ) : null}
             <button
               type="button"
-              className={`text-[16px] font-bold ${
+              className={`text-[16px] font-bold hover:underline cursor-pointer ${
                 selectedSisterView === 'turnPhases'
                   ? 'text-[var(--shapeships-white)]'
                   : 'text-[var(--shapeships-grey-50)]'
@@ -550,7 +561,7 @@ export function LeftRail({
             </button>
             <button
               type="button"
-              className={`text-[16px] font-bold ${
+              className={`text-[16px] font-bold hover:underline cursor-pointer ${
                 selectedSisterView === 'battleLog'
                   ? 'text-[var(--shapeships-white)]'
                   : 'text-[var(--shapeships-grey-50)]'
@@ -562,17 +573,6 @@ export function LeftRail({
                 ? ` (${vm.battleLogCompletedTurnCount})`
                 : null}
             </button>
-            {showWinStreak ? (
-              <button
-                type="button"
-                className={`shrink-0 text-[16px] font-bold text-[var(--shapeships-pastel-green)] transition-opacity ${
-                  selectedSisterView === 'winStreak' ? 'opacity-100' : 'opacity-60'
-                }`}
-                onClick={() => handleSisterViewSelect('winStreak')}
-              >
-                {winStreak.displayCount}W
-              </button>
-            ) : null}
           </div>
           {selectedSisterView === 'battleLog' ? (
             <button

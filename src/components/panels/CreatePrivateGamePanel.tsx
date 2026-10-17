@@ -182,7 +182,7 @@ export function CreatePrivateGamePanel({
   return (
     <div className="content-stretch flex w-full flex-col gap-[20px] sm:gap-[30px] 2xl:gap-[50px]">
       <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[16px] leading-[normal]">
-        <div className="flex max-w-full flex-col items-start gap-[16px] sm:flex-row sm:items-center sm:gap-[60px]">
+        <div className="flex w-full flex-col items-start gap-[16px] sm:flex-row sm:justify-between sm:gap-[60px]">
           <p
             className="text-[24px] font-black leading-[normal] sm:text-[36px]"
           >
@@ -216,7 +216,7 @@ export function CreatePrivateGamePanel({
                 : 'pointer-events-none max-h-0 overflow-hidden opacity-0 sm:max-h-none sm:overflow-visible sm:opacity-[20%]',
             ].join(' ')}
           >
-            <div className="grid w-full max-w-[560px] grid-cols-2 gap-x-[8px] gap-y-[8px] sm:gap-x-[14px] sm:gap-y-[24px] overflow-visible min-[520px]:grid-cols-2 2xl:max-w-[722px] 2xl:grid-cols-4">
+            <div className="grid w-full max-w-[560px] grid-cols-2 gap-x-[8px] gap-y-[8px] sm:gap-x-[14px] sm:gap-y-[24px] overflow-visible min-[520px]:grid-cols-2 2xl:max-w-full 2xl:grid-cols-4">
               {TIMER_PRESETS.map((preset) => (
                 <TimerPresetButton
                   key={preset.key}

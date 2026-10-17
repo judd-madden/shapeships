@@ -167,7 +167,7 @@ export function MobileMenuTakeover({
             />
           </div>
         {shouldShowWinStreakContent(winStreak) ? (
-          <div className="w-full border-t-2 border-[var(--shapeships-grey-70)] px-[18px] py-[24px]">
+          <div className="w-full border-t-1 border-[var(--shapeships-grey-70)] px-[18px] pt-[20px] pb-[24px]">
             <WinStreakPanelContent
               vm={winStreak}
               canReset={canSubmitInGameWinStreakReset(winStreak, vm.canResign)}

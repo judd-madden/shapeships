@@ -411,10 +411,9 @@ function BreakdownSection({
       {section.streakBonusCount ? (
         <div className="mb-[8px]">
           <div className="flex items-center justify-between gap-[8px] text-[14px] font-black leading-[16px]">
-            <span className="text-white">{section.streakBonusCount} WIN STREAK</span>
-            <span className="text-[var(--shapeships-pastel-green)]">{section.streakBonusCount}W</span>
+            <span className="text-[var(--shapeships-pastel-green)]">{section.streakBonusCount} WIN STREAK</span>
           </div>
-          <p className="mt-[4px] text-[12px] font-medium leading-[15px] text-[var(--shapeships-pastel-red)]">
+          <p className="mt-[4px] text-[12px] font-medium leading-[15px] text-white">
             Computer opponent gains {section.streakBonusCount} bonus {section.streakBonusCount === 1 ? 'line' : 'lines'} at the start of the game.
           </p>
         </div>

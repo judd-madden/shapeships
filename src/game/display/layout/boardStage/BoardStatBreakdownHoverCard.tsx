@@ -251,14 +251,11 @@ export function BoardStatBreakdownHoverCard({
             {content.kind === 'win_streak' ? (
               <div className="flex flex-col">
                 <div className="flex items-center justify-between gap-[12px]">
-                  <h3 className="text-[20px] font-black leading-[22px] text-white">
+                  <h3 className="text-[20px] font-black leading-[22px] text-[var(--shapeships-pastel-green)]">
                     {content.count} WIN STREAK
                   </h3>
-                  <span className="shrink-0 text-[20px] font-black leading-[22px] text-[var(--shapeships-pastel-green)]">
-                    {content.count}W
-                  </span>
                 </div>
-                <p className="mt-[8px] text-[16px] font-medium leading-[20px] text-[var(--shapeships-pastel-red)]">
+                <p className="mt-[8px] text-[16px] font-medium leading-[20px] text-white">
                   Computer opponent gains {content.count} bonus {content.count === 1 ? 'line' : 'lines'} at the start of the game.
                 </p>
                 {content.rows.length > 0 ? (
