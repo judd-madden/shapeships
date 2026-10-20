@@ -9,7 +9,6 @@ import type {
   TurnPhasePresentationVm,
   TurnPhaseVm,
 } from '../../client/useGameSession';
-import { toSpeciesKey } from '../layout/boardStage/FleetArea';
 import { MobileDiceModifierSlots } from './MobileDiceModifierSlots';
 import { TurnPhaseStatusStrip } from '../shared/TurnPhaseStatusStrip';
 import { ClockWithIncrement } from '../shared/ClockWithIncrement';
@@ -119,14 +118,8 @@ export function MobileStatusRail({
   onHealthToggle,
   onStatsToggle,
 }: MobileStatusRailProps) {
-  const opponentDisplayedBonus =
-    toSpeciesKey(boardVm.opponentSpeciesId) === 'centaur'
-      ? boardVm.opponentBonusLinesOnEven
-      : boardVm.opponentBonusLines;
-  const myDisplayedBonus =
-    toSpeciesKey(boardVm.mySpeciesId) === 'centaur'
-      ? boardVm.myBonusLinesOnEven
-      : boardVm.myBonusLines;
+  const opponentDisplayedBonus = boardVm.opponentBonusLines;
+  const myDisplayedBonus = boardVm.myBonusLines;
 
   const opponentStatus: MobileStatusRailRowData = {
     name: hudVm.p2Name,

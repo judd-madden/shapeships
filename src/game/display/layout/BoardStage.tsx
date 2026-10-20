@@ -487,6 +487,12 @@ export function BoardStage({
 
   const mySpeciesKey = toSpeciesKey(vm.mySpeciesId);
   const opponentSpeciesKey = toSpeciesKey(vm.opponentSpeciesId);
+  const myOrdinaryCentaurBonusLines =
+    mySpeciesKey === 'centaur' ? vm.myBonusLines - vm.myBonusLinesOnEven : 0;
+  const opponentOrdinaryCentaurBonusLines =
+    opponentSpeciesKey === 'centaur'
+      ? vm.opponentBonusLines - vm.opponentBonusLinesOnEven
+      : 0;
   const myDisplayedBonusLines =
     mySpeciesKey === 'centaur' ? vm.myBonusLinesOnEven : vm.myBonusLines;
   const opponentDisplayedBonusLines =
@@ -526,9 +532,9 @@ export function BoardStage({
   const myHealingHoverTrackable = myHealingHoverSections.length > 0;
   const opponentHealingHoverTrackable = opponentHealingHoverSections.length > 0;
   const myBonusClusterHasVisibleContent =
-    myDisplayedBonusLines !== 0 || vm.myJoiningBonusLines > 0;
+    myOrdinaryCentaurBonusLines !== 0 || myDisplayedBonusLines !== 0 || vm.myJoiningBonusLines > 0;
   const opponentBonusClusterHasVisibleContent =
-    opponentDisplayedBonusLines !== 0 || vm.opponentJoiningBonusLines > 0;
+    opponentOrdinaryCentaurBonusLines !== 0 || opponentDisplayedBonusLines !== 0 || vm.opponentJoiningBonusLines > 0;
   const myBonusHoverTrackable =
     vm.showTurnStartEconomyPresentation &&
     (myBonusClusterHasVisibleContent || vm.myBonusBreakdownRows.length > 0);
@@ -772,9 +778,19 @@ export function BoardStage({
                 anchorRef={myBonusAnchorRef}
                 onHoverEnter={statHover.onEnter}
                 onHoverLeave={statHover.onLeave}
-                className="flex gap-[4px] items-center justify-end"
+                className="flex gap-[4px] items-center justify-end w-max shrink-0"
               >
-                <div ref={myBonusAnchorRef} className="shrink-0">
+                {myOrdinaryCentaurBonusLines !== 0 ? (
+                  <div ref={myBonusAnchorRef} className="shrink-0">
+                    <Metric
+                      value={String(myOrdinaryCentaurBonusLines)}
+                      label="LINES"
+                      align="right"
+                      toneClass="text-[var(--shapeships-pastel-blue)]"
+                    />
+                  </div>
+                ) : null}
+                <div ref={myOrdinaryCentaurBonusLines !== 0 ? undefined : myBonusAnchorRef} className="shrink-0">
                   <Metric
                     value={String(myDisplayedBonusLines ?? 0)}
                     label="LINES"
@@ -810,9 +826,19 @@ export function BoardStage({
                 anchorRef={opponentBonusAnchorRef}
                 onHoverEnter={statHover.onEnter}
                 onHoverLeave={statHover.onLeave}
-                className="flex gap-[4px] items-start"
+                className="flex gap-[4px] items-start w-max shrink-0"
               >
-                <div ref={opponentBonusPrimaryAnchorRef} className="shrink-0">
+                {opponentOrdinaryCentaurBonusLines !== 0 ? (
+                  <div ref={opponentBonusPrimaryAnchorRef} className="shrink-0">
+                    <Metric
+                      value={String(opponentOrdinaryCentaurBonusLines)}
+                      label="LINES"
+                      align="left"
+                      toneClass="text-[var(--shapeships-pastel-blue)]"
+                    />
+                  </div>
+                ) : null}
+                <div ref={opponentOrdinaryCentaurBonusLines !== 0 ? undefined : opponentBonusPrimaryAnchorRef} className="shrink-0">
                   <Metric
                     value={String(opponentDisplayedBonusLines ?? 0)}
                     label="LINES"

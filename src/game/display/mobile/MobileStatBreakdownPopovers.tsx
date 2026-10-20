@@ -4,7 +4,6 @@ import type {
   BoardViewModel,
   GameSessionViewModel,
 } from '../../client/useGameSession';
-import { toSpeciesKey } from '../layout/boardStage/FleetArea';
 import {
   buildMobileMetricBreakdownGroups,
   formatMobileBreakdownAmount,
@@ -67,14 +66,8 @@ export function MobileStatBreakdownPopovers({
   onDismiss,
   winStreak,
 }: MobileStatBreakdownPopoversProps) {
-  const myDisplayedBonus =
-    toSpeciesKey(boardVm.mySpeciesId) === 'centaur'
-      ? boardVm.myBonusLinesOnEven
-      : boardVm.myBonusLines;
-  const opponentDisplayedBonus =
-    toSpeciesKey(boardVm.opponentSpeciesId) === 'centaur'
-      ? boardVm.opponentBonusLinesOnEven
-      : boardVm.opponentBonusLines;
+  const myDisplayedBonus = boardVm.myBonusLines;
+  const opponentDisplayedBonus = boardVm.opponentBonusLines;
 
   const topMetricGroups = buildMobileMetricBreakdownGroups({
     presentation: thisTurn,
