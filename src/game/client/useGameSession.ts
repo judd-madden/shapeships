@@ -7524,6 +7524,7 @@ useEffect(() => {
       }
 
       downloadBattleLog({
+        battleLogStartMessage: vm.leftRail.battleLogStartMessage,
         battleLogHistory,
         gameId: effectiveGameId,
         me: {
@@ -8206,6 +8207,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
           opponent: 'Player 2',
         },
         battleLogThisTurn: null,
+        battleLogStartMessage: null,
         battleLogTurns: [],
         battleLogCompletedTurnCount: 0,
       },

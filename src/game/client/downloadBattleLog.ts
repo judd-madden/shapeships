@@ -13,6 +13,7 @@ type RuntimePlayerInfo = {
 };
 
 type DownloadBattleLogArgs = {
+  battleLogStartMessage: string | null;
   battleLogHistory: unknown;
   gameId: string;
   me: RuntimePlayerInfo;
@@ -69,6 +70,7 @@ export function downloadBattleLog(args: DownloadBattleLogArgs): void {
   const exportedAt = new Date();
   const canonicalPlayers = resolveCanonicalPlayers(history, args.me, args.opponent);
   const text = buildBattleLogText({
+    battleLogStartMessage: args.battleLogStartMessage,
     history,
     gameId: args.gameId,
     canonicalPlayers,
@@ -449,6 +451,7 @@ function getDefaultPlayerName(index: number): string {
 }
 
 function buildBattleLogText(args: {
+  battleLogStartMessage: string | null;
   history: ValidatedBattleLogHistory;
   gameId: string;
   canonicalPlayers: CanonicalPlayer[];
@@ -479,6 +482,7 @@ function buildBattleLogText(args: {
 
   return [
     ...headerLines,
+    ...(args.battleLogStartMessage ? ['', args.battleLogStartMessage] : []),
     ...turnBlocks.flatMap((block) => ['', block]),
     ...(fleetValueLines.length > 0 ? ['', ...fleetValueLines] : []),
   ].join('\r\n');

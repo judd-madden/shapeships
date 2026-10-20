@@ -523,6 +523,7 @@ export interface LeftRailViewModel {
     opponent: string;
   };
   battleLogThisTurn: BattleLogThisTurnVm | null;
+  battleLogStartMessage: string | null;
   battleLogTurns: BattleLogTurnVm[];
   battleLogCompletedTurnCount: number;
 }

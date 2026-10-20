@@ -9,6 +9,7 @@ import { LeftRailScrollArea } from '../layout/leftRail/LeftRailScrollArea';
 interface BattleLogPanelContentProps {
   battleLogNames: LeftRailViewModel['battleLogNames'];
   battleLogThisTurn: LeftRailViewModel['battleLogThisTurn'];
+  battleLogStartMessage: LeftRailViewModel['battleLogStartMessage'];
   battleLogTurns: LeftRailViewModel['battleLogTurns'];
   layout?: 'desktop' | 'mobile';
   viewportRef?: React.Ref<HTMLDivElement | null>;
@@ -23,6 +24,7 @@ function cx(...parts: Array<string | undefined | false>) {
 export function BattleLogPanelContent({
   battleLogNames,
   battleLogThisTurn,
+  battleLogStartMessage,
   battleLogTurns,
   layout = 'desktop',
   viewportRef,
@@ -63,6 +65,11 @@ export function BattleLogPanelContent({
         {battleLogTurns.map((turn) => (
           <BattleLogTurnCard key={turn.turnNumber} turn={turn} />
         ))}
+        {battleLogStartMessage ? (
+          <p className="px-[20px] py-[16px] text-[16px] leading-[22px] text-[var(--shapeships-grey-50)]">
+            {battleLogStartMessage}
+          </p>
+        ) : null}
         {!battleLogThisTurn && battleLogTurns.length === 0 ? (
           <p className="px-[20px] py-[24px] text-[16px] leading-[22px] text-[var(--shapeships-grey-50)]">
             The battle is about to begin!<br />May the dice be with you.

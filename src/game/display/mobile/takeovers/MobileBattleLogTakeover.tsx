@@ -38,6 +38,7 @@ export function MobileBattleLogTakeover({
         showPanelTitle={false}
         battleLogNames={vm.battleLogNames}
         battleLogThisTurn={vm.battleLogThisTurn}
+        battleLogStartMessage={vm.battleLogStartMessage}
         battleLogTurns={vm.battleLogTurns}
       />
     </MobileTakeoverShell>

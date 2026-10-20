@@ -454,6 +454,7 @@ export function mapGameSessionVm(args: {
     // Small line under it
     const inProgressSubtitle = `Shapeships Game #${gameCode} - Turn ${turnNumber}`;
     const battleLogVm = mapBattleLogTurns({
+      appliedBonus: winStreak.appliedBonus,
       battleLogHistory,
       thisTurn,
       localPlayerId: displayLeftPlayer?.playerId ?? displayLeftPlayer?.id ?? displayLeftPlayer?.sessionId ?? null,

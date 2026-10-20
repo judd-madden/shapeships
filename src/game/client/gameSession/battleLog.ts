@@ -1,5 +1,7 @@
 import { isShipDefId } from '../../data/ShipDefinitions.core';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
+import { formatWinStreakBattleLogMessage } from '../winStreak/battleLog';
+import type { WinStreakGameViewModel } from '../winStreak/types';
 import type {
   BattleLogHistoryResponse,
   BattleLogLineVm,
@@ -18,11 +20,13 @@ type BattleLogVm = Pick<
   LeftRailViewModel,
   | 'battleLogNames'
   | 'battleLogThisTurn'
+  | 'battleLogStartMessage'
   | 'battleLogTurns'
   | 'battleLogCompletedTurnCount'
 >;
 
 type MapBattleLogTurnsArgs = {
+  appliedBonus?: WinStreakGameViewModel['appliedBonus'];
   battleLogHistory: BattleLogHistoryResponse | null;
   localPlayerId: string | null;
   localPlayerName: string;
@@ -90,6 +94,7 @@ export function mapBattleLogTurns(args: MapBattleLogTurnsArgs): BattleLogVm {
 
   return {
     battleLogNames,
+    battleLogStartMessage: formatWinStreakBattleLogMessage(args.appliedBonus),
     battleLogThisTurn: mapBattleLogThisTurn(args.thisTurn),
     battleLogTurns,
     battleLogCompletedTurnCount: Math.max(
