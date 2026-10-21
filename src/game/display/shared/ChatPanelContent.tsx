@@ -102,7 +102,7 @@ export function ChatPanelContent({
           className="flex shrink-0 cursor-pointer items-center gap-[6px] text-white"
           onClick={() => onMinimizedChange?.(false)}
         >
-          <span className="text-[16px] font-black">Chat</span>
+          <span className="text-[14px] 2xl:text-[16px] font-black">Chat</span>
           <span aria-hidden="true" className="text-[22px] font-normal leading-none">
             +
           </span>
@@ -163,14 +163,14 @@ export function ChatPanelContent({
               className="flex cursor-pointer items-center gap-[6px] text-white"
               onClick={() => onMinimizedChange(true)}
             >
-              <span className="text-[16px] font-black">Chat</span>
+              <span className="text-[14px] 2xl:text-[16px] font-black">Chat</span>
               <span
                 aria-hidden="true"
                 className="h-[2px] w-[12px] rounded-full bg-current"
               />
             </button>
           ) : (
-            <p className="text-white text-[16px] font-black">Chat</p>
+            <p className="text-white text-[14px] 2xl:text-[16px] font-black">Chat</p>
           )
         ) : null}
         <button
@@ -247,7 +247,7 @@ export function ChatPanelContent({
         )}
       </LeftRailScrollArea>
 
-      <div className="h-[47px] shrink-0">
+      <div className="h-[47px]">
         <div className="h-[1px] bg-[var(--shapeships-grey-70)] mx-5" />
         <div className="px-5 py-2 flex items-center justify-between">
           <input
@@ -263,6 +263,7 @@ export function ChatPanelContent({
             onChange={(e) => setChatDraft(e.target.value)}
             placeholder="Be nice in chat"
             className="
+              min-w-0
               flex-1
               bg-transparent
               outline-none
@@ -271,7 +272,6 @@ export function ChatPanelContent({
               not-italic
               placeholder:text-[var(--shapeships-grey-50)]
               placeholder:italic
-              mr-3
             "
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -280,7 +280,9 @@ export function ChatPanelContent({
               }
             }}
           />
-          <ChatSendButton onClick={handleSendChat}>SEND</ChatSendButton>
+          <div className="shrink-0">
+            <ChatSendButton onClick={handleSendChat}>SEND</ChatSendButton>
+          </div>
         </div>
       </div>
     </div>

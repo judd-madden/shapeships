@@ -88,16 +88,16 @@ export function EndOfGameActionPanel({
       }`}
     >
       {isGameStatsOpen ? (
-        <div aria-hidden="true" className="h-[150px] w-full rounded-tl-[10px]" />
+        <div aria-hidden="true" className="h-[110px] 2xl:h-[150px] w-full rounded-tl-[10px]" />
       ) : (
         /* Top Banner */
         <div
-          className="content-stretch flex flex-col font-bold gap-[12px] h-[150px] items-center justify-center px-[20px] py-[27px] rounded-tl-[10px] text-black w-full"
+          className="content-stretch flex flex-col font-bold gap-[12px] h-[110px] 2xl:h-[150px] items-center justify-center px-[20px] py-[27px] rounded-tl-[10px] text-black w-full"
           style={{ background: bannerBgCssVar }}
         >
           {/* Headline */}
           <p
-            className="leading-[normal] relative shrink-0 text-[50px] text-center"
+            className="leading-[normal] relative shrink-0 text-[36px] 2xl:text-[50px] text-center"
           >
             {bannerText}
           </p>
@@ -119,9 +119,9 @@ export function EndOfGameActionPanel({
       )}
 
       {/* Buttons (centered below banner) */}
-      <div className="content-stretch flex items-center w-full pt-[40px]">
-        <div className="content-stretch flex gap-[20px] items-start justify-center w-full">
-          <div className="flex w-[210px] flex-col items-center">
+      <div className="content-stretch flex items-center w-full pt-[30px] 2xl:pt-[40px]">
+        <div className="content-stretch flex gap-[16px] 2xl:gap-[20px] items-start justify-center w-full">
+          <div className="flex w-[170px] 2xl:w-[210px] flex-col items-center">
             <GameMenuButton onClick={onRematch} pendingLabel="CREATING...">
               New Game
             </GameMenuButton>

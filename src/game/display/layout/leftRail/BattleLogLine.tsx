@@ -30,7 +30,7 @@ export function BattleLogLine({ line, align }: BattleLogLineProps) {
   return (
     <p
       className={[
-        "text-[14px] leading-[18px] font-normal whitespace-pre-wrap break-words",
+        "text-[12px] 2xl:text-[14px] leading-[18px] font-normal whitespace-pre-wrap break-words",
         align === 'right' ? 'text-right' : 'text-left',
         line.variant === 'saved' ? 'italic' : '',
       ].join(' ')}

@@ -114,7 +114,7 @@ export function GameMenuButton({
         content-stretch flex items-center justify-center
         ${size === 'compact' ? 'min-h-[36px] px-[20px] py-[9px]' : 'h-[50px] px-[30px] py-[19px]'}
         relative rounded-[10px] 
-        ${size === 'compact' ? 'w-auto max-w-full' : 'w-[210px]'}
+        ${size === 'compact' ? 'w-auto max-w-full' : 'w-[170px] 2xl:w-[210px]'}
         ${awaitingConfirm || isPending ? '' : 'hover:bg-white'}
         transition-colors
         cursor-pointer
@@ -124,7 +124,7 @@ export function GameMenuButton({
       `}
     >
       <p 
-        className={`${size === 'compact' ? 'font-normal text-[14px]' : 'font-bold text-[16px]'} leading-[normal] relative shrink-0 text-black text-nowrap`}
+        className={`${size === 'compact' ? 'font-normal text-[14px]' : 'font-bold text-[14px] 2xl:text-[16px]'} leading-[normal] relative shrink-0 text-black text-nowrap`}
       >
         <AnimatedEllipsisText text={buttonLabel} />
       </p>

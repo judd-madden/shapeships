@@ -23,7 +23,7 @@ export function TurnPhaseIndicator({ vm, presentation }: { vm: TurnPhaseVm; pres
 
   return (
     <div className="h-[118px] shrink-0 overflow-hidden rounded-[10px] border-2 border-[var(--shapeships-grey-70)] bg-[var(--shapeships-black)]">
-      <div className="flex h-[40px] items-center bg-[var(--shapeships-grey-90)] px-[18px] text-[16px] font-bold text-[var(--shapeships-white)]">
+      <div className="flex h-[40px] items-center bg-[var(--shapeships-grey-90)] px-[18px] text-[14px] 2xl:text-[16px] font-bold text-[var(--shapeships-white)]">
         <span>
           {heading}
           {presentation.headingContext === 'turn' && currentLabel ? ` · ${currentLabel}` : ''}

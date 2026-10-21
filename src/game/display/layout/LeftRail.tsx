@@ -277,7 +277,7 @@ export function LeftRail({
   return (
     <div
       ref={railRootRef}
-      className="relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0 hidden lg:flex [--battle-log-bottom-inset:25px] min-[768px]:max-[1599px]:gap-4 min-[768px]:max-[1599px]:pt-[16px] min-[768px]:max-[1599px]:pb-[16px] min-[768px]:max-[1599px]:[--battle-log-bottom-inset:16px]"
+      className="relative w-[250px] 2xl:w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0 hidden lg:flex [--battle-log-bottom-inset:25px] min-[768px]:max-[1599px]:gap-4 min-[768px]:max-[1599px]:pt-[16px] min-[768px]:max-[1599px]:pb-[16px] min-[768px]:max-[1599px]:[--battle-log-bottom-inset:16px]"
     >
       {/* Brand / Title */}
       <div className="shrink-0 flex items-center justify-between">
@@ -338,7 +338,7 @@ export function LeftRail({
             {showWinStreak ? (
               <button
                 type="button"
-                className={`shrink-0 text-[16px] font-bold hover:underline cursor-pointer transition-opacity ${
+                className={`shrink-0 text-[14px] 2xl:text-[16px] font-bold hover:underline cursor-pointer transition-opacity ${
                   selectedSisterView === 'winStreak' ? 'text-white' : 'text-[var(--shapeships-pastel-green)]'
                 }`}
                 onClick={() => handleSisterViewSelect('winStreak')}
@@ -348,7 +348,7 @@ export function LeftRail({
             ) : null}
             <button
               type="button"
-              className={`text-[16px] font-bold hover:underline cursor-pointer ${
+              className={`text-[14px] 2xl:text-[16px] font-bold hover:underline cursor-pointer ${
                 selectedSisterView === 'turnPhases'
                   ? 'text-[var(--shapeships-white)]'
                   : 'text-[var(--shapeships-grey-50)]'
@@ -359,7 +359,7 @@ export function LeftRail({
             </button>
             <button
               type="button"
-              className={`text-[16px] font-bold hover:underline cursor-pointer ${
+              className={`text-[14px] 2xl:text-[16px] font-bold hover:underline cursor-pointer ${
                 selectedSisterView === 'battleLog'
                   ? 'text-[var(--shapeships-white)]'
                   : 'text-[var(--shapeships-grey-50)]'

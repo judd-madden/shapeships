@@ -117,7 +117,7 @@ export function BattleLogThisTurnCard({ turn }: BattleLogThisTurnCardProps) {
     <div className="w-full px-[20px] py-[12px] flex flex-col gap-[8px] bg-[var(--shapeships-grey-90)]">
       <div className="flex items-center gap-[6px]">
         <div className="h-px flex-1 bg-[var(--shapeships-grey-70)] opacity-50" />
-        <p className="text-[15px] italic font-black text-[var(--shapeships-grey-20)]">
+        <p className="text-[13px] 2xl:text-[15px] italic font-black text-[var(--shapeships-grey-20)]">
           This Turn
         </p>
         <div className="h-px flex-1 bg-[var(--shapeships-grey-70)] opacity-50" />
@@ -152,13 +152,13 @@ export function BattleLogTurnCard({ turn }: BattleLogTurnCardProps) {
           {typeof turn.diceValue === 'number' ? (
             <Dice
               value={turn.diceValue as 1 | 2 | 3 | 4 | 5 | 6}
-              className="!size-[36px] shrink-0"
+              className="!size-[30px] 2xl:!size-[36px] shrink-0"
               enableRotate={false}
             />
           ) : (
             <div aria-hidden="true" className="size-[36px]" />
           )}
-          <p className="text-[15px] italic font-black text-[var(--shapeships-grey-20)]">
+          <p className="text-[13px] 2xl:text-[15px] italic font-black text-[var(--shapeships-grey-20)]">
             Turn {turn.turnNumber}
           </p>
         </div>

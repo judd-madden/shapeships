@@ -114,18 +114,18 @@ function BoardStageFrame({
             {currentStatsContent}
           </div>
           <div className="flex w-[var(--ss-board-center-width)] min-h-0 shrink flex-col items-center" data-name="Existing Board Stats">
-            <div aria-hidden="true" className="min-h-0 basis-[4px] shrink min-[1400px]:basis-[6px] min-[1920px]:basis-[12px] min-[2560px]:basis-[16px]" />
+            <div aria-hidden="true" className="min-h-0 basis-[4px] shrink min-[1400px]:basis-[6px]" />
             {healthContent}
-            <div aria-hidden="true" className="min-h-0 basis-[8px] shrink min-[1400px]:basis-[12px] min-[1920px]:basis-[24px] min-[2560px]:basis-[32px]" />
+            <div aria-hidden="true" className="min-h-0 basis-[8px] shrink min-[1400px]:basis-[12px] min-[1920px]:basis-[16px] min-[2560px]:basis-[20px]" />
             <DesktopDicePresentation
               {...desktopDicePresentation}
               boardRootRef={boardRootRef}
               barRegionRef={barRegionRef}
               guidanceSuppressed={isChoosingSpecies || Boolean(matchupIntro) || desktopDicePresentation.guidanceSuppressed}
             />
-            <div aria-hidden="true" className="min-h-0 basis-[8px] shrink min-[1400px]:basis-[12px] min-[1920px]:basis-[24px] min-[2560px]:basis-[32px]" />
+            <div aria-hidden="true" className="min-h-0 basis-[8px] shrink min-[1400px]:basis-[12px] min-[1920px]:basis-[16px] min-[2560px]:basis-[20px]" />
             {statsContent}
-            <div aria-hidden="true" className="min-h-0 basis-[8px] shrink min-[1400px]:basis-[12px] min-[1920px]:basis-[16px] min-[2560px]:basis-[24px]" />
+            <div aria-hidden="true" className="min-h-0 basis-[8px] shrink min-[1400px]:basis-[12px] min-[1920px]:basis-[16px] min-[2560px]:basis-[20px]" />
           </div>
         </div>
         {matchupIntro ? (
@@ -224,7 +224,7 @@ function Metric({
       )}
     >
       <p
-        className="font-bold leading-none relative shrink-0 text-[20px] min-[1400px]:text-[24px] min-[1920px]:text-[28px] min-w-[32px] whitespace-nowrap"
+        className="font-bold leading-none relative shrink-0 text-[20px] min-[1400px]:text-[24px] min-[1920px]:text-[28px] min-[2220px]:text-[32px] min-w-[32px] whitespace-nowrap"
       >
         {value}
       </p>
@@ -305,7 +305,7 @@ function CombatValues({
       'inline-flex w-max shrink-0 flex-col gap-[2px] whitespace-nowrap font-bold leading-none',
       previous
         ? 'text-[14px] opacity-[0.66] min-[1400px]:text-[16px] min-[1920px]:text-[20px]'
-        : 'text-[20px] min-[1400px]:text-[24px] min-[1920px]:text-[28px]',
+        : 'text-[20px] min-[1400px]:text-[24px] min-[1920px]:text-[28px] min-[2220px]:text-[32px]',
     )}>
       <span className="text-[var(--shapeships-pastel-red)]">{damage}</span>
       <span className="text-[var(--shapeships-pastel-green)]">{healing}</span>
@@ -619,7 +619,7 @@ export function BoardStage({
         </>
       }
       healthContent={
-        <div className="relative flex w-full shrink-0 items-start justify-center gap-[24px]" data-name="Health Wrapper">
+        <div className="relative flex w-full shrink-0 items-start justify-center gap-[24px] 2xl:gap-[32px]" data-name="Health Wrapper">
           <div className="relative flex w-[100px] shrink-0 flex-col items-end text-right min-[768px]:max-[1599px]:w-[86px]" data-name="P1 Health Group">
             <HealthTrigger
               health={displayedMyHealth}
@@ -705,7 +705,7 @@ export function BoardStage({
               </div>
             </div>
           </div>
-          <div aria-hidden="true" className="min-h-0 basis-[4px] shrink min-[1400px]:basis-[6px] min-[1920px]:basis-[12px] min-[2560px]:basis-[16px]" />
+          <div aria-hidden="true" className="min-h-0 basis-[4px] shrink min-[1400px]:basis-[6px] min-[1920px]:basis-[12px]" />
           </>
           ) : null}
 
@@ -807,7 +807,7 @@ export function BoardStage({
               </HoverAnchor>
             </div>
           </div>
-          <div aria-hidden="true" className="min-h-0 basis-[4px] shrink min-[1400px]:basis-[6px] min-[1920px]:basis-[12px] min-[2560px]:basis-[16px]" />
+          <div aria-hidden="true" className="min-h-0 basis-[4px] shrink min-[1400px]:basis-[6px] min-[1920px]:basis-[12px]" />
           </>
           ) : null}
 
