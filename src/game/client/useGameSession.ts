@@ -100,6 +100,16 @@ import {
 import { deriveViewerSeats } from './gameSession/viewerSeats';
 import { calculatePresentedFleetValue } from './gameSession/fleetValue';
 import {
+  buildSettledHealthPresentation,
+  captureResolvedHealthSnapshot,
+  getResolvedHealthIdentityKey,
+  getIntentResolvedHealthTurn,
+  observeHealthResolution,
+  prepareResolvedHealthCapture,
+  type HealthResolutionObservation,
+  type PendingResolvedHealthCapture,
+} from './gameSession/resolvedHealth';
+import {
   deriveFleets,
   filterFleetSummariesBySuppressedMemberIds,
   orderFleetSummariesByRenderKey,
@@ -265,6 +275,7 @@ import type {
   TurnPhaseVm,
   ThisTurnPresentationVm,
   ThisTurnResolutionSnapshot,
+  ResolvedHealthIdentity,
 } from './gameSession/types';
 
 export type {
@@ -662,7 +673,11 @@ function isBattleLogTurnPlayerSummary(value: unknown): boolean {
     typeof record.playerId === 'string' &&
     typeof record.name === 'string' &&
     typeof record.healthEnd === 'number' &&
+    Number.isFinite(record.healthEnd) &&
+    (record.maxHealthEnd === undefined ||
+      (typeof record.maxHealthEnd === 'number' && Number.isFinite(record.maxHealthEnd) && record.maxHealthEnd > 0)) &&
     typeof record.healthDelta === 'number' &&
+    Number.isFinite(record.healthDelta) &&
     typeof record.fleetValueEnd === 'number' &&
     Number.isFinite(record.fleetValueEnd)
   );
@@ -1309,11 +1324,10 @@ export function useGameSession(
   const [healthPresentationBoardOverride, setHealthPresentationBoardOverride] =
     useState<HealthPresentationBuildResult['boardOverride'] | null>(null);
   const publishedHealthPresentationIdentitiesRef = useRef<Set<string>>(new Set());
-  const previousObservedHealthResolutionRef = useRef<{
-    gameId: string | null;
-    turnNumber: number;
-    isFinished: boolean;
-  } | null>(null);
+  const previousObservedHealthResolutionRef = useRef<HealthResolutionObservation | null>(null);
+  const [pendingResolvedHealthCapture, setPendingResolvedHealthCapture] = useState<PendingResolvedHealthCapture | null>(null);
+  const [resolvedHealthRecoveryVersion, setResolvedHealthRecoveryVersion] = useState(0);
+  const resolvedHealthContinuityKeyRef = useRef<string | null>(null);
   const [publicMultiChargeByPlayerId, setPublicMultiChargeByPlayerId] =
     useState<Record<string, Record<string, number>>>({});
 
@@ -1324,6 +1338,7 @@ export function useGameSession(
     setHealthPresentationBoardOverride(null);
     publishedHealthPresentationIdentitiesRef.current.clear();
     previousObservedHealthResolutionRef.current = null;
+    setPendingResolvedHealthCapture(null);
   }, [effectiveGameId]);
   
   // ============================================================================
@@ -2034,6 +2049,27 @@ export function useGameSession(
   // the true viewer-relative `me` / `opponent` values above.
   const displayLeftPlayer = isViewerSpectator ? p1 : me;
   const displayRightPlayer = isViewerSpectator ? p2 : opponent;
+  const resolvedHealthIdentity: ResolvedHealthIdentity | null =
+    effectiveGameId && mySessionId && (isViewerPlayer || isViewerSpectator) &&
+    getPlayerIdentityKey(displayLeftPlayer) && getPlayerIdentityKey(displayRightPlayer)
+      ? {
+          gameId: effectiveGameId, viewerId: mySessionId,
+          viewerRole: isViewerSpectator ? 'spectator' : 'player',
+          leftPlayerId: getPlayerIdentityKey(displayLeftPlayer)!,
+          rightPlayerId: getPlayerIdentityKey(displayRightPlayer)!,
+        } : null;
+  const resolvedHealthIdentityKey = resolvedHealthIdentity
+    ? getResolvedHealthIdentityKey(resolvedHealthIdentity) : null;
+  const resolvedHealthContinuityKey = resolvedHealthIdentityKey
+    ? JSON.stringify([resolvedHealthIdentityKey, foregroundResumeToken, resolvedHealthRecoveryVersion,
+        untimedPollingMode === 'hidden',
+        isFinished && !['decisive', 'narrow', 'mutual_destruction'].includes(terminalResultReason) ? 'non_health_finish' : 'health'])
+    : null;
+  resolvedHealthContinuityKeyRef.current = resolvedHealthContinuityKey;
+  const resolvedHealthCandidate = useMemo(() => pendingResolvedHealthCapture
+    ? captureResolvedHealthSnapshot({ ...pendingResolvedHealthCapture,
+        liveCapture: pendingResolvedHealthCapture, history: battleLogHistory, boundaryState: rawState }) : null,
+    [pendingResolvedHealthCapture, battleLogHistory, rawState]);
   const displayLeftReadyKey = isViewerSpectator ? viewerSeats.p1ReadyKey : meReadyKey;
   const displayRightReadyKey = isViewerSpectator ? viewerSeats.p2ReadyKey : opponentReadyKey;
   const displayContinuityIdentityKey = JSON.stringify({
@@ -2393,9 +2429,9 @@ export function useGameSession(
     localPlayerId: string | null,
     opponentPlayerId: string | null
   ): boolean {
-    const lastTurnNetByPlayerId = state?.gameData?.lastTurnNetByPlayerId;
-    const lastTurnHealByPlayerId = state?.gameData?.lastTurnHealByPlayerId;
-    const lastTurnDamageByPlayerId = state?.gameData?.lastTurnDamageByPlayerId;
+    const lastTurnNetByPlayerId = getLastTurnNetByPlayerId(state);
+    const lastTurnHealByPlayerId = getLastTurnHealByPlayerId(state);
+    const lastTurnDamageByPlayerId = getLastTurnDamageByPlayerId(state);
 
     return (
       readOwnFiniteNumber(lastTurnNetByPlayerId, localPlayerId).present &&
@@ -2486,9 +2522,9 @@ export function useGameSession(
     const myMaxHealth = myMaxHealthRead.value;
     const opponentMaxHealth = opponentMaxHealthRead.value;
 
-    const lastTurnNetByPlayerId = state?.gameData?.lastTurnNetByPlayerId;
-    const lastTurnHealByPlayerId = state?.gameData?.lastTurnHealByPlayerId;
-    const lastTurnDamageByPlayerId = state?.gameData?.lastTurnDamageByPlayerId;
+    const lastTurnNetByPlayerId = getLastTurnNetByPlayerId(state);
+    const lastTurnHealByPlayerId = getLastTurnHealByPlayerId(state);
+    const lastTurnDamageByPlayerId = getLastTurnDamageByPlayerId(state);
     const myNet = readOwnFiniteNumber(lastTurnNetByPlayerId, localPlayerId);
     const myHeal = readOwnFiniteNumber(lastTurnHealByPlayerId, localPlayerId);
     const myDamageTaken = readOwnFiniteNumber(lastTurnDamageByPlayerId, localPlayerId);
@@ -2662,11 +2698,42 @@ export function useGameSession(
     }
   }
 
+  function captureHealthResolution(state: any, resolvedTurnNumber: number, source: 'intent' | 'poll', postResolutionFleetWork = false): void {
+    if (!resolvedHealthIdentity || !resolvedHealthContinuityKey ||
+        resolvedHealthContinuityKeyRef.current !== resolvedHealthContinuityKey ||
+        getTurnNumber(rawState) > resolvedTurnNumber + 1 ||
+        (source === 'intent' && getTurnNumber(rawState) === resolvedTurnNumber &&
+          getPhaseHold(rawState)?.holdReason === 'end_of_turn_health') ||
+        isBootstrapping || untimedPollingMode === 'hidden' || resumeSyncLocked) return;
+    const capture = prepareResolvedHealthCapture({
+      state, identity: resolvedHealthIdentity, continuityKey: resolvedHealthContinuityKey,
+      resolvedTurnNumber, source, postResolutionFleetWork,
+    });
+    if (!capture) {
+      if (pendingResolvedHealthCapture?.continuityKey === resolvedHealthContinuityKey &&
+          resolvedTurnNumber > pendingResolvedHealthCapture.resolvedTurnNumber) {
+        setResolvedHealthRecoveryVersion((version) => version + 1);
+      }
+      return;
+    }
+    setPendingResolvedHealthCapture((current) =>
+      resolvedHealthContinuityKeyRef.current !== capture.continuityKey ||
+      (current?.continuityKey === capture.continuityKey && current.resolvedTurnNumber >= capture.resolvedTurnNumber)
+        ? current : capture);
+  }
+
   function handleIntentResultForHealthPresentation(
     result: any,
     meta?: { label?: string; turn?: number; phaseKey?: string }
   ): void {
     void enqueueWinStreakObservation(result?.state, false);
+    const resolvedHealthTurn = getIntentResolvedHealthTurn(result, meta?.turn);
+    if (resolvedHealthTurn != null && !hasNonHealthResolutionFinishReason(result)) {
+      captureHealthResolution(result.state, resolvedHealthTurn, 'intent', result.events.some((event: any) =>
+        event?.type === 'SIMULACRUM_COPY_MATERIALIZED' ||
+        (typeof event?.type === 'string' && event.type.startsWith('BATTLE_LOG_CAPTURE_BUILD_') &&
+          event.turnNumber > resolvedHealthTurn)));
+    }
     const localPlayerId = getPlayerIdentityKey(displayLeftPlayer);
     const opponentPlayerId = getPlayerIdentityKey(displayRightPlayer);
     if (
@@ -2737,27 +2804,26 @@ export function useGameSession(
     const previousObserved = previousObservedHealthResolutionRef.current;
     const currentObserved = {
       gameId: effectiveGameId,
+      identityKey: resolvedHealthIdentityKey ?? '',
+      resumeToken: foregroundResumeToken,
       turnNumber: currentTurnNumber,
       isFinished: currentIsFinished,
+      wasLegacyHealthHold: getPhaseHold(rawState)?.holdReason === 'end_of_turn_health',
     };
 
-    if (!previousObserved || previousObserved.gameId !== effectiveGameId) {
-      previousObservedHealthResolutionRef.current = currentObserved;
-      return;
-    }
-
-    let resolvedTurnKey: string | null = null;
-    if (currentTurnNumber > previousObserved.turnNumber) {
-      resolvedTurnKey = String(previousObserved.turnNumber);
-    } else if (!previousObserved.isFinished && currentIsFinished) {
-      resolvedTurnKey = String(currentTurnNumber);
-    }
-
+    const observation = observeHealthResolution(previousObserved, currentObserved);
     previousObservedHealthResolutionRef.current = currentObserved;
-
-    if (!resolvedTurnKey) {
+    if (observation.recovery) {
+      if (previousObserved && previousObserved.identityKey === currentObserved.identityKey &&
+          previousObserved.resumeToken === currentObserved.resumeToken && previousObserved.gameId === effectiveGameId) {
+        setResolvedHealthRecoveryVersion((version) => version + 1);
+      }
       return;
     }
+    const resolvedTurnKey = observation.resolvedTurnNumber == null ? null : String(observation.resolvedTurnNumber);
+    if (!resolvedTurnKey) return;
+
+    captureHealthResolution(rawState, Number(resolvedTurnKey), 'poll');
 
     const localPlayerId = getPlayerIdentityKey(displayLeftPlayer);
     const opponentPlayerId = getPlayerIdentityKey(displayRightPlayer);
@@ -2784,6 +2850,8 @@ export function useGameSession(
     hasMatchingAuthoritativeGameId,
     isBootstrapping,
     rawState,
+    resolvedHealthIdentityKey,
+    foregroundResumeToken,
     displayLeftPlayer?.id,
     displayLeftPlayer?.playerId,
     displayLeftPlayer?.sessionId,
@@ -5090,6 +5158,7 @@ useEffect(() => {
     presentedTurnDiceSettledTurnNumber,
     presentedEconomy,
     thisTurnResolutionSnapshot,
+    resolvedHealthSnapshot,
   } = useEndOfTurnPresentation({
     effectiveGameId,
     hasMatchingAuthoritativeGameId,
@@ -5101,6 +5170,10 @@ useEffect(() => {
     authoritativeHoldReason,
     authoritativeHoldUntilMs,
     healthResolutionPresentationTrigger,
+    resolvedHealthCandidate,
+    resolvedHealthContinuityKey,
+    resolvedHealthPendingTurnNumber: pendingResolvedHealthCapture?.continuityKey === resolvedHealthContinuityKey
+      ? pendingResolvedHealthCapture.resolvedTurnNumber : null,
     thisTurnResolutionTrigger:
       thisTurnResolutionTrigger ?? hardRefreshThisTurnResolutionSnapshot,
     healthPresentation: endOfTurnHealthPresentationInput,
@@ -8382,7 +8455,10 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     : vm.board;
 
   return {
-    vm: { ...vm, board: presentedBoard, turnPhasePresentation },
+    vm: { ...vm, board: presentedBoard, turnPhasePresentation,
+      resolvedHealth: resolvedHealthSnapshot
+        ? { mode: 'live' as const, snapshot: resolvedHealthSnapshot }
+        : buildSettledHealthPresentation(rawState, resolvedHealthIdentity) },
     actions,
     loading,
     error,

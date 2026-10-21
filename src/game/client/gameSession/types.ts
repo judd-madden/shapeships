@@ -113,6 +113,8 @@ export interface BattleLogTurnPlayerSummary {
   playerId: string;
   name: string;
   healthEnd: number;
+  /** Optional for older archives; presence alone does not establish cap provenance. */
+  maxHealthEnd?: number;
   healthDelta: number;
   fleetValueEnd: number;
 }
@@ -434,6 +436,54 @@ export interface ThisTurnResolutionSnapshot {
   opponent: ThisTurnPlayerMetricsVm;
   liveLog: ThisTurnLiveLogVm | null;
 }
+
+export interface ResolvedHealthIdentity {
+  readonly gameId: string;
+  readonly viewerId: string;
+  readonly viewerRole: 'player' | 'spectator';
+  readonly leftPlayerId: string;
+  readonly rightPlayerId: string;
+}
+
+export interface ResolvedHealthSide {
+  readonly playerId: string;
+  readonly startHealth: number;
+  readonly damageTaken: number;
+  readonly grossHealingReceived: number;
+  readonly finalHealth: number;
+  readonly actualNetDelta: number;
+  readonly maxHealth: number;
+  /** Explanatory position only; never a canonical outcome. */
+  readonly damageStageHealth: number;
+}
+
+export interface ResolvedHealthOutcome {
+  readonly isTerminal: boolean;
+  readonly winnerPlayerId: string | null;
+  readonly resultReason: string | null;
+}
+
+export interface ResolvedHealthSnapshot {
+  readonly identity: Readonly<ResolvedHealthIdentity>;
+  readonly continuityKey: string;
+  readonly presentationKey: string;
+  readonly resolvedTurnNumber: number;
+  readonly source: 'intent' | 'poll';
+  readonly eligibility: 'live';
+  readonly left: Readonly<ResolvedHealthSide>;
+  readonly right: Readonly<ResolvedHealthSide>;
+  readonly outcome: Readonly<ResolvedHealthOutcome>;
+}
+
+export type ResolvedHealthPresentation =
+  | { readonly mode: 'live'; readonly snapshot: ResolvedHealthSnapshot }
+  | {
+      readonly mode: 'settled';
+      readonly identity: Readonly<ResolvedHealthIdentity>;
+      readonly left: { readonly playerId: string; readonly health: number; readonly maxHealth: number | null };
+      readonly right: { readonly playerId: string; readonly health: number; readonly maxHealth: number | null };
+      readonly outcome: Readonly<ResolvedHealthOutcome>;
+    };
 
 export interface ThisTurnPresentationVm {
   turnNumber: number;
@@ -993,6 +1043,8 @@ export interface ActionPanelViewModel {
 }
 
 export interface GameSessionViewModel {
+  /** Presentation data only; existing health counters/effects retain their inputs. */
+  resolvedHealth?: ResolvedHealthPresentation | null;
   isBootstrapping: boolean; // true until valid server state with valid phaseKey
   viewer: GameSessionViewerViewModel;
   matchupIntro: MatchupIntroViewModel | null;

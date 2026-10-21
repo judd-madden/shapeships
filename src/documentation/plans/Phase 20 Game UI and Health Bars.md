@@ -7,13 +7,24 @@
 - **Prepared:** 2026-10-21
 - **Audited source:** supplied `1020.zip`
 - **Phase 20A:** Game UI Updates — implementation and automated validation complete through 20A.7; final owner visual acceptance pending
-- **Phase 20B:** Health Bars — not started; separate owner-reviewed passes required for dynamic scales, animation and integration
+- **Phase 20B:** 20B.1 presentation-data preparation implemented; dynamic scales, rendering, animation and integration remain for separate owner-reviewed passes
 - **Architecture:** server-authoritative gameplay; client-owned presentation
 - **Suggested repository location:** `\src\documentation\plans\Phase 20 Game UI and Health Bars.md`
 
 > This is the main planning baseline, not permission to implement every pass in one operation. Judd will supply designs and review individual pass plans and implementations. At Judd's discretion, an approved individual pass plan may change the scope, sequence, measurements or behaviour proposed here. Further responsive requirements are expected. Preserve all existing behaviour unless a change is explicitly part of the approved pass.
 
 Implementation notes below are historical pass records. For the current Phase A contract, the 20A.4 refinements supersede the original bar-height cap, spacing and wide combat cards; 20A.6 supersedes interim mobile inspection; 20A.7 supersedes earlier desktop numeric typography and selector-based positioning notes. Earlier validation counts describe those passes only.
+
+### 2026-10-22 — 20B.1 resolution snapshot and data continuity
+
+- **Pass type:** Client/UI plus this planning update. **Primary layer:** client runtime/presentation data. No bar rendering, scale calculation, animation controller, layout, server or tooling changes; current counters, overlays, flashes, sounds, clocks, dice gates and lifecycle durations retain their existing inputs/timing.
+- `vm.resolvedHealth` exposes either a live immutable snapshot or authoritative settled health. Both players are captured together with game/resolved-turn/presentation identity, viewer/session role and ordering, damage **taken**, gross healing received, actual net delta, recovered aggregate start (`final − actual net`), explanatory damage-stage position, final health, applicable cap and canonical outcome. No Phase 18 estimate/snapshot or detailed breakdown is required. Prior caps are omitted because this pass has no reliable aggregate-start cap source.
+- Resolving intent events and adjacent poll advancement prepare owned aggregate inputs. Same-turn canonical health finishes are eligible. Identity and source validation use existing selectors. Normal post-resolution responses may already be in the next turn's drawing phase; intent responses may omit projected caps. These paths use matching finalized history's `maxHealthEnd`, health and aggregate analysis to complete a pending **live-observed** capture through the existing history coordinator. No current/later-turn cap is borrowed. Explicit caps at a matching terminal/legacy resolution boundary can be used directly.
+- A cap of **35 is valid**, just like an increased cap. Live completion plus matching finalized history provides provenance for current resolutions. Historical loading alone cannot establish a live capture; older archives may have server-normalized compatibility caps without provenance. They remain settled. Missing caps/analysis, mismatched identities/totals, inconsistent aggregates and late history after release also settle safely; absent detailed breakdown rows do not invalidate complete totals.
+- The accepted snapshot owns frozen scalar data and retains the first accepted contribution/cap payload for its stable resolution identity. New N+1 DTOs and history updates do not invalidate N. Release uses the existing `turn_start_published` seam; terminal snapshots persist. Identity changes, a newer completed resolution and explicit gap/background recovery cancel eligibility. Multi-turn polling jumps never label latest totals with the previously observed turn or queue missed turns. Existing legacy hold overlays/continuation remain separate from live eligibility.
+- **Limitations:** supported live capture can depend on the existing history response arriving before the established release boundary; a late response settles rather than extending timing or starting a replay. Initial load/hard refresh, skipped turns and foreground recovery do not animate historical contributions. No server follow-up is required for supported live boundaries without subsequent fleet work. Inspection found that history summaries derive `maxHealthEnd` from post-advance `nextState`; next-turn materialization/building can therefore replace the aggregate-application cap. Known materialization/new-ship/build-work/readiness markers conservatively settle those resolutions. Exact coverage of these cases needs a separate narrow Server Pass: capture the cap when aggregate health is applied and carry it through the existing finalize/history/projection seams, before next-turn fleet work. Older compatibility-normalized cap provenance is a separate unavailable historical fact; do not infer it from the value 35.
+- **Validation:** `npm run typecheck`, `npm run test:client` (**41 files, 400 tests**) and `npm run build` passed. Focused production capture/transition tests cover aggregate scenarios, overheal, caps, terminal/non-health outcomes, orientation, immutability, duplicate delivery, gaps, sparse history, post-resolution fleet-work fallback and release/reset behavior. The existing non-blocking >500kB build chunk-size warning remains.
+- **Not run — browser/Vite testing handled by user.** Later 20B passes remain incomplete. Owner-confirmed geometry, mapping, marker, easing and timing-configuration requirements below are documentation only in this pass.
 
 ### 2026-10-21 — Combined 20A.1 + 20A.2 implementation
 
@@ -149,7 +160,7 @@ The following is the initial 20A.4 geometry record. Numeric sizes are superseded
 - **Validation:** `npm run typecheck`, `npm run build` and `npm run test:client` passed (**40 files, 366 tests**, including six new behavioural cases). Production CSS inspection confirmed the emitted font sizes, media rules and `line-height: 1`. The existing non-blocking >500kB build chunk-size warning remains. Automated element doubles and source review do not establish native browser layout, focus/scroll behaviour or animation fidelity. No additional direct integration regression fixes were identified beyond observing bar-driven guidance movement.
 - **Not run — browser/Vite testing handled by user.**
 - **Owner review:** typography at 768/1400/1920px boundaries and the independent 1600px transition; short desktop height/bar growth/gap collapse/no central scrolling; long totals and dense Centaur/joining/helper combinations; previous-value centring with delta hidden/visible/animating; hover handoff and guidance during setup/intros/missions/resizing; representative spectator/finished views and unchanged phone layout/inspection.
-- **Phase B remains unapproved:** resolve input completeness (D09), positive/negative scale geometry and retention (D10–D12), counter behaviour (D13), overheal (D14), timing/recovery and hold coordination (D15), preferences/reduced motion/sound (D16), and outcome styling (D17) in their separate passes. Final Phase A visual acceptance remains a prerequisite for active fills, scales, legends and resolution animation.
+- **Historical 20A.7 approval posture:** Phase B remained unapproved at this checkpoint. The separately approved 20B.1 data pass is recorded above; positive/negative scale geometry and retention (D10–D12), counter behaviour (D13), overheal (D14), timing/recovery and hold coordination (D15), preferences/reduced motion/sound (D16), and outcome styling (D17) remain for separate passes. Final Phase A visual acceptance remains a prerequisite for active fills, scales, legends and resolution animation.
 
 ## Contents
 
@@ -362,6 +373,8 @@ Do not move all controls into a single new container merely because they appear 
 Exact responsive positioning remains subject to further owner requirements. Do not turn these observations into an unreviewed all-width layout contract.
 
 ### 5.3 Phase A placeholders
+
+For the later active bars, Judd has confirmed: desktop vertical bars use a **24px inner width**, **2px dark-grey container padding on every side**, and **28px outer width**. Mobile horizontal bars use a **10px inner height**, the same **2px padding on every side**, and **14px outer height**. These supersede provisional active-bar dimensions; this pass does not resize the existing Phase A placeholders.
 
 Placeholders establish final bar/legend space and visual proportions, without dynamic scaling or a resolution animation controller. A simple static current-health depiction is acceptable if approved for the pass. They must not suggest fabricated intermediate combat outcomes.
 
@@ -636,6 +649,8 @@ On missing historical contributions or mismatched identities, show the authorita
 
 - Both players use the same mapping for a displayed resolution.
 - Desktop uses a vertical mapping; mobile uses the corresponding horizontal mapping.
+- Mobile's default non-negative domain places zero on the left and positive health toward the right. When negatives are included, retain a visible zero reference within the shared mapping.
+- Both orientations use the same logical damage, clearance, healing, surplus and settle stages, presentation/controller and scale rules; do not create a separate mobile animation engine.
 - The positive range includes the relevant authoritative maximums, with a default baseline of 0–35.
 - The negative range includes the lowest displayed damage-stage value and any final negative values.
 - Overheal does not expand the positive range merely to show unused healing.
@@ -657,6 +672,7 @@ Do not compress each player's negatives differently. A value of −60 must occup
 ### 11.4 Legend labels
 
 - Keep zero identifiable.
+- Legend text uses the existing `grey-50` palette token.
 - Keep the positive top/maximum context identifiable.
 - Use legible rounded intervals such as 5, 10, 20 or larger steps as space/range requires.
 - Reduce intermediate label density before allowing collisions.
@@ -666,7 +682,7 @@ Do not compress each player's negatives differently. A value of −60 must occup
 
 ### 11.5 Scale lifecycle
 
-Provisional default: determine the necessary range from a complete resolution snapshot, transition to it before contribution motion, and freeze it throughout damage/healing/overheal. Both bars change mapping together.
+Owner-confirmed: legend and mapping adjust dynamically to the complete snapshot's required damage/healing range, respecting capped positive health, increased maximums and shared negative compression. Establish the range before contribution motion and freeze it throughout damage/healing/overheal. Both bars change mapping together; surplus healing does not expand positive stored-health extent.
 
 Whether to retain an expanded range after settling, contract at a later boundary or use hysteresis remains open. Avoid oscillation near thresholds. Never rescale continuously because each animation frame changes the current value.
 
@@ -686,6 +702,8 @@ Use one shared logical animation model with orientation-specific rendering. A pr
 6. Exact numerical health/net display, coordinated with the sequence.
 
 The layers are presentation components, not a new authoritative game engine. Keep bar geometry, scale calculation and lifecycle ownership separable so tuning one does not require rewriting the others.
+
+Zero markers remain visible in every rendered state, including settled and terminal, **above all red/green layers**. Desktop uses a white marker **3px thick spanning the 24px inner width**. Mobile uses the equivalent orientation-aware marker across the 10px inner height.
 
 ### 12.2 Semantic stages
 
@@ -736,7 +754,7 @@ Do not create a second polling/subscription path. Do not advance authoritative p
 
 ### 13.2 Tweakable parameters
 
-The following should be centrally adjustable, with initial values settled during the animation pass:
+Animation timings must be easy for Judd to edit manually in **one clearly named configuration location**, with named stage settings. Contribution-animation easing is owner-confirmed as **`cubic-bezier(0.7, 0, 0.3, 1)`**. Timing values, detailed scale thresholds, counter behavior and other open visual decisions remain for their scheduled owner-reviewed passes. The following should be centrally adjustable, with initial values settled during the animation pass:
 
 | Parameter | Purpose |
 | --- | --- |
@@ -786,6 +804,8 @@ Renaming Health Flash to Battle Effects, tying bar motion to it or adding a sepa
 **Conditional server scope:** only existing resolution/history/projection seams proven insufficient, with a separately reviewed file plan and compatibility tests. No new gameplay resolution logic.
 
 **Acceptance:** scenarios in Appendix C produce coherent inputs; overheal recovery is correct; duplicate/polling paths identify the same resolution; historical missing data settles safely. No hidden projections leak.
+
+**Implemented 2026-10-22:** see the 20B.1 implementation record above for actual source eligibility, lifetime/release, cap provenance, fallback and validation. This does not complete 20B.2 or any later pass.
 
 ### 20B.2 — Shared scale and legend calculations
 
@@ -901,17 +921,20 @@ This register is part of the plan and should be updated as passes are approved.
 | D06 | Shared mobile time tabs | Implemented: shared selection retained within a game turn; reset on next opening after rollover/new game. Last uses the genuine preceding slot; held/final current actuals stay on the right. Owner visual review pending. | 20A.6 |
 | D07 | Desktop last-turn inspection | Implemented: entire health/net/resolved-value group opens matching resolved damage/healing sections; current stacks open current-only sections. Both use compact 240px stacked cards. Owner visual review pending. | 20A.4 |
 | D08 | Helper placement | 20A.3 implemented using the approved L/M/S CSS targets and compact CHR grid; existing selection preserved. Owner visual review pending. | 20A.3 |
-| D09 | Server extension | Conditional, not presumed necessary. | 20B.1 |
+| D09 | Server extension | No server change in 20B.1. Supported boundaries use explicit finalized caps/matching live-finalized history; known next-turn fleet work settles because current history derives caps from post-advance state. Exact coverage needs a separate aggregate-time cap capture through existing finalize/history/projection seams. Older cap provenance also remains unavailable. | 20B.1 audit; separate Server Pass for broader coverage |
 | D10 | Positive-space clamp | Required concept; pixels/fraction per breakpoint and increased-cap behaviour need specification. | 20B.2 |
 | D11 | Negative compression | Required only when needed; threshold, tick steps and scale-break appearance provisional. | 20B.2–20B.3 |
 | D12 | Scale retention | Open: when/how to contract after a large turn and any hysteresis. | 20B.2 |
 | D13 | Counter behaviour | Open: main number follows intermediate values or transitions to final separately. | Before 20B.5 |
 | D14 | Overheal | Cap white fill; do not expand positive range for surplus. Exact green sweep/clearance provisional. | 20B.3–20B.4 |
-| D15 | Animation timings | Open: named settings and bounded whole sequence; agree with existing hold/next-dice lifecycle. | 20B.4 |
+| D15 | Animation timings | Confirmed: one clearly named, manually editable configuration with named stages; contribution easing cubic-bezier(0.7, 0, 0.3, 1). Durations and bounded sequence/lifecycle coordination remain open. | 20B.4 |
 | D16 | Preferences | Open: Health Flash, Battle Effects name, bar-motion switch, reduced-motion and existing sound coordination. | 20B.4–20B.7 |
 | D17 | Outcome markers | Preserve canonical outcomes; exact loss/draw/narrow-victory styling provisional. | 20B.3/20B.7 |
 | D18 | Placeholder treatment | Implemented neutral tracks/blank lanes: desktop 24px tracks and 56px lane; mobile 12px tracks/lane. No active fills, scale or legend in Phase A. Owner visual acceptance pending. | 20A.2/20A.5/20A.7 |
 | D19 | Desktop numeric typography and refs | Exact 20A.7 tiers/line-height 1 and explicit board/bar refs implemented and automated checks passed; final owner visual acceptance pending. | 20A.7 |
+| D20 | Active bar geometry | Confirmed: desktop vertical, inner width 24px / padding 2px per side / outer width 28px; mobile horizontal, inner height 10px / padding 2px per side / outer height 14px. Documentation only in 20B.1. | 20B.3/20B.5/20B.6 |
+| D21 | Mapping and zero reference | Confirmed: snapshot-derived dynamic shared mapping established before motion; mobile non-negative zero left, positive right; shared negative compression. Zero always above contributions, white 3px desktop marker across 24px interior, orientation-aware mobile equivalent; legend grey-50. Detailed thresholds remain open. | 20B.2–20B.3 |
+| D22 | Snapshot lifetime and provenance | Implemented: retain N through existing publication/release; N+1 DTO arrival is not cancellation. Frozen accepted facts; live completion corroborates matching finalized history; no numeric rejection of cap 35. History/bootstrap/recovery alone cannot start a sequence. | 20B.1 |
 
 Additional discovered requirements should be added here with their affected pass. A later approved pass plan may supersede an entry at Judd's discretion.
 
@@ -1012,7 +1035,7 @@ Reference: `image(20261020-235222).png`, 2048 × 1167. Raster coordinates are ap
 | Element | Reference measurement | Class | Target CSS policy |
 | --- | --- | --- | --- |
 | Shared health axis | Near x=1165 | R | Centre within the main board after the left rail; not whole-window centre. |
-| Bar tracks | About 26px wide, 402px high, starting near y=18 | R | Proposed starting width 24–26 CSS px only if calibration supports 1:1; height governed by reviewed layout. |
+| Bar tracks | About 26px wide, 402px high, starting near y=18 | R / A | Owner-confirmed active desktop inner width 24px, padding 2px every side, outer width 28px; height governed by reviewed layout. |
 | Gap between tracks | About 72px including legend region | R | Preserve a readable central tick-label lane; exact gap O. |
 | Health-number row | Near y=441–485 | R | Below bars; current typography uses 20A.7 tiers, not raster glyph height. |
 | Net-delta row | Near y=497–517 | R | Directly associated with its health number. |
@@ -1029,7 +1052,7 @@ Unimplemented entries remain proposals, not claimed pixel-perfect readings. The 
 
 | Element | Initial proposal | Class | Review |
 | --- | --- | --- | --- |
-| Desktop bar track | Square-ended dark track, white fill, red/green transient layers | P | 20B.3; use existing palette tokens. |
+| Desktop bar track | Vertical; inner width 24px, dark-grey padding 2px per side, outer width 28px; white fill, red/green transient layers | A geometry / P remaining treatment | 20B.3; use existing palette tokens. |
 | Desktop legend text | Start at 11–12 CSS px; fit labels by density, not blanket scaling | P | 20A.2/20B.2. |
 | Desktop current contribution | 20/24/28px at small/medium/large tiers, bold | A | 20A.7; retained matching implementation. |
 | Desktop last contribution | 14/16/20px, opacity 0.66 | A | 20A.7; centred against health number, excluding delta. |
@@ -1049,7 +1072,7 @@ Reference: `image(20261020-235250).png`, 360 × 800. Treat as a 360px design ref
 | Upper bar | Roughly x=16–272, y=254–266 | R |
 | Shared legend | Between bars, around y=271–278 | R |
 | Lower bar | Roughly x=16–272, y=285–297 | R |
-| Bar thickness | Approximately 12px | R; proposed initial 12 CSS px if approved |
+| Bar thickness | Owner-confirmed inner height 10px, dark-grey padding 2px per side, outer height 14px | A; replaces provisional active-bar thickness; 20B.1 documentation only |
 | Bar/legend width | Approximately 256px at this reference width | R; responsive available width, not global constant |
 | Die/clock column | Existing 56px column and 52px die | E; preserve functional placement |
 | Requester identity row | Below bars, around y=306 onward | R |

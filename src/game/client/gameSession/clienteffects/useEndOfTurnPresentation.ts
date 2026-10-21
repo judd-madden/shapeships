@@ -6,7 +6,10 @@ import type {
   HealthResolutionPresentationVm,
   HealthResolutionSideVm,
   ThisTurnResolutionSnapshot,
+  ResolvedHealthSnapshot,
 } from '../types';
+import { createResolvedHealthState, getHealthResolutionPresentationKey, transitionResolvedHealth } from '../resolvedHealth';
+export { getHealthResolutionPresentationKey } from '../resolvedHealth';
 import {
   DICE_VISUAL_ROLL_DURATION_MS,
   TURN_START_DICE_PRESENTATION_DELAY_MS,
@@ -68,13 +71,6 @@ export interface EndOfTurnLeftRailInput {
   authoritativeCubeDiceValueByPlayerId: Record<string, unknown>;
 }
 
-export function getHealthResolutionPresentationKey(
-  gameId: string,
-  resolvedTurnKey: string,
-): string {
-  return `${gameId}::health::${resolvedTurnKey}`;
-}
-
 export type ThisTurnResolutionSnapshotEvent =
   | { type: 'capture'; snapshot: ThisTurnResolutionSnapshot }
   | { type: 'game_changed' }
@@ -109,6 +105,9 @@ interface UseEndOfTurnPresentationArgs {
   authoritativeHoldUntilMs: number | null;
   healthResolutionPresentationTrigger?: HealthResolutionPresentationTrigger | null;
   thisTurnResolutionTrigger?: ThisTurnResolutionSnapshot | null;
+  resolvedHealthCandidate?: ResolvedHealthSnapshot | null;
+  resolvedHealthContinuityKey?: string | null;
+  resolvedHealthPendingTurnNumber?: number | null;
   healthPresentation: EndOfTurnHealthPresentationInput;
   leftRail: EndOfTurnLeftRailInput;
   economyPresentation: TurnStartEconomyPresentation<BoardStatBreakdownRowVm> | null;
@@ -333,6 +332,9 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     authoritativeHoldUntilMs,
     healthResolutionPresentationTrigger,
     thisTurnResolutionTrigger,
+    resolvedHealthCandidate,
+    resolvedHealthContinuityKey = null,
+    resolvedHealthPendingTurnNumber,
     healthPresentation,
     leftRail,
     economyPresentation,
@@ -386,6 +388,13 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     useState<HealthResolutionPresentationVm | undefined>(undefined);
   const [thisTurnResolutionSnapshot, setThisTurnResolutionSnapshot] =
     useState<ThisTurnResolutionSnapshot | null>(null);
+  const [resolvedHealthState, setResolvedHealthState] = useState(createResolvedHealthState);
+  useLayoutEffect(() => {
+    setResolvedHealthState((current) => transitionResolvedHealth(current, {
+      type: 'sync', continuityKey: resolvedHealthContinuityKey, candidate: resolvedHealthCandidate,
+      observedResolvedTurnNumber: resolvedHealthPendingTurnNumber,
+    }));
+  }, [resolvedHealthContinuityKey, resolvedHealthCandidate, resolvedHealthPendingTurnNumber]);
   const [fleetAreaHealthDeltaFlashes, setFleetAreaHealthDeltaFlashes] =
     useState<{
       my?: FleetAreaHealthDeltaFlashVm;
@@ -849,6 +858,11 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
         turnNumber: publishedTurnNumber,
       })
     );
+    // N+1 DTO arrival does not release N. Use the same publication seam as Phase 18.
+    setResolvedHealthState((current) => transitionResolvedHealth(current, {
+      type: 'turn_start_published', continuityKey: resolvedHealthContinuityKey,
+      gameId, turnNumber: publishedTurnNumber,
+    }));
   }
 
   function schedulePresentedTurnStartDiceSettled(args: {
@@ -1206,6 +1220,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
   return {
     healthResolutionLockActive,
+    resolvedHealthSnapshot: resolvedHealthState.continuityKey === resolvedHealthContinuityKey
+      ? resolvedHealthState.snapshot : null,
     thisTurnResolutionSnapshot,
     healthResolutionOverlay,
     myFleetHealthDeltaFlash: fleetAreaHealthDeltaFlashes.my,
