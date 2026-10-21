@@ -2,6 +2,9 @@ declare const Deno: {
   test(name: string, fn: () => void | Promise<void>): void;
 };
 
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { BoardCombatBreakdown } from '../../layout/boardStage/BoardStatBreakdownHoverCard';
 import type {
   BoardViewModel,
   BoardStatBreakdownRowVm,
@@ -13,13 +16,16 @@ import type {
 } from '../../../client/gameSession/types';
 import {
   buildBoardStatHoverSections,
+  buildCurrentBoardCombatBreakdown,
   calculateBoardStatHoverLayout,
   formatBoardStatMetric,
   formatBoardMetricBreakdownAmount,
-  selectBoardStatHoverAnchor,
+  getBoardCombatHeadingPresentation,
 } from '../../layout/boardStage/boardStatPresentation';
 import {
   buildHealthBreakdownPresentation,
+  buildResolvedBoardCombatBreakdown,
+  getHealthContributionLabels,
   formatHealthChange,
 } from '../../layout/boardStage/healthBreakdownPresentation';
 import {
@@ -230,19 +236,6 @@ Deno.test('metric contribution rows are signless while adjustments retain meanin
   assertEquals(formatBoardMetricBreakdownAmount({
     rowKind: 'adjustment', label: 'Damage cap', amount: -2, amountText: '-2',
   }), '-2');
-});
-
-Deno.test('numeric content is selected ahead of the fixed-width trigger', () => {
-  const numericContent = { id: 'numbers' };
-  const fixedWidthTrigger = { id: 'button' };
-  assertEquals(
-    selectBoardStatHoverAnchor(numericContent, fixedWidthTrigger),
-    numericContent,
-  );
-  assertEquals(
-    selectBoardStatHoverAnchor(null, fixedWidthTrigger),
-    fixedWidthTrigger,
-  );
 });
 
 Deno.test('hover layout hugs numeric edges on both sides and flips when needed', () => {
@@ -593,4 +586,170 @@ Deno.test('finished unresolved terminal retains only a matching earlier Last Tur
   assertEquals({ heading: result.my?.heading, turn: result.my?.turnNumber }, {
     heading: 'LAST TURN', turn: 4,
   });
+});
+
+Deno.test('combined current columns group damage and healing by affected health with spectator owners', () => {
+  const presentation = healthPresentation('estimated');
+  const viewer = { ...playerViewer, isSpectator: true, p1Name: 'Alpha', p2Name: 'Beta' };
+  const labels = getHealthContributionLabels(viewer, null);
+  const left = buildCurrentBoardCombatBreakdown({
+    presentation, side: 'my', damageLabel: labels.opponentDamage, healingLabel: labels.viewerHealing,
+  });
+  const right = buildCurrentBoardCombatBreakdown({
+    presentation, side: 'opponent', damageLabel: labels.viewerDamage, healingLabel: labels.opponentHealing,
+  });
+  assertEquals([left.damage.label, left.damage.totalText, left.healing.label, left.healing.totalText],
+    ['Beta Damage', '~8', 'Alpha Healing', '~5']);
+  assertEquals([right.damage.label, right.damage.totalText, right.healing.label, right.healing.totalText],
+    ['Alpha Damage', '~7', 'Beta Healing', '~2']);
+});
+
+Deno.test('combined current inspection preserves the visible column when the other is concealed', () => {
+  const presentation = healthPresentation('estimated');
+  presentation.opponent.damage.current = { state: 'concealed', turnNumber: 4 };
+  presentation.me.healing.current = {
+    ...valueMetric(0, 'privacy_frozen', 4, [], 'with_autocast'), chargeDeclarationUncertain: true,
+  } as ThisTurnMetricVm;
+  const card = buildCurrentBoardCombatBreakdown({
+    presentation, side: 'my', damageLabel: 'Opponent Damage', healingLabel: 'Your Healing',
+  });
+  assertEquals([card.damage.totalText, card.damage.section, card.damage.unavailableText], ['?', null, 'Concealed']);
+  assertEquals([card.healing.totalText, card.healing.section?.estimateQualifierText, card.healing.section?.rows],
+    ['~0 ?', 'AUTOCAST ESTIMATE', []]);
+});
+
+Deno.test('combined current inspection never substitutes last-turn rows for unavailable current data', () => {
+  const presentation = healthPresentation('estimated');
+  presentation.me.healing.current = { state: 'unavailable', turnNumber: 4 };
+  presentation.opponent.damage.current = { state: 'pending', turnNumber: 4 };
+  presentation.me.healing.last = valueMetric(9, 'last_actual', 3);
+  presentation.opponent.damage.last = valueMetric(12, 'last_actual', 3);
+  const card = buildCurrentBoardCombatBreakdown({
+    presentation, side: 'my', damageLabel: 'Opponent Damage', healingLabel: 'Your Healing',
+  });
+  assertEquals([card.damage.section, card.healing.section], [null, null]);
+});
+
+Deno.test('resolved combined inspection selects held actuals instead of the preceding last slot', () => {
+  const presentation = healthPresentation('held_actual', 4);
+  presentation.opponent.damage.last = valueMetric(8, 'last_actual', 3, [{ ...rows[0], label: 'Wrong prior turn' }]);
+  const health = buildHealthBreakdownPresentation({
+    boardVm: healthBoard(), thisTurn: presentation, gameStats: null, viewer: playerViewer,
+  });
+  const card = buildResolvedBoardCombatBreakdown({ card: health.my, thisTurn: presentation, side: 'my' });
+  assertEquals([card?.heading, card?.damage.totalText, card?.damage.section?.rows[0].label], ['LAST TURN', '8', 'Fighter']);
+  assertEquals(card?.healing.totalText, '5');
+});
+
+Deno.test('resolved combined inspection uses last actuals after rollover, not equal-valued estimates', () => {
+  const presentation = healthPresentation('estimated', 5);
+  for (const side of [presentation.me, presentation.opponent]) {
+    for (const kind of ['damage', 'healing'] as const) {
+      const current = side[kind].current as Extract<ThisTurnMetricVm, { total: number }>;
+      side[kind].last = valueMetric(current.total, 'last_actual', 4, [{ ...rows[0], label: 'Resolved ship' }]);
+    }
+  }
+  const health = buildHealthBreakdownPresentation({
+    boardVm: healthBoard(), thisTurn: presentation, gameStats: null, viewer: playerViewer,
+  });
+  const card = buildResolvedBoardCombatBreakdown({ card: health.opponent, thisTurn: presentation, side: 'opponent' });
+  assertEquals([card?.damage.section?.rows[0].label, card?.healing.section?.rows[0].label], ['Resolved ship', 'Resolved ship']);
+});
+
+Deno.test('resolved combined inspection retains confirmed final semantics and rejects mismatched details', () => {
+  const board = healthBoard({ turnNumber: 4 });
+  const presentation = healthPresentation('final_actual', 4, 'game.finished');
+  const health = buildHealthBreakdownPresentation({ boardVm: board, thisTurn: presentation, gameStats: null, viewer: playerViewer });
+  const final = buildResolvedBoardCombatBreakdown({ card: health.my, thisTurn: presentation, side: 'my' });
+  assertEquals([final?.heading, final?.damage.section?.kind, final?.healing.section?.kind], ['FINAL TURN', 'final_turn', 'final_turn']);
+  presentation.opponent.damage.current = valueMetric(99, 'final_actual', 4);
+  presentation.me.healing.current = valueMetric(5, 'estimated', 4);
+  const unavailable = buildResolvedBoardCombatBreakdown({ card: health.my, thisTurn: presentation, side: 'my' });
+  assertEquals([unavailable?.damage.totalText, unavailable?.damage.section, unavailable?.healing.section], ['8', null, null]);
+});
+
+Deno.test('matching historical health allows aggregate totals without inventing contribution rows', () => {
+  const board = healthBoard({ turnNumber: 1 });
+  const presentation = healthPresentation('estimated', 1, 'game.finished');
+  const health = buildHealthBreakdownPresentation({
+    boardVm: board, thisTurn: presentation, gameStats: history(1, board), viewer: playerViewer,
+  });
+  const card = buildResolvedBoardCombatBreakdown({ card: health.my, thisTurn: presentation, side: 'my' });
+  assertEquals([card?.heading, card?.damage.totalText, card?.damage.section, card?.healing.section], ['FINAL TURN', '8', null, null]);
+  assertEquals(card?.damage.unavailableText, 'Breakdown unavailable');
+  assertEquals(buildResolvedBoardCombatBreakdown({ card: null, thisTurn: presentation, side: 'my' }), null);
+});
+
+Deno.test('compact combined cards flip outward placement and clamp within a short desktop viewport', () => {
+  const result = calculateBoardStatHoverLayout({
+    anchorRect: { left: 180, right: 240, top: 90, height: 60 },
+    cardWidth: 240, cardHeight: 176, viewportWidth: 600, viewportHeight: 200, preferredPlacement: 'left',
+  });
+  assertEquals(result, { left: 254, top: 12, placement: 'right', tailOffset: 108 });
+});
+
+Deno.test('combined period headings qualify estimates while actual, last and final headings remain plain', () => {
+  for (const source of ['estimated', 'turn_start_baseline', 'privacy_frozen', 'held_actual', 'final_actual'] as const) {
+    const card = buildCurrentBoardCombatBreakdown({
+      presentation: healthPresentation(source), side: 'my',
+      damageLabel: 'Opponent Damage', healingLabel: 'Your Healing',
+    });
+    assertEquals(getBoardCombatHeadingPresentation(card), {
+      heading: source === 'final_actual' ? 'FINAL TURN' : 'THIS TURN',
+      qualifier: source === 'held_actual' || source === 'final_actual' ? null : 'ESTIMATE',
+    });
+  }
+  const presentation = healthPresentation('held_actual');
+  const health = buildHealthBreakdownPresentation({
+    boardVm: healthBoard(), thisTurn: presentation, gameStats: null, viewer: playerViewer,
+  });
+  const card = buildResolvedBoardCombatBreakdown({ card: health.my, thisTurn: presentation, side: 'my' });
+  assertEquals(card && getBoardCombatHeadingPresentation(card), { heading: 'LAST TURN', qualifier: null });
+});
+
+Deno.test('stacked combat rendering keeps one owner total per section and scopes Autocast to its contribution', () => {
+  const presentation = healthPresentation('estimated');
+  presentation.opponent.damage.current = {
+    ...valueMetric(13, 'estimated', 4, [{ ...rows[0], label: 'Damage source', amount: 13 }], 'with_autocast'),
+    chargeDeclarationUncertain: true,
+  } as ThisTurnMetricVm;
+  presentation.me.healing.current = valueMetric(5, 'estimated', 4, [{ ...rows[0], label: 'Healing source', amount: 5 }]);
+  const card = buildCurrentBoardCombatBreakdown({
+    presentation, side: 'my', damageLabel: 'Opponent Damage', healingLabel: 'Your Healing',
+  });
+  const markup = renderToStaticMarkup(createElement(BoardCombatBreakdown, { card }));
+  const sections = markup.match(/<section\b[\s\S]*?<\/section>/g) ?? [];
+  assertEquals(sections.length, 2);
+  const [damage = '', healing = ''] = sections;
+  assertEquals(markup.match(/<h3\b[^>]*>([\s\S]*?)<\/h3>/)?.[1].replace(/<[^>]*>/g, ''), 'THIS TURN (ESTIMATE)');
+  assertEquals(damage.includes('Opponent Damage') && damage.includes('Damage source'), true);
+  assertEquals(healing.includes('Your Healing') && healing.includes('Healing source'), true);
+  assertEquals(damage.includes('(AUTOCAST ESTIMATE)'), true);
+  assertEquals(healing.includes('AUTOCAST'), false);
+  assertEquals(markup.split('~13 ?').length - 1, 1);
+  assertEquals(markup.split('~5').length - 1, 1);
+  assertEquals(markup.includes('>TOTAL<'), false);
+});
+
+Deno.test('stacked rendering preserves concealed contributions, available zeroes and final unavailable details', () => {
+  const presentation = healthPresentation('estimated');
+  presentation.opponent.damage.current = { state: 'concealed', turnNumber: 4 };
+  presentation.me.healing.current = valueMetric(0, 'estimated', 4, []);
+  const current = buildCurrentBoardCombatBreakdown({
+    presentation, side: 'my', damageLabel: 'Opponent Damage', healingLabel: 'Your Healing',
+  });
+  const markup = renderToStaticMarkup(createElement(BoardCombatBreakdown, { card: current }));
+  assertEquals(markup.includes('Concealed') && markup.includes('Your Healing') && markup.includes('~0'), true);
+  assertEquals(markup.includes('Fighter'), false);
+
+  const board = healthBoard({ turnNumber: 1 });
+  const finalPresentation = healthPresentation('estimated', 1, 'game.finished');
+  const health = buildHealthBreakdownPresentation({
+    boardVm: board, thisTurn: finalPresentation, gameStats: history(1, board), viewer: playerViewer,
+  });
+  const final = buildResolvedBoardCombatBreakdown({ card: health.my, thisTurn: finalPresentation, side: 'my' });
+  const finalMarkup = final ? renderToStaticMarkup(createElement(BoardCombatBreakdown, { card: final })) : '';
+  assertEquals(finalMarkup.includes('FINAL TURN'), true);
+  assertEquals(finalMarkup.split('Breakdown unavailable').length - 1, 2);
+  assertEquals(finalMarkup.includes('ESTIMATE') || finalMarkup.includes('~'), false);
 });

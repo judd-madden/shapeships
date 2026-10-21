@@ -45,7 +45,51 @@
 - **Not run — browser/Vite testing handled by user.**
 - **Pending owner review:** L/M/S sizes and intermediate/short desktops; main-die centring; no central scrolling and placeholder/gap compression; all selected helper combinations; CHR 1–3 rolls; KNO spacing; Cube highlighting; animation clearance and fleet/control collisions; setup/intros/missions; guidance delay/fade, viewport clamping and dismissal; LeftRail expansion; unchanged mobile presentation.
 
+### 2026-10-21 — 20A.4 desktop stats, economy and consolidated inspection
+
+- **Pass type:** Client/UI. **Primary layer:** Display, with a narrow client presentation input for Fleet Value. Implemented; owner visual review is **pending**. No server, networking, mobile, dice, header, background-divider or tooling changes; bars remain inactive and Phase 20B has not started.
+- Current red/green values now sit outside the bottoms of their corresponding bar tracks. Left receives opponent damage and own healing; right receives own damage and opponent healing, preserving spectator ordering. The stacks follow the flexible bar region, with 20px bottom padding at 1920px+ and zero below it. Current values still consume `presentedThisTurnStats`, including dice-settle holds, concealment, uncertainty and estimate/Autocast metadata.
+- Small/dim resolved red/green values now sit outside the health numbers, with the existing net delta beneath each number. Each entire health group opens one resolved damage/healing breakdown, using the existing health source/lifecycle validation rather than assuming `.last`. Matching actual detail requires the same turn and total; confirmed aggregate history without matching rows explicitly reports unavailable breakdown detail. LAST TURN / FINAL TURN and existing delta animation keys/gates remain intact.
+- Each current stack opens one current-only, two-column damage/healing card. Concealed columns expose no rows and do not disable the other column. The separate desktop health-summary renderer and duplicate Damage/Healing rows and labels have been removed. The visible Health/max-health label is removed by owner decision for the future bar legend; accessible health descriptions retain each actual cap. Shared mobile helpers and consumers retain their existing behaviour.
+- Cards reuse the existing portal, presence motion and outward flip/clamp positioning. Combined cards are 480px wide, bounded to the viewport, with internal scrolling and wrapped source labels. Trigger/card hover and focus continuity use a 150ms pointer handoff delay; Down Arrow moves keyboard focus into the scrollable card. Active anchors remeasure on content, viewport, ancestor/bar-region resize and captured scroll changes. The central board never becomes a scroll container.
+- Economy order is Saved Lines, Bonus, Fleet. Ordinary/joining resources, Centaur categories, intentional zeros, bonus breakdowns and streak details remain separate. Fleet uses the exact label `Fleet`, 18px values and the same 12px central-label size as other medium/large economy rows, all pastel purple. **Fleet is hidden below 1400px** and has no new hover.
+- Live Fleet Value sums summary counts times mirrored core definitions' integer `totalLineCost`, with unknown/null/noninteger costs contributing zero. The runtime exposes optional board `presentedFleetValue`, calculated from viewer-safe fleets after build-preview/materialisation filtering and before exact-target projections. Void fleets, Solar ledger entries, unmaterialised copies and targeting graphic substitutions are excluded. Historical `fleetValueEnd` is not used.
+
+| Desktop stats geometry | Small: 768–1399px | Medium: 1400–1919px | Large: ≥1920px |
+| --- | ---: | ---: | ---: |
+| Current contribution | 20px | 24px | 28px |
+| Resolved contribution, opacity 0.66 | 14px | 16px | 18px |
+| Saved/Bonus values | 24px | 28px | 28px |
+| Central economy labels | 11px | 12px | 12px |
+| Fleet values | Hidden | 18px | 18px |
+| Flexible economy gap | 4px | 6px | 8px |
+| Minimum bar-region reservation for real current values | 42px | 50px | 78px |
+
+- Decorative height above that minimum yields first, then economy gaps compress. The reservation prevents current values escaping above a fully collapsed decorative region; horizontal numeric/resource overhang remains available. Health typography and the mounted desktop die/timing are unchanged. These are local CSS targets, not screenshot-wide scaling.
+- **Validation:** `npm run typecheck`, `npm run build` and `npm run test:client` passed (38 files, 346 tests). Focused coverage includes contribution ownership, concealed/available columns, Autocast/uncertainty, held/rollover/final/history detail selection, wide-card clamping and Fleet stack/privacy/preview/materialisation/targeting semantics. Production CSS inspection confirmed responsive typography, Fleet visibility, large-only 20px padding, minimum reservations and scrollable 480px cards. The build retains the existing non-blocking >500kB chunk-size warning.
+- **Not run — browser/Vite testing handled by user.** Owner visual review remains **pending** for L/M/S and short/intermediate desktops, long totals/resources, hover placement/scrolling/focus continuity, setup/intros/missions/spectators/finished games and unchanged mobile presentation.
+
 ---
+
+### 2026-10-21 — 20A.4 layout and breakdown refinements
+
+- **Pass type:** Client/UI; display-only refinements. Implemented; owner visual review remains **pending**. This refinement supersedes the initial 330px bar-height cap, 480px/two-column combat cards, fixed previous-value offset and surrounding gap values. Fleet Value calculation, contribution ownership, resolved-source validation, presentation gates, mobile and gameplay are unchanged.
+- The bar region now grows without a maximum to consume BoardStage's remaining height after real content and deliberate spacing. MainStage already reserves the action controls and lower panel outside BoardStage, so it needed no change. Economy rows share the same flex column as the health/die content: real rows retain their height while decorative bar height and zero-minimum spacers yield on short boards. Existing 42/50/78px minimum reservations for current contribution stacks remain; their bottom padding stays zero below 1920px and 20px above it. No central scrolling or fixed screen coordinates were added.
+- Die spacing moved from non-shrinking padding into flexible spacers before and after the same mounted die. Only surrounding layout changed in `DesktopDicePresentation.tsx`; dimensions, helpers, guidance and dice lifecycle/timing remain intact. A flexible lower buffer keeps the final economy row above the board boundary.
+
+| Preferred flexible spacing | Small: 768–1399px | Medium: 1400–1919px | Large: 1920–2559px | Extra-large: ≥2560px |
+| --- | ---: | ---: | ---: | ---: |
+| Bar to health | 4px | 6px | 12px | 16px |
+| Each side of the die | 8px | 12px | 24px | 32px |
+| Between economy rows | 4px | 6px | 12px | 16px |
+| Lower board buffer | 8px | 12px | 16px | 24px |
+
+- Every listed spacer can shrink to zero before essential content yields. Taller devices intentionally produce taller bars; the old 330px maximum no longer limits the composition.
+- Previous red/green stacks now share the health-number grid row with centred alignment. Net delta occupies the next row in the health column, so hidden, visible and animated delta states cannot change the centring reference. Sizes, opacity, side alignment, health/delta typography and the single complete-group hover/focus trigger are preserved.
+- Combat cards return to viewport-bounded **240px** width and restrained existing typography: period, divider, damage owner/coloured total and source rows, divider, healing owner/coloured total and source rows. No side-by-side panels, TOTAL row or duplicate total remains. The existing frame, padding, border, pointer, motion, internal overflow, positioning and hover/focus/keyboard access are retained; bonus and win-streak composition is unchanged.
+- Current period headings show `THIS TURN (ESTIMATE)` when applicable; actual `THIS TURN`, validated `LAST TURN` and `FINAL TURN` remain plain. `AUTOCAST ESTIMATE` stays beside only its applicable contribution. Already-formatted `~`/uncertainty totals, concealed contributions, available zeroes and unavailable-detail handling are preserved. The removed health-summary card remains removed.
+- **Validation:** `npm run typecheck`, `npm run build` and `npm run test:client` passed (38 files, 349 tests). Focused heading/rendering coverage verifies section order, single owner totals, local Autocast qualifiers, approximation/uncertainty text, concealment/zero and final unavailable-detail states without changing calculation expectations. Production CSS inspection confirmed compact width, structural grid alignment, L/XL flexible spacing and retained large-only current-stack padding. The existing non-blocking >500kB build chunk-size warning remains.
+- **Not run — browser/Vite testing handled by user.** Owner review remains **pending** for full-height allocation above controls, varying bar heights, short-screen gap collapse, L/XL spacing, compact stacked cards, estimate/final headings, `~` totals and previous-value centring with delta hidden/visible/animating.
 
 ## Contents
 
@@ -136,7 +180,7 @@ A turn moving from 25 health to 23 may eventually involve a displayed damage exc
 - Damage/healing grouped by the health pool affected, with current and last-turn values.
 - Desktop hover changes and mobile paired popovers with internal time tabs.
 - Mobile status-layout changes and horizontal placeholder bars.
-- Fleet value presentation, subject to approval of its exact locations and treatment.
+- Desktop Fleet Value below Bonus on medium/large tiers, as implemented in 20A.4; mobile placement remains for its later pass.
 - Responsive integration and preservation of all existing conditional elements.
 
 ### 2.3 Phase 20B scope
@@ -240,7 +284,7 @@ The intended organisation is:
 - Vertical health bars with one shared legend, exact health values and existing net-delta presentation.
 - Adjacent damage/healing groups attached conceptually to the health pool affected.
 - Shared die below the health values, with existing helper slots nearby.
-- Saved lines, bonus lines and potentially Fleet Value below the die.
+- Saved lines, bonus lines and Fleet Value below the die; Fleet is hidden below 1400px.
 - Existing phase heading, conditional Ready/action rail and lower action panel remain accessible.
 - LeftRail remains responsible for its retained brand/log/phase/chat surfaces after dice extraction.
 
@@ -281,15 +325,16 @@ Apply this grouping to current values, last-turn values and their breakdowns. Th
 - Current values consume the existing presented This Turn pipeline, including its uncertainty and concealment metadata.
 - Last-turn values use resolved totals and resolved breakdowns.
 - Large/current and smaller/last values must stay recognisable as different time periods.
+- Desktop current values anchor beside bar bottoms; resolved values sit beside health numbers and use the period matching displayed health/net delta, including held/final cases.
 - No new renderer may bypass the dice-settle gate or infer a hidden opponent estimate.
 - Unknown values remain unknown; do not substitute numeric zero or derive bar previews from them.
 - Preserve `AUTOCAST ESTIMATE` and its current applicability. A generic time tab must not erase this qualifier or expose it for an opponent.
 
 ### 6.3 Desktop inspection
 
-Use existing hover infrastructure where possible. A health-side battle breakdown shows incoming damage and own healing together, with correct owners in its headings. Preserve access to last-turn information, health/max-health detail and economy breakdowns even where mockups show only the current hover state.
+Desktop current stacks open compact 240px cards with vertically stacked current damage/healing sections; entire health/resolved-value groups open the same stacked treatment for validated resolved contributions. Owners and Autocast qualifiers remain attached to their applicable sections; the period heading retains its estimate qualifier. The separate desktop health-summary hover has been removed. Accessible health descriptions retain health/max-health information; visible caps await the future legend by owner decision. Economy breakdowns remain available.
 
-Anchor placement, collision handling and exact current/last inspection interaction are reviewed in 20A.4. No feature is removed because only one hover is drawn in a reference image.
+20A.4 implements outward placement with viewport flip/clamp, responsive anchor measurement and internally scrollable cards. Owner visual review remains pending. Mobile inspection remains unchanged until its scoped pass.
 
 ### 6.4 Mobile paired popovers
 
@@ -319,8 +364,8 @@ Preserve outside-tap dismissal, tap-versus-drag handling, pointer containment an
 - Preserve all Centaur bonus categories and their established conditional visibility, including zero where current behaviour intentionally shows it.
 - Preserve source breakdowns and win-streak bonus explanation.
 - Fleet Value is a secondary metric, not a new resource or ship count. Reuse existing canonical valuation/presentation inputs; do not invent a local cost formula in JSX.
-- Its display locations, purple treatment and compact label are provisional. Prefer a clear `Fleet Value` label in detail surfaces even if the on-board label is abbreviated.
-- Audit availability and privacy for a live current fleet value; an end-of-turn history value alone must not be relabelled as current.
+- Desktop 20A.4 includes a pastel-purple `Fleet` row beneath Bonus, visible from 1400px. Mobile placement remains provisional; no new desktop Fleet hover is introduced.
+- Live value uses filtered viewer-safe fleet summaries and mirrored integer `totalLineCost`, before transient target projections. An end-of-turn history value must not be relabelled as current.
 - Current opponent build concealment applies to Fleet Value as well as ship graphics.
 
 ## 7. Desktop dice extraction and helper displays
@@ -431,11 +476,11 @@ The following sequence is recommended. Each pass may be revised by Judd; exact n
 
 **Type:** Client/UI Pass. **Dependency:** 20A.1–20A.3 as required by final layout.
 
-**Goal:** Implement affected-health-pool grouping, economy placement and complete hover access.
+**Goal:** Implement desktop affected-health-pool grouping, responsive economy including Fleet, and consolidated current/resolved inspection.
 
 **Expected scope:** `BoardStage.tsx`, `boardStatPresentation.ts`, `BoardStatBreakdownHoverCard.tsx`, `useBoardStatHover.ts`, `healthBreakdownPresentation.ts`; runtime/types only for specific missing presentation inputs.
 
-**Work:** current/last red/green groups, requester/opponent owner mapping, economy categories, optional Fleet Value, anchors and popover bounds. Consume existing presented estimate states and maintain Autocast qualifiers.
+**Work:** current red/green stacks beside bar bottoms; small/dim resolved stacks beside health; combined current-stack and complete-health-group inspection; responsive economy categories and Fleet from 1400px; accurate anchors and bounded scrollable cards. Consume existing presented estimate states and maintain Autocast qualifiers. Keep resolved sources matched to displayed health and remove the obsolete desktop health-summary renderer.
 
 **Acceptance:** numeric values and breakdowns agree with the old presentation for the same state; owner mapping is correct; last-turn access remains; concealed values stay concealed. Centaur ordinary/even/joining and streak sources are retained.
 
@@ -792,9 +837,9 @@ This register is part of the plan and should be updated as passes are approved.
 | D02 | Pixel calibration | Open: received extra-dice raster is 2048px wide; owner original is reported as 2241px. Intended CSS viewport/export scale not yet confirmed. | 20A.1–20A.2 measurements |
 | D03 | Responsive rules | Open: further owner requirements expected; current 767/768/1599 boundaries are baseline facts only. | Each affected layout pass |
 | D04 | Header and omitted elements | Target direction established; exact species/clock/status/intro variants need inventory and pass design. | 20A.1–20A.2 |
-| D05 | Fleet Value | Proposed inclusion; exact placement, compact label, source and visibility must be reviewed. | 20A.4–20A.6 |
+| D05 | Fleet Value | Desktop implemented: purple `Fleet` below Bonus from 1400px; live viewer-safe presentation value. Owner visual review pending; mobile placement remains open. | 20A.4–20A.6 |
 | D06 | Shared mobile time tabs | Intended direction: one period selection controls both cards. Reset/rollover/endgame policy provisional. | 20A.6 |
-| D07 | Desktop last-turn inspection | Preserve access; exact interaction/anchor remains reviewable. | 20A.4 |
+| D07 | Desktop last-turn inspection | Implemented: entire health/net/resolved-value group opens matching resolved damage/healing sections; current stacks open current-only sections. Both use compact 240px stacked cards. Owner visual review pending. | 20A.4 |
 | D08 | Helper placement | 20A.3 implemented using the approved L/M/S CSS targets and compact CHR grid; existing selection preserved. Owner visual review pending. | 20A.3 |
 | D09 | Server extension | Conditional, not presumed necessary. | 20B.1 |
 | D10 | Positive-space clamp | Required concept; pixels/fraction per breakpoint and increased-cap behaviour need specification. | 20B.2 |

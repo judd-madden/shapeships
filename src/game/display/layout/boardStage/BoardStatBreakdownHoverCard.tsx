@@ -5,30 +5,29 @@ import { HoverPanelFrame } from '../../shared/HoverPanelFrame';
 import type { HoverPanelMotionState } from '../../shared/useHoverPanelPresence';
 import type {
   BoardStatHoverLayout,
-  BoardStatHoverSectionVm,
-  BoardStatMetricTone,
+  BoardCombatBreakdownVm,
+  BoardCombatColumnVm,
 } from './boardStatPresentation';
-import type { HealthBreakdownCardVm } from './healthBreakdownPresentation';
 import {
   calculateBoardStatHoverLayout,
   formatBoardMetricBreakdownAmount,
+  getBoardCombatHeadingPresentation,
 } from './boardStatPresentation';
 
 export type BoardStatBreakdownHoverCardContent =
   | { kind: 'breakdown'; rows: BoardStatBreakdownRowVm[] }
   | { kind: 'win_streak'; count: number; rows: BoardStatBreakdownRowVm[] }
-  | { kind: 'health'; card: HealthBreakdownCardVm }
-  | {
-      kind: 'metric';
-      sections: BoardStatHoverSectionVm[];
-      tone: BoardStatMetricTone;
-    };
+  | { kind: 'combat'; card: BoardCombatBreakdownVm };
 
 interface BoardStatBreakdownHoverCardProps {
   anchorRect: DOMRect;
   side: 'left' | 'right';
   content: BoardStatBreakdownHoverCardContent;
   motionState?: HoverPanelMotionState | null;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
+  onFocus: () => void;
+  onBlur: () => void;
 }
 
 const VIEWPORT_PADDING_PX = 12;
@@ -51,11 +50,12 @@ function BreakdownRow({
           <span className="font-normal" style={{ color: 'var(--shapeships-grey-50)' }}>
             x
           </span>
-          <span className="min-w-0 truncate font-normal">{row.label}</span>
+          <span className="min-w-0 truncate font-normal" title={row.label}>{row.label}</span>
         </div>
       ) : (
         <div
           className="min-w-0 truncate text-left font-normal text-white"
+          title={row.label}
           style={{ fontSize: '14px', lineHeight: 1.4 }}
         >
           {row.label}
@@ -72,35 +72,28 @@ function BreakdownRow({
   );
 }
 
-function MetricSection({
-  section,
-  tone,
-}: {
-  section: BoardStatHoverSectionVm;
-  tone: BoardStatMetricTone;
-}) {
-  const toneClass = tone === 'damage'
+function CombatSection({ column }: { column: BoardCombatColumnVm }) {
+  const toneClass = column.tone === 'damage'
     ? 'text-[var(--shapeships-pastel-red)]'
     : 'text-[var(--shapeships-pastel-green)]';
 
   return (
-    <section className="flex flex-col gap-[4px]">
+    <section className="flex min-w-0 flex-col gap-[4px]">
       <div className="flex items-center justify-between gap-[16px]">
         <p className="min-w-0 text-[12px] leading-[15px] uppercase text-[var(--shapeships-grey-20)]">
-          <span className="font-semibold">{section.heading}</span>
-          {section.showEstimateQualifier ? (
-            <span className={section.estimateQualifierText ? 'block font-normal' : 'font-normal'}>
-              {section.estimateQualifierText ? '' : ' '}
-              ({section.estimateQualifierText ?? 'ESTIMATE'})
-            </span>
+          <span className="font-semibold">{column.label}</span>
+          {column.section?.showEstimateQualifier && column.section.estimateQualifierText ? (
+            <span className="block font-normal">({column.section.estimateQualifierText})</span>
           ) : null}
         </p>
         <p className={`shrink-0 text-[14px] leading-[15px] font-black ${toneClass}`}>
-          {section.totalText}
+          {column.totalText}
         </p>
       </div>
 
-      {section.rows.map((row, index) => (
+      {column.unavailableText ? (
+        <p className="text-[12px] leading-[16px] text-[var(--shapeships-grey-20)]">{column.unavailableText}</p>
+      ) : column.section?.rows.map((row, index) => (
         <BreakdownRow
           key={`${row.rowKind}:${row.label}:${row.amount}:${'count' in row ? row.count ?? index : index}`}
           row={row}
@@ -111,71 +104,20 @@ function MetricSection({
   );
 }
 
-function HealthSection({ card }: { card: HealthBreakdownCardVm }) {
-  const changeToneClass = card.changeTone === 'healing'
-    ? 'text-[var(--shapeships-pastel-green)]'
-    : card.changeTone === 'damage'
-      ? 'text-[var(--shapeships-pastel-red)]'
-      : 'text-[var(--shapeships-grey-50)]';
-
+export function BoardCombatBreakdown({ card }: { card: BoardCombatBreakdownVm }) {
+  const period = getBoardCombatHeadingPresentation(card);
   return (
-    <section className="flex flex-col">
-      <h3 className="text-[12px] font-semibold leading-[15px] text-[var(--shapeships-grey-20)]">
-        {card.heading}
+    <div className="flex shrink-0 flex-col">
+      <h3 className="text-[12px] leading-[15px] uppercase text-[var(--shapeships-grey-20)]">
+        <span className="font-semibold">{period.heading}</span>
+        {period.qualifier ? <span className="font-normal"> ({period.qualifier})</span> : null}
       </h3>
       <div className="my-[8px] h-px bg-[var(--shapeships-grey-70)]" />
-      <div className="flex items-center justify-between gap-[16px] text-[14px] leading-[20px]">
-        <span className="min-w-0 text-white">{card.damageLabel}</span>
-        <span className="shrink-0 font-bold text-[var(--shapeships-pastel-red)]">
-          {card.damageText}
-        </span>
-      </div>
-      <div className="flex items-center justify-between gap-[16px] text-[14px] leading-[20px]">
-        <span className="min-w-0 text-white">{card.healingLabel}</span>
-        <span className="shrink-0 font-bold text-[var(--shapeships-pastel-green)]">
-          {card.healingText}
-        </span>
-      </div>
+      <CombatSection column={card.damage} />
       <div className="my-[8px] h-px bg-[var(--shapeships-grey-70)]" />
-      <div className="flex items-center justify-between gap-[16px] text-[14px] font-semibold leading-[20px]">
-        <span className="min-w-0 text-white">Health Change</span>
-        <span className={`shrink-0 ${changeToneClass}`}>{card.changeText}</span>
-      </div>
-    </section>
+      <CombatSection column={card.healing} />
+    </div>
   );
-}
-
-function contentKey(content: BoardStatBreakdownHoverCardContent): string {
-  if (content.kind === 'win_streak') {
-    return `win-streak:${content.count}:${content.rows.map((row) => `${row.label}:${row.amount}`).join('|')}`;
-  }
-  if (content.kind === 'breakdown') {
-    return content.rows
-      .map((row) =>
-        `${row.rowKind}:${row.label}:${row.amount}:${'count' in row ? row.count ?? '' : ''}`
-      )
-      .join('|');
-  }
-
-  if (content.kind === 'health') {
-    return [
-      content.card.heading,
-      content.card.turnNumber,
-      content.card.healingText,
-      content.card.damageText,
-      content.card.changeText,
-    ].join('|');
-  }
-
-  return content.sections
-    .map((section) => [
-      section.kind,
-      section.totalText,
-      ...section.rows.map((row) =>
-        `${row.rowKind}:${row.label}:${row.amount}:${'count' in row ? row.count ?? '' : ''}`
-      ),
-    ].join('|'))
-    .join('|');
 }
 
 export function BoardStatBreakdownHoverCard({
@@ -183,10 +125,14 @@ export function BoardStatBreakdownHoverCard({
   side,
   content,
   motionState,
+  onPointerEnter,
+  onPointerLeave,
+  onFocus,
+  onBlur,
 }: BoardStatBreakdownHoverCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [layout, setLayout] = useState<BoardStatHoverLayout | null>(null);
-  const measuredContentKey = contentKey(content);
+  const measuredContentKey = JSON.stringify(content);
 
   useLayoutEffect(() => {
     const card = cardRef.current;
@@ -194,25 +140,35 @@ export function BoardStatBreakdownHoverCard({
       return;
     }
 
-    const cardRect = card.getBoundingClientRect();
-    const nextLayout = calculateBoardStatHoverLayout({
-      anchorRect,
-      cardWidth: cardRect.width,
-      cardHeight: cardRect.height,
-      viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight,
-      preferredPlacement: side,
-    });
+    const updateLayout = () => {
+      const cardRect = card.getBoundingClientRect();
+      const nextLayout = calculateBoardStatHoverLayout({
+        anchorRect,
+        cardWidth: cardRect.width,
+        cardHeight: cardRect.height,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        preferredPlacement: side,
+      });
 
-    setLayout((current) =>
-      current &&
-      current.left === nextLayout.left &&
-      current.top === nextLayout.top &&
-      current.placement === nextLayout.placement &&
-      current.tailOffset === nextLayout.tailOffset
-        ? current
-        : nextLayout
-    );
+      setLayout((current) =>
+        current &&
+        current.left === nextLayout.left &&
+        current.top === nextLayout.top &&
+        current.placement === nextLayout.placement &&
+        current.tailOffset === nextLayout.tailOffset
+          ? current
+          : nextLayout
+      );
+    };
+    updateLayout();
+    const observer = new ResizeObserver(updateLayout);
+    observer.observe(card);
+    window.addEventListener('resize', updateLayout);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateLayout);
+    };
   }, [
     anchorRect.bottom,
     anchorRect.height,
@@ -239,17 +195,33 @@ export function BoardStatBreakdownHoverCard({
         visibility: layout ? 'visible' : 'hidden',
       }}
     >
-      <div ref={cardRef} className="relative w-[240px] max-w-[calc(100vw-24px)]">
+      <div
+        ref={cardRef}
+        className="relative w-[240px] max-w-[calc(100vw-24px)]"
+        onMouseEnter={onPointerEnter}
+        onMouseLeave={onPointerLeave}
+        onFocusCapture={onFocus}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onBlur();
+        }}
+      >
         <HoverPanelFrame
           placement={placement}
           motionDirection={placement}
           motionState={motionState}
           tailOffset={layout ? `${layout.tailOffset}px` : undefined}
           className="w-full"
+          interactive
         >
-          <div className="flex max-h-[calc(100vh-24px)] w-full flex-col overflow-hidden px-[20px] py-[16px]">
+          <div
+            id="board-stat-breakdown"
+            role="region"
+            aria-label={content.kind === 'combat' ? `${content.card.heading} combat breakdown` : 'Bonus breakdown'}
+            tabIndex={0}
+            className="flex max-h-[calc(100vh-24px)] w-full flex-col overflow-y-auto overscroll-contain rounded-[10px] px-[20px] py-[16px] focus-visible:outline focus-visible:outline-1 focus-visible:outline-white"
+          >
             {content.kind === 'win_streak' ? (
-              <div className="flex flex-col">
+              <div className="flex shrink-0 flex-col">
                 <div className="flex items-center justify-between gap-[12px]">
                   <h3 className="text-[20px] font-black leading-[22px] text-[var(--shapeships-pastel-green)]">
                     {content.count} WIN STREAK
@@ -269,19 +241,10 @@ export function BoardStatBreakdownHoverCard({
                   </div>
                 ) : null}
               </div>
-            ) : content.kind === 'metric' ? (
-              content.sections.map((section, index) => (
-                <div key={section.kind}>
-                  {index > 0 ? (
-                    <div className="my-[12px] h-px bg-[var(--shapeships-grey-70)]" />
-                  ) : null}
-                  <MetricSection section={section} tone={content.tone} />
-                </div>
-              ))
-            ) : content.kind === 'health' ? (
-              <HealthSection card={content.card} />
+            ) : content.kind === 'combat' ? (
+              <BoardCombatBreakdown card={content.card} />
             ) : (
-              <div className="flex flex-col gap-[4px]">
+              <div className="flex shrink-0 flex-col gap-[4px]">
                 {content.rows.map((row, index) => (
                   <BreakdownRow
                     key={`${row.rowKind}:${row.label}:${row.amount}:${'count' in row ? row.count ?? index : index}`}

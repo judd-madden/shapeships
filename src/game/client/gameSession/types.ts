@@ -696,6 +696,8 @@ export type BoardViewModel =
       opponentMaxHealth: number;
       myFleet: BoardFleetSummary[];
       opponentFleet: BoardFleetSummary[];
+      /** Live viewer-safe value, including build preview and materialisation holds. */
+      presentedFleetValue?: { my: number; opponent: number };
       myVoidFleet: BoardFleetSummary[];
       opponentVoidFleet: BoardFleetSummary[];
       myAncientSolarEntries: AncientSolarDisplayEntry[];

@@ -4,7 +4,7 @@
  * NO LOGIC - displays view-model data only (Pass 1.25)
  */
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type {
   BoardViewModel,
   GameSessionActions,
@@ -21,11 +21,12 @@ import {
   BoardStatBreakdownHoverCard,
   type BoardStatBreakdownHoverCardContent,
 } from './boardStage/BoardStatBreakdownHoverCard';
-import { useBoardStatHover, type BoardStatHoverKey } from './boardStage/useBoardStatHover';
+import { useBoardStatHover, type BoardStatHoverController, type BoardStatHoverKey } from './boardStage/useBoardStatHover';
 import {
-  buildBoardStatHoverSections,
+  buildCurrentBoardCombatBreakdown,
   formatBoardStatMetric,
-  selectBoardStatHoverAnchor,
+  getAffectedHealthMetrics,
+  type BoardCombatBreakdownVm,
 } from './boardStage/boardStatPresentation';
 import { usePresentedFleetRevealPulse } from './boardStage/usePresentedFleetRevealPulse';
 import {
@@ -33,7 +34,11 @@ import {
   MatchupIntroVersus,
 } from '../matchup/MatchupIntroPresentation';
 import type { MatchupIntroViewModel } from '../../client/gameSession/matchupIntro';
-import { buildHealthBreakdownPresentation } from './boardStage/healthBreakdownPresentation';
+import {
+  buildHealthBreakdownPresentation,
+  buildResolvedBoardCombatBreakdown,
+  getHealthContributionLabels,
+} from './boardStage/healthBreakdownPresentation';
 import {
   shouldShowWinStreakBonusDetail,
   withoutWinStreakBreakdownRow,
@@ -62,6 +67,7 @@ interface BoardStageFrameProps {
   desktopDicePresentation: DesktopDicePresentationProps;
   isChoosingSpecies?: boolean;
   healthContent?: ReactNode;
+  currentStatsContent?: ReactNode;
   statsContent?: ReactNode;
   matchupIntro?: MatchupIntroViewModel | null;
   children: ReactNode;
@@ -72,6 +78,7 @@ function BoardStageFrame({
   desktopDicePresentation,
   isChoosingSpecies = false,
   healthContent,
+  currentStatsContent,
   statsContent,
   matchupIntro,
   children,
@@ -92,21 +99,25 @@ function BoardStageFrame({
         {/* Placeholders yield first; metric spacers can then compress without clipping real content. */}
         <div className="absolute inset-0 flex flex-col items-center overflow-visible" data-name="Central Stats Content">
           <div
-            aria-hidden="true"
-            className="pointer-events-none flex w-full min-h-0 max-h-[330px] basis-0 grow items-stretch justify-center"
+            className="relative flex w-full min-h-[42px] basis-0 grow items-stretch justify-center min-[1400px]:min-h-[50px] min-[1920px]:min-h-[78px]"
             data-name="Inactive Health Bar Placeholders"
           >
-            <div className="w-[24px] shrink-0 bg-[var(--shapeships-grey-90)]" />
-            <div className="w-[56px] shrink-0" />
-            <div className="w-[24px] shrink-0 bg-[var(--shapeships-grey-90)]" />
+            <div aria-hidden="true" className="pointer-events-none w-[24px] shrink-0 bg-[var(--shapeships-grey-90)]" />
+            <div aria-hidden="true" className="pointer-events-none w-[56px] shrink-0" />
+            <div aria-hidden="true" className="pointer-events-none w-[24px] shrink-0 bg-[var(--shapeships-grey-90)]" />
+            {currentStatsContent}
           </div>
           <div className="flex w-[var(--ss-board-center-width)] min-h-0 shrink flex-col items-center" data-name="Existing Board Stats">
+            <div aria-hidden="true" className="min-h-0 basis-[4px] shrink min-[1400px]:basis-[6px] min-[1920px]:basis-[12px] min-[2560px]:basis-[16px]" />
             {healthContent}
+            <div aria-hidden="true" className="min-h-0 basis-[8px] shrink min-[1400px]:basis-[12px] min-[1920px]:basis-[24px] min-[2560px]:basis-[32px]" />
             <DesktopDicePresentation
               {...desktopDicePresentation}
               guidanceSuppressed={isChoosingSpecies || Boolean(matchupIntro) || desktopDicePresentation.guidanceSuppressed}
             />
+            <div aria-hidden="true" className="min-h-0 basis-[8px] shrink min-[1400px]:basis-[12px] min-[1920px]:basis-[24px] min-[2560px]:basis-[32px]" />
             {statsContent}
+            <div aria-hidden="true" className="min-h-0 basis-[8px] shrink min-[1400px]:basis-[12px] min-[1920px]:basis-[16px] min-[2560px]:basis-[24px]" />
           </div>
         </div>
         {matchupIntro ? (
@@ -205,7 +216,7 @@ function Metric({
       )}
     >
       <p
-        className="font-bold leading-[36px] relative shrink-0 text-[36px] w-[50px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px] min-[768px]:max-[1599px]:w-[42px]"
+        className="font-bold leading-none relative shrink-0 text-[24px] min-[1400px]:text-[28px] min-w-[32px] whitespace-nowrap"
       >
         {value}
       </p>
@@ -237,6 +248,8 @@ function HoverAnchor({
   className,
   onHoverEnter,
   onHoverLeave,
+  onFocus,
+  onBlur,
   children,
 }: {
   hoverKey: BoardStatHoverKey;
@@ -245,11 +258,19 @@ function HoverAnchor({
   className?: string;
   onHoverEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
   onHoverLeave: (key: BoardStatHoverKey) => void;
+  onFocus: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
+  onBlur: (key: BoardStatHoverKey) => void;
   children: ReactNode;
 }) {
   return (
       <div
         className={cx(className, 'cursor-default select-none')}
+        tabIndex={isTrackable ? 0 : undefined}
+        aria-label={isTrackable ? 'Bonus breakdown. Down arrow to inspect.' : undefined}
+        aria-controls={isTrackable ? 'board-stat-breakdown' : undefined}
+        onFocus={isTrackable ? (event) => onFocus(hoverKey, anchorRef?.current ?? event.currentTarget) : undefined}
+        onBlur={isTrackable ? () => onBlur(hoverKey) : undefined}
+        onKeyDown={isTrackable ? focusStatBreakdown : undefined}
         onMouseEnter={
           isTrackable
             ? (event) => onHoverEnter(hoverKey, anchorRef?.current ?? event.currentTarget)
@@ -262,171 +283,77 @@ function HoverAnchor({
   );
 }
 
-function PairedStatTrigger({
-  currentValue,
-  lastValue,
-  align,
-  hoverKey,
-  hoverTrackable,
-  ariaLabel,
-  isActive,
-  onHoverEnter,
-  onHoverLeave,
-  onFocus,
-  onBlur,
+function CombatValues({
+  damage,
+  healing,
+  previous = false,
 }: {
-  currentValue: string;
-  lastValue: string;
-  align: 'left' | 'right';
-  hoverKey: BoardStatHoverKey;
-  hoverTrackable: boolean;
-  ariaLabel: string;
-  isActive: boolean;
-  onHoverEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
-  onHoverLeave: (key: BoardStatHoverKey) => void;
-  onFocus: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
-  onBlur: (key: BoardStatHoverKey) => void;
+  damage: string;
+  healing: string;
+  previous?: boolean;
 }) {
-  const isRight = align === 'right';
-  const numericAnchorRef = useRef<HTMLSpanElement | null>(null);
-
-  useLayoutEffect(() => {
-    if (isActive && numericAnchorRef.current) {
-      onHoverEnter(hoverKey, numericAnchorRef.current);
-    }
-  }, [currentValue, hoverKey, isActive, lastValue, onHoverEnter]);
-
   return (
-    <button
-      type="button"
-      disabled={!hoverTrackable}
-      aria-label={ariaLabel}
-      className={cx(
-        'flex w-[80px] shrink-0 flex-col gap-[2px] rounded-[4px] bg-transparent p-0 text-inherit',
-        'min-[768px]:max-[1599px]:w-[66px]',
-        'focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white',
-        isRight ? 'items-end text-right' : 'items-start text-left',
-      )}
-      onMouseEnter={
-        hoverTrackable
-          ? (event) => onHoverEnter(
-              hoverKey,
-              selectBoardStatHoverAnchor<HTMLElement>(
-                numericAnchorRef.current,
-                event.currentTarget,
-              ),
-            )
-          : undefined
-      }
-      onMouseLeave={
-        hoverTrackable
-          ? (event) => {
-              if (event.currentTarget !== document.activeElement) {
-                onHoverLeave(hoverKey);
-              }
-            }
-          : undefined
-      }
-      onFocus={
-        hoverTrackable
-          ? (event) => onFocus(
-              hoverKey,
-              selectBoardStatHoverAnchor<HTMLElement>(
-                numericAnchorRef.current,
-                event.currentTarget,
-              ),
-            )
-          : undefined
-      }
-      onBlur={hoverTrackable ? () => onBlur(hoverKey) : undefined}
-    >
-      <span ref={numericAnchorRef} className="inline-flex w-max flex-col gap-[2px]">
-        <span className="font-bold text-[36px] leading-[36px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px]">
-          {currentValue}
-        </span>
-        <span className="font-bold text-[24px] leading-[24px] opacity-[0.66] min-[768px]:max-[1599px]:text-[20px] min-[768px]:max-[1599px]:leading-[20px]">
-          {lastValue}
-        </span>
-      </span>
-    </button>
+    <span className={cx(
+      'inline-flex w-max shrink-0 flex-col gap-[2px] whitespace-nowrap font-bold leading-none',
+      previous
+        ? 'text-[14px] opacity-[0.66] min-[1400px]:text-[16px] min-[1920px]:text-[18px]'
+        : 'text-[20px] min-[1400px]:text-[24px] min-[1920px]:text-[28px]',
+    )}>
+      <span className="text-[var(--shapeships-pastel-red)]">{damage}</span>
+      <span className="text-[var(--shapeships-pastel-green)]">{healing}</span>
+    </span>
   );
 }
 
-function PairedStatGroup({
-  leftCurrent,
-  leftLast,
-  rightCurrent,
-  rightLast,
-  metricLabel,
-  toneClass,
-  activeHoverKey,
-  leftHoverKey,
-  leftHoverTrackable,
-  rightHoverKey,
-  rightHoverTrackable,
-  onHoverEnter,
-  onHoverLeave,
-  onFocus,
-  onBlur,
+function focusStatBreakdown(event: KeyboardEvent<HTMLElement>) {
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    document.getElementById('board-stat-breakdown')?.focus();
+  }
+}
+
+function CurrentCombatTrigger({
+  card,
+  metrics,
+  align,
+  hoverKey,
+  hover,
 }: {
-  leftCurrent: string;
-  leftLast: string;
-  rightCurrent: string;
-  rightLast: string;
-  metricLabel: 'Damage' | 'Healing';
-  toneClass: string;
-  activeHoverKey: BoardStatHoverKey | null;
-  leftHoverKey: BoardStatHoverKey;
-  leftHoverTrackable: boolean;
-  rightHoverKey: BoardStatHoverKey;
-  rightHoverTrackable: boolean;
-  onHoverEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
-  onHoverLeave: (key: BoardStatHoverKey) => void;
-  onFocus: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
-  onBlur: (key: BoardStatHoverKey) => void;
+  card: BoardCombatBreakdownVm;
+  metrics: ReturnType<typeof getAffectedHealthMetrics>;
+  align: 'left' | 'right';
+  hoverKey: BoardStatHoverKey;
+  hover: BoardStatHoverController;
 }) {
+  const trackable = Boolean(card.damage.section || card.healing.section);
+  const damage = formatBoardStatMetric(metrics.damage?.current, 'current');
+  const healing = formatBoardStatMetric(metrics.healing?.current, 'current');
   return (
-    <div className={cx('content-stretch flex gap-[10px] items-start justify-center relative shrink-0', toneClass)}>
-      <PairedStatTrigger
-        currentValue={leftCurrent}
-        lastValue={leftLast}
-        align="right"
-        hoverKey={leftHoverKey}
-        hoverTrackable={leftHoverTrackable}
-        ariaLabel={`My ${metricLabel}: ${leftCurrent} this turn, ${leftLast} last turn`}
-        isActive={activeHoverKey === leftHoverKey}
-        onHoverEnter={onHoverEnter}
-        onHoverLeave={onHoverLeave}
-        onFocus={onFocus}
-        onBlur={onBlur}
-      />
-      <div className="flex w-[64px] shrink-0 flex-col gap-[2px] text-center min-[768px]:max-[1599px]:w-[56px]">
-        <p className="flex h-[36px] items-center justify-center text-[14px] font-normal leading-[normal] min-[768px]:max-[1599px]:h-[30px] min-[768px]:max-[1599px]:text-[13px]">
-          {metricLabel}
-        </p>
-        <p className="flex h-[24px] items-center justify-center text-[14px] font-normal leading-[normal] opacity-[0.66] min-[768px]:max-[1599px]:h-[20px] min-[768px]:max-[1599px]:text-[13px]">
-          Last
-        </p>
-      </div>
-      <PairedStatTrigger
-        currentValue={rightCurrent}
-        lastValue={rightLast}
-        align="left"
-        hoverKey={rightHoverKey}
-        hoverTrackable={rightHoverTrackable}
-        ariaLabel={`Opponent ${metricLabel}: ${rightCurrent} this turn, ${rightLast} last turn`}
-        isActive={activeHoverKey === rightHoverKey}
-        onHoverEnter={onHoverEnter}
-        onHoverLeave={onHoverLeave}
-        onFocus={onFocus}
-        onBlur={onBlur}
-      />
-    </div>
+    <button
+      type="button"
+      disabled={!trackable}
+      aria-label={`${card.damage.label}: ${damage}; ${card.healing.label}: ${healing}. ${card.heading}. Down arrow to inspect.`}
+      aria-controls={trackable ? 'board-stat-breakdown' : undefined}
+      aria-expanded={trackable ? hover.state.activeKey === hoverKey : undefined}
+      className={cx(
+        'inline-flex w-max shrink-0 rounded-[4px] bg-transparent p-0 cursor-default',
+        'focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white',
+        align === 'right' ? 'text-right' : 'text-left',
+      )}
+      onMouseEnter={trackable ? (event) => hover.onEnter(hoverKey, event.currentTarget) : undefined}
+      onMouseLeave={trackable ? () => hover.onLeave(hoverKey) : undefined}
+      onFocus={trackable ? (event) => hover.onFocus(hoverKey, event.currentTarget) : undefined}
+      onBlur={trackable ? () => hover.onBlur(hoverKey) : undefined}
+      onKeyDown={trackable ? focusStatBreakdown : undefined}
+    >
+      <CombatValues damage={damage} healing={healing} />
+    </button>
   );
 }
 
 function HealthTrigger({
   health,
+  previous,
   netDelta,
   showDelta,
   deltaKey,
@@ -442,6 +369,7 @@ function HealthTrigger({
   onBlur,
 }: {
   health: number;
+  previous: BoardCombatBreakdownVm | null;
   netDelta: number;
   showDelta: boolean;
   deltaKey: string;
@@ -456,45 +384,41 @@ function HealthTrigger({
   onFocus: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
   onBlur: (key: BoardStatHoverKey) => void;
 }) {
-  const anchorRef = useRef<HTMLButtonElement | null>(null);
   const isRight = align === 'right';
   const deltaText = netDelta > 0 ? `+${netDelta}` : netDelta === 0 ? '±0' : `−${Math.abs(netDelta)}`;
-
-  useLayoutEffect(() => {
-    if (isActive && anchorRef.current) {
-      onHoverEnter(hoverKey, anchorRef.current);
-    }
-  }, [deltaText, health, hoverKey, isActive, onHoverEnter, showDelta]);
+  const previousValues = (
+    <span className={cx('row-start-1', isRight ? 'col-start-1' : 'col-start-2')}>
+      <CombatValues damage={previous?.damage.totalText ?? '0'} healing={previous?.healing.totalText ?? '0'} previous />
+    </span>
+  );
 
   return (
     <button
-      ref={anchorRef}
       type="button"
       disabled={!hoverTrackable}
       aria-label={ariaLabel}
+      aria-controls={hoverTrackable ? 'board-stat-breakdown' : undefined}
+      aria-expanded={hoverTrackable ? isActive : undefined}
       className={cx(
-        'inline-flex w-max flex-col rounded-[4px] bg-transparent p-0 font-bold text-inherit',
+        'inline-grid w-max grid-cols-[max-content_max-content] items-center gap-x-[12px] rounded-[4px] bg-transparent p-0 font-bold text-inherit cursor-default',
         'focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white',
-        isRight ? 'items-end text-right' : 'items-start text-left',
+        isRight ? 'text-right' : 'text-left',
       )}
       onMouseEnter={hoverTrackable ? (event) => onHoverEnter(hoverKey, event.currentTarget) : undefined}
-      onMouseLeave={
-        hoverTrackable
-          ? (event) => {
-              if (event.currentTarget !== document.activeElement) {
-                onHoverLeave(hoverKey);
-              }
-            }
-          : undefined
-      }
+      onMouseLeave={hoverTrackable ? () => onHoverLeave(hoverKey) : undefined}
       onFocus={hoverTrackable ? (event) => onFocus(hoverKey, event.currentTarget) : undefined}
       onBlur={hoverTrackable ? () => onBlur(hoverKey) : undefined}
+      onKeyDown={hoverTrackable ? focusStatBreakdown : undefined}
     >
-      <span className="text-[64px] leading-[64px] text-white min-[768px]:max-[1599px]:text-[56px] min-[768px]:max-[1599px]:leading-[56px]">
+      {isRight ? previousValues : null}
+      <span className={cx(
+        'row-start-1 text-[64px] leading-[64px] text-white min-[768px]:max-[1599px]:text-[56px] min-[768px]:max-[1599px]:leading-[56px]',
+        isRight ? 'col-start-2' : 'col-start-1',
+      )}>
         {health}
       </span>
       <span
-        className="text-[28px] leading-[28px]"
+        className={cx('row-start-2 text-[28px] leading-[28px]', isRight ? 'col-start-2' : 'col-start-1')}
         style={{
           color: netDelta > 0
             ? 'var(--shapeships-pastel-green)'
@@ -512,6 +436,7 @@ function HealthTrigger({
           {showDelta ? deltaText : ''}
         </span>
       </span>
+      {!isRight ? previousValues : null}
     </button>
   );
 }
@@ -599,18 +524,19 @@ export function BoardStage({
     : shouldAnimateDeltas
       ? `opp:resolution:${vm.healthDeltaPresentationKey}`
       : 'opp:stable';
-  const myDamagePair = presentedThisTurnStats?.me.damage ?? null;
-  const opponentDamagePair = presentedThisTurnStats?.opponent.damage ?? null;
-  const myHealingPair = presentedThisTurnStats?.me.healing ?? null;
-  const opponentHealingPair = presentedThisTurnStats?.opponent.healing ?? null;
-  const myDamageHoverSections = buildBoardStatHoverSections(myDamagePair);
-  const opponentDamageHoverSections = buildBoardStatHoverSections(opponentDamagePair);
-  const myHealingHoverSections = buildBoardStatHoverSections(myHealingPair);
-  const opponentHealingHoverSections = buildBoardStatHoverSections(opponentHealingPair);
-  const myDamageHoverTrackable = myDamageHoverSections.length > 0;
-  const opponentDamageHoverTrackable = opponentDamageHoverSections.length > 0;
-  const myHealingHoverTrackable = myHealingHoverSections.length > 0;
-  const opponentHealingHoverTrackable = opponentHealingHoverSections.length > 0;
+  const labels = getHealthContributionLabels(viewer, gameStats);
+  const myCurrentMetrics = getAffectedHealthMetrics(presentedThisTurnStats, 'my');
+  const opponentCurrentMetrics = getAffectedHealthMetrics(presentedThisTurnStats, 'opponent');
+  const myCurrentBreakdown = buildCurrentBoardCombatBreakdown({
+    presentation: presentedThisTurnStats, side: 'my',
+    damageLabel: labels.opponentDamage, healingLabel: labels.viewerHealing,
+  });
+  const opponentCurrentBreakdown = buildCurrentBoardCombatBreakdown({
+    presentation: presentedThisTurnStats, side: 'opponent',
+    damageLabel: labels.viewerDamage, healingLabel: labels.opponentHealing,
+  });
+  const myResolvedBreakdown = buildResolvedBoardCombatBreakdown({ card: healthBreakdown.my, thisTurn, side: 'my' });
+  const opponentResolvedBreakdown = buildResolvedBoardCombatBreakdown({ card: healthBreakdown.opponent, thisTurn, side: 'opponent' });
   const myBonusClusterHasVisibleContent =
     myOrdinaryCentaurBonusLines !== 0 || myDisplayedBonusLines !== 0 || vm.myJoiningBonusLines > 0;
   const opponentBonusClusterHasVisibleContent =
@@ -630,38 +556,14 @@ export function BoardStage({
     content: BoardStatBreakdownHoverCardContent;
   };
   const statHoverContentByKey: Partial<Record<BoardStatHoverKey, ActiveStatHover>> = {
-    ...(healthBreakdown.my
-      ? {
-          'my-health': {
-            side: 'left' as const,
-            content: { kind: 'health' as const, card: healthBreakdown.my },
-          },
-        }
-      : {}),
-    ...(healthBreakdown.opponent
-      ? {
-          'opponent-health': {
-            side: 'right' as const,
-            content: { kind: 'health' as const, card: healthBreakdown.opponent },
-          },
-        }
-      : {}),
-    'my-damage': {
-      side: 'left',
-      content: { kind: 'metric', sections: myDamageHoverSections, tone: 'damage' },
-    },
-    'opponent-damage': {
-      side: 'right',
-      content: { kind: 'metric', sections: opponentDamageHoverSections, tone: 'damage' },
-    },
-    'my-healing': {
-      side: 'left',
-      content: { kind: 'metric', sections: myHealingHoverSections, tone: 'healing' },
-    },
-    'opponent-healing': {
-      side: 'right',
-      content: { kind: 'metric', sections: opponentHealingHoverSections, tone: 'healing' },
-    },
+    ...(myResolvedBreakdown ? {
+      'my-health': { side: 'left' as const, content: { kind: 'combat' as const, card: myResolvedBreakdown } },
+    } : {}),
+    ...(opponentResolvedBreakdown ? {
+      'opponent-health': { side: 'right' as const, content: { kind: 'combat' as const, card: opponentResolvedBreakdown } },
+    } : {}),
+    'my-current': { side: 'left', content: { kind: 'combat', card: myCurrentBreakdown } },
+    'opponent-current': { side: 'right', content: { kind: 'combat', card: opponentCurrentBreakdown } },
     'my-bonus': {
       side: 'left',
       content: { kind: 'breakdown', rows: vm.myBonusBreakdownRows },
@@ -681,29 +583,33 @@ export function BoardStage({
     statHover.presentState.activeKey
       ? statHoverContentByKey[statHover.presentState.activeKey]
       : null;
-  const shouldRenderActiveStatHover = activeStatHover?.content.kind === 'metric'
-    ? activeStatHover.content.sections.length > 0
-    : activeStatHover?.content.kind === 'health' || activeStatHover?.content.kind === 'win_streak'
-      ? true
-      : (activeStatHover?.content.rows.length ?? 0) > 0;
-
+  const shouldRenderActiveStatHover = activeStatHover?.content.kind === 'combat'
+    ? (statHover.presentState.activeKey?.endsWith('-health') ||
+      Boolean(activeStatHover.content.card.damage.section || activeStatHover.content.card.healing.section))
+    : activeStatHover?.content.kind === 'win_streak'
+      ? true : (activeStatHover?.content.rows.length ?? 0) > 0;
   // Board mode
   return (
     <BoardStageFrame
       hudVm={hudVm}
       desktopDicePresentation={desktopDicePresentation}
       matchupIntro={matchupIntro}
+      currentStatsContent={
+        <>
+          <div className="absolute bottom-0 right-[calc(50%+64px)] min-[1920px]:right-[calc(50%+80px)] pb-0 min-[1920px]:pb-[20px]" data-name="P1 Current Contributions">
+            <CurrentCombatTrigger card={myCurrentBreakdown} metrics={myCurrentMetrics} align="right" hoverKey="my-current" hover={statHover} />
+          </div>
+          <div className="absolute bottom-0 left-[calc(50%+64px)] min-[1920px]:left-[calc(50%+80px)] pb-0 min-[1920px]:pb-[20px]" data-name="P2 Current Contributions">
+            <CurrentCombatTrigger card={opponentCurrentBreakdown} metrics={opponentCurrentMetrics} align="left" hoverKey="opponent-current" hover={statHover} />
+          </div>
+        </>
+      }
       healthContent={
-        <div
-          className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full"
-          data-name="Health Wrapper"
-        >
-          <div
-            className="content-stretch flex flex-col font-bold gap-px items-end relative shrink-0 text-right w-[100px] min-[768px]:max-[1599px]:w-[86px]"
-            data-name="P1 Health Group"
-          >
+        <div className="relative flex w-full shrink-0 items-start justify-center gap-[24px]" data-name="Health Wrapper">
+          <div className="relative flex w-[100px] shrink-0 flex-col items-end text-right min-[768px]:max-[1599px]:w-[86px]" data-name="P1 Health Group">
             <HealthTrigger
               health={displayedMyHealth}
+              previous={myResolvedBreakdown}
               netDelta={vm.myLastTurnNet}
               showDelta={showDeltas}
               deltaKey={myDeltaKey}
@@ -711,7 +617,7 @@ export function BoardStage({
               align="right"
               hoverKey="my-health"
               hoverTrackable={healthBreakdown.hoverEligible}
-              ariaLabel={`Health ${displayedMyHealth}, change ${healthBreakdown.my?.changeText ?? 'unavailable'}. Show health breakdown`}
+              ariaLabel={`Health ${displayedMyHealth}, maximum ${vm.myMaxHealth}, change ${healthBreakdown.my?.changeText ?? 'unavailable'}. ${myResolvedBreakdown ? `${myResolvedBreakdown.heading}: ${myResolvedBreakdown.damage.label} ${myResolvedBreakdown.damage.totalText}, ${myResolvedBreakdown.healing.label} ${myResolvedBreakdown.healing.totalText}. Down arrow to inspect.` : 'Resolved breakdown unavailable.'}`}
               isActive={statHover.state.activeKey === 'my-health'}
               onHoverEnter={statHover.onEnter}
               onHoverLeave={statHover.onLeave}
@@ -719,38 +625,10 @@ export function BoardStage({
               onBlur={statHover.onBlur}
             />
           </div>
-
-          <div
-            className="content-stretch flex items-center justify-center pb-0 pt-[22px] px-0 relative shrink-0"
-            data-name="Health Label"
-          >
-            <div className="flex flex-col items-center justify-start w-[64px] text-center min-[768px]:max-[1599px]:w-[56px]">
-              <p
-                className="font-normal leading-[1.25] relative shrink-0 text-white text-[15px] min-[768px]:max-[1599px]:text-[13px]"
-              >
-                Health
-              </p>
-
-              {/* Max Health */}
-              <p
-                className="font-bold leading-[13px] relative shrink-0 text-[13px]"
-                style={{
-                  color: 'rgba(255,255,255,0.45)',
-                }}
-              >
-                {vm.myMaxHealth === 35 && vm.opponentMaxHealth === 35
-                  ? '35'
-                  : `${vm.myMaxHealth} / ${vm.opponentMaxHealth}`}
-              </p>
-            </div>
-          </div>
-
-          <div
-            className="content-stretch flex flex-col font-bold items-start relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]"
-            data-name="P2 Health Group"
-          >
+          <div className="relative flex w-[100px] shrink-0 flex-col items-start text-left min-[768px]:max-[1599px]:w-[86px]" data-name="P2 Health Group">
             <HealthTrigger
               health={displayedOpponentHealth}
+              previous={opponentResolvedBreakdown}
               netDelta={vm.opponentLastTurnNet}
               showDelta={showDeltas}
               deltaKey={opponentDeltaKey}
@@ -758,7 +636,7 @@ export function BoardStage({
               align="left"
               hoverKey="opponent-health"
               hoverTrackable={healthBreakdown.hoverEligible}
-              ariaLabel={`Health ${displayedOpponentHealth}, change ${healthBreakdown.opponent?.changeText ?? 'unavailable'}. Show health breakdown`}
+              ariaLabel={`Health ${displayedOpponentHealth}, maximum ${vm.opponentMaxHealth}, change ${healthBreakdown.opponent?.changeText ?? 'unavailable'}. ${opponentResolvedBreakdown ? `${opponentResolvedBreakdown.heading}: ${opponentResolvedBreakdown.damage.label} ${opponentResolvedBreakdown.damage.totalText}, ${opponentResolvedBreakdown.healing.label} ${opponentResolvedBreakdown.healing.totalText}. Down arrow to inspect.` : 'Resolved breakdown unavailable.'}`}
               isActive={statHover.state.activeKey === 'opponent-health'}
               onHoverEnter={statHover.onEnter}
               onHoverLeave={statHover.onLeave}
@@ -769,7 +647,8 @@ export function BoardStage({
         </div>
       }
       statsContent={
-        <div className="content-stretch flex min-h-0 shrink flex-col items-center relative w-full" data-name="Stats Wrapper">
+        <>
+          {/* Keep real rows and yielding spacers in the same flex column. */}
           {/* Saved Lines */}
           {vm.showTurnStartEconomyPresentation ? (
           <>
@@ -790,7 +669,7 @@ export function BoardStage({
             </div>
           
             <p
-              className="font-normal leading-[normal] relative shrink-0 text-[15px] text-center text-white w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
+              className="font-normal leading-[normal] relative shrink-0 text-[11px] min-[1400px]:text-[12px] text-center text-white w-[64px] min-[768px]:max-[1599px]:w-[56px]"
             >
               Saved
               <br aria-hidden="true" />
@@ -812,7 +691,7 @@ export function BoardStage({
               </div>
             </div>
           </div>
-          <div aria-hidden="true" className="min-h-0 basis-[20px] shrink min-[768px]:max-[1599px]:basis-[12px]" />
+          <div aria-hidden="true" className="min-h-0 basis-[4px] shrink min-[1400px]:basis-[6px] min-[1920px]:basis-[12px] min-[2560px]:basis-[16px]" />
           </>
           ) : null}
 
@@ -827,6 +706,8 @@ export function BoardStage({
                 anchorRef={myBonusAnchorRef}
                 onHoverEnter={statHover.onEnter}
                 onHoverLeave={statHover.onLeave}
+                onFocus={statHover.onFocus}
+                onBlur={statHover.onBlur}
                 className="flex gap-[4px] items-center justify-end w-max shrink-0"
               >
                 {myOrdinaryCentaurBonusLines !== 0 ? (
@@ -860,9 +741,9 @@ export function BoardStage({
               </HoverAnchor>
             </div>
 
-            <div className="content-stretch flex items-center justify-center pb-0 pt-[8px] px-0 relative shrink-0">
+            <div className="content-stretch flex items-center justify-center pb-0 pt-[4px] px-0 relative shrink-0">
               <p
-                className="font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[15px] text-center w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
+                className="font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[11px] min-[1400px]:text-[12px] text-center w-[64px] min-[768px]:max-[1599px]:w-[56px]"
               >
                 Bonus
               </p>
@@ -875,6 +756,8 @@ export function BoardStage({
                 anchorRef={opponentBonusAnchorRef}
                 onHoverEnter={statHover.onEnter}
                 onHoverLeave={statHover.onLeave}
+                onFocus={statHover.onFocus}
+                onBlur={statHover.onBlur}
                 className="flex gap-[4px] items-start w-max shrink-0"
               >
                 {opponentOrdinaryCentaurBonusLines !== 0 ? (
@@ -910,46 +793,18 @@ export function BoardStage({
               </HoverAnchor>
             </div>
           </div>
-          <div aria-hidden="true" className="min-h-0 basis-[20px] shrink min-[768px]:max-[1599px]:basis-[12px]" />
+          <div aria-hidden="true" className="min-h-0 basis-[4px] shrink min-[1400px]:basis-[6px] min-[1920px]:basis-[12px] min-[2560px]:basis-[16px]" />
           </>
           ) : null}
 
-          <PairedStatGroup
-            leftCurrent={formatBoardStatMetric(myDamagePair?.current, 'current')}
-            leftLast={formatBoardStatMetric(myDamagePair?.last, 'last')}
-            rightCurrent={formatBoardStatMetric(opponentDamagePair?.current, 'current')}
-            rightLast={formatBoardStatMetric(opponentDamagePair?.last, 'last')}
-            metricLabel="Damage"
-            toneClass="text-[var(--shapeships-pastel-red)]"
-            activeHoverKey={statHover.state.activeKey}
-            leftHoverKey="my-damage"
-            leftHoverTrackable={myDamageHoverTrackable}
-            rightHoverKey="opponent-damage"
-            rightHoverTrackable={opponentDamageHoverTrackable}
-            onHoverEnter={statHover.onEnter}
-            onHoverLeave={statHover.onLeave}
-            onFocus={statHover.onFocus}
-            onBlur={statHover.onBlur}
-          />
-          <div aria-hidden="true" className="min-h-0 basis-[20px] shrink min-[768px]:max-[1599px]:basis-[12px]" />
-          <PairedStatGroup
-            leftCurrent={formatBoardStatMetric(myHealingPair?.current, 'current')}
-            leftLast={formatBoardStatMetric(myHealingPair?.last, 'last')}
-            rightCurrent={formatBoardStatMetric(opponentHealingPair?.current, 'current')}
-            rightLast={formatBoardStatMetric(opponentHealingPair?.last, 'last')}
-            metricLabel="Healing"
-            toneClass="text-[var(--shapeships-pastel-green)]"
-            activeHoverKey={statHover.state.activeKey}
-            leftHoverKey="my-healing"
-            leftHoverTrackable={myHealingHoverTrackable}
-            rightHoverKey="opponent-healing"
-            rightHoverTrackable={opponentHealingHoverTrackable}
-            onHoverEnter={statHover.onEnter}
-            onHoverLeave={statHover.onLeave}
-            onFocus={statHover.onFocus}
-            onBlur={statHover.onBlur}
-          />
-        </div>
+          {vm.showTurnStartEconomyPresentation && vm.presentedFleetValue ? (
+            <div className="hidden shrink-0 items-center justify-center gap-[10px] text-[var(--shapeships-pastel-purple)] min-[1400px]:flex" data-name="Fleet Value Group">
+              <span className="w-[86px] whitespace-nowrap text-right text-[18px] font-bold leading-none min-[1600px]:w-[100px]">{vm.presentedFleetValue.my}</span>
+              <span className="w-[56px] text-center text-[12px] leading-none min-[1600px]:w-[64px]">Fleet</span>
+              <span className="w-[86px] whitespace-nowrap text-left text-[18px] font-bold leading-none min-[1600px]:w-[100px]">{vm.presentedFleetValue.opponent}</span>
+            </div>
+          ) : null}
+        </>
       }
     >
       <div className="col-start-1 row-start-2 flex min-h-0 min-w-0">
@@ -1032,6 +887,10 @@ export function BoardStage({
           side={activeStatHover.side}
           content={activeStatHover.content}
           motionState={statHover.motionState}
+          onPointerEnter={() => statHover.onCardEnter(statHover.presentState.activeKey!)}
+          onPointerLeave={() => statHover.onCardLeave(statHover.presentState.activeKey!)}
+          onFocus={() => statHover.onCardFocus(statHover.presentState.activeKey!)}
+          onBlur={() => statHover.onCardBlur(statHover.presentState.activeKey!)}
         />
       ) : null}
     </BoardStageFrame>

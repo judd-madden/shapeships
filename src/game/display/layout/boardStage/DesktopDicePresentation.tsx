@@ -204,7 +204,7 @@ export function DesktopDicePresentation({
 
   return (
     <div
-      className="pointer-events-none relative flex shrink-0 justify-center overflow-visible py-[var(--ss-dice-space)] [--ss-main-die-size:64px] [--ss-helper-die-size:28px] [--ss-helper-source-size:24px] [--ss-dice-helper-gap:8px] [--ss-dice-space:8px] min-[1400px]:[--ss-main-die-size:120px] min-[1400px]:[--ss-helper-die-size:44px] min-[1400px]:[--ss-helper-source-size:40px] min-[1400px]:[--ss-dice-helper-gap:10px] min-[1400px]:[--ss-dice-space:12px] min-[1920px]:[--ss-main-die-size:148px] min-[1920px]:[--ss-helper-die-size:56px] min-[1920px]:[--ss-helper-source-size:52px] min-[1920px]:[--ss-dice-helper-gap:12px] min-[1920px]:[--ss-dice-space:16px]"
+      className="pointer-events-none relative flex shrink-0 justify-center overflow-visible [--ss-main-die-size:64px] [--ss-helper-die-size:28px] [--ss-helper-source-size:24px] [--ss-dice-helper-gap:8px] min-[1400px]:[--ss-main-die-size:120px] min-[1400px]:[--ss-helper-die-size:44px] min-[1400px]:[--ss-helper-source-size:40px] min-[1400px]:[--ss-dice-helper-gap:10px] min-[1920px]:[--ss-main-die-size:148px] min-[1920px]:[--ss-helper-die-size:56px] min-[1920px]:[--ss-helper-source-size:52px] min-[1920px]:[--ss-dice-helper-gap:12px]"
       data-name="Desktop Dice Presentation"
     >
       {/* Helpers are out of flow: the main die and neighbouring rows never shift. */}

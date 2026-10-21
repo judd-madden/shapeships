@@ -2,6 +2,7 @@ import type {
   BoardStatBreakdownRowVm,
   ThisTurnMetricPairVm,
   ThisTurnMetricVm,
+  ThisTurnPresentationVm,
 } from '../../../client/gameSession/types';
 
 export type BoardStatMetricTone = 'damage' | 'healing';
@@ -13,6 +14,78 @@ export interface BoardStatHoverSectionVm {
   estimateQualifierText?: 'AUTOCAST ESTIMATE';
   totalText: string;
   rows: BoardStatBreakdownRowVm[];
+}
+
+export interface BoardCombatColumnVm {
+  label: string;
+  tone: BoardStatMetricTone;
+  totalText: string;
+  section: BoardStatHoverSectionVm | null;
+  unavailableText?: 'Concealed' | 'Breakdown unavailable';
+}
+
+export interface BoardCombatBreakdownVm {
+  heading: BoardStatHoverSectionVm['heading'];
+  damage: BoardCombatColumnVm;
+  healing: BoardCombatColumnVm;
+}
+
+export function getBoardCombatHeadingPresentation(card: BoardCombatBreakdownVm): {
+  heading: BoardCombatBreakdownVm['heading'];
+  qualifier: 'ESTIMATE' | null;
+} {
+  return {
+    heading: card.heading,
+    qualifier: card.heading === 'THIS TURN' &&
+      (card.damage.section?.showEstimateQualifier || card.healing.section?.showEstimateQualifier)
+      ? 'ESTIMATE' : null,
+  };
+}
+
+/** Damage fields remain damage dealt; only their presentation side changes. */
+export function getAffectedHealthMetrics(
+  presentation: ThisTurnPresentationVm | null,
+  side: 'my' | 'opponent',
+) {
+  return {
+    damage: (side === 'my' ? presentation?.opponent : presentation?.me)?.damage,
+    healing: (side === 'my' ? presentation?.me : presentation?.opponent)?.healing,
+  };
+}
+
+export function buildCurrentBoardCombatBreakdown(args: {
+  presentation: ThisTurnPresentationVm | null;
+  side: 'my' | 'opponent';
+  damageLabel: string;
+  healingLabel: string;
+}): BoardCombatBreakdownVm {
+  const metrics = getAffectedHealthMetrics(args.presentation, args.side);
+  const column = (tone: BoardStatMetricTone, label: string): BoardCombatColumnVm => {
+    const current = metrics[tone]?.current;
+    // Do not include the separate last slot in a current-only inspection.
+    const section = current ? buildBoardStatHoverSections({
+      current,
+      last: { state: 'unavailable', turnNumber: 0 },
+    })[0] ?? null : null;
+    return {
+      label,
+      tone,
+      totalText: section?.totalText ?? formatBoardStatMetric(current, 'current'),
+      section,
+      ...(!section ? {
+        unavailableText: current?.state === 'concealed'
+          ? 'Concealed' as const : 'Breakdown unavailable' as const,
+      } : {}),
+    };
+  };
+  const damage = column('damage', args.damageLabel);
+  const healing = column('healing', args.healingLabel);
+  return {
+    heading: damage.section?.heading === 'FINAL TURN' || healing.section?.heading === 'FINAL TURN'
+      ? 'FINAL TURN' : 'THIS TURN',
+    damage,
+    healing,
+  };
 }
 
 export interface BoardStatHoverRect {
@@ -126,13 +199,6 @@ export function formatBoardMetricBreakdownAmount(
   return row.rowKind === 'adjustment'
     ? row.amountText
     : String(Math.abs(row.amount));
-}
-
-export function selectBoardStatHoverAnchor<T>(
-  numericContent: T | null,
-  fixedWidthTrigger: T,
-): T {
-  return numericContent ?? fixedWidthTrigger;
 }
 
 export function calculateBoardStatHoverLayout(args: {

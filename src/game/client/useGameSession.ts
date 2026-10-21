@@ -98,6 +98,7 @@ import {
   type DrawingViewerParticipation,
 } from './gameSession/drawingPrelude';
 import { deriveViewerSeats } from './gameSession/viewerSeats';
+import { calculatePresentedFleetValue } from './gameSession/fleetValue';
 import {
   deriveFleets,
   filterFleetSummariesBySuppressedMemberIds,
@@ -8366,6 +8367,10 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         ...vm.board,
         myFleet: presentedLocalFleet,
         opponentFleet: presentedOpponentFleet,
+        presentedFleetValue: {
+          my: calculatePresentedFleetValue(localFleetBeforeExactTargetProjection),
+          opponent: calculatePresentedFleetValue(opponentFleetBeforeExactTargetProjection),
+        },
         myFleetRenderOrder: projectedMyTargetPresentation.renderOrder,
         opponentFleetRenderOrder: projectedOpponentTargetPresentation.renderOrder,
         destroyTargeting: boardDestroyTargetingWithAncientSolarMarkers,
