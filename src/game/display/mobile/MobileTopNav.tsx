@@ -29,7 +29,7 @@ export function MobileTopNav({
 
   function navItemClass(isActive: boolean) {
     return cx(
-      'py-[15px] text-[14px] font-bold leading-none focus:outline-none',
+      'pt-[15px] pb-[12px] text-[14px] font-bold leading-none focus:outline-none',
       isActive ? 'text-white' : 'text-[var(--shapeships-grey-50)]'
     );
   }
@@ -41,7 +41,7 @@ export function MobileTopNav({
           type="button"
           onClick={onReturnToBoard}
           className={cx(
-            'flex min-w-0 items-center gap-[4px] py-[14px] pl-[14px] pr-[8px] text-left focus:outline-none',
+            'flex min-w-0 items-center gap-[4px] pt-[14px] pb-[10px] pl-[14px] pr-[8px] text-left focus:outline-none',
             boardActive ? 'text-white' : 'text-[var(--shapeships-grey-50)]'
           )}
         >
@@ -89,10 +89,6 @@ export function MobileTopNav({
             Menu
           </button>
         </div>
-      </div>
-
-      <div className="px-[14px] w-full">
-        <div className="h-px w-full bg-gradient-to-r from-transparent via-white to-transparent opacity-70" />
       </div>
     </div>
   );

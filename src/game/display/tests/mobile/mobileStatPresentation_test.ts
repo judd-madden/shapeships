@@ -10,6 +10,7 @@ import type {
   ThisTurnPresentationVm,
 } from '../../../client/gameSession/types';
 import {
+  buildMobileHealthPoolMetrics,
   buildMobileHudMetricPair,
   buildMobileMetricBreakdownGroups,
   formatMobileBreakdownAmount,
@@ -127,6 +128,10 @@ Deno.test('mobile HUD and popovers show resolved actuals through next-turn dice 
   assertEquals(buildMobileHudMetricPair(state.presented?.me.damage), {
     currentText: '14', lastText: '3',
   });
+  assertEquals(buildMobileHealthPoolMetrics(state.presented, 'opponent'), {
+    damage: { currentText: '14', lastText: '3' },
+    healing: { currentText: '6', lastText: '1' },
+  });
   assertEquals(
     buildMobileMetricBreakdownGroups({ presentation: state.presented, side: 'opponent' })
       .primary.map((section) => [section.title, section.totalText]),
@@ -140,6 +145,9 @@ Deno.test('mobile HUD and popovers show resolved actuals through next-turn dice 
     resolvedPresentationTurnNumber: null,
   });
   assertEquals(buildMobileHudMetricPair(state.presented?.me.damage), {
+    currentText: '14', lastText: '3',
+  });
+  assertEquals(buildMobileHealthPoolMetrics(state.presented, 'opponent').damage, {
     currentText: '14', lastText: '3',
   });
   assertEquals(
@@ -157,6 +165,10 @@ Deno.test('mobile HUD and popovers show resolved actuals through next-turn dice 
   assertEquals(buildMobileHudMetricPair(state.presented?.me.damage), {
     currentText: '12', lastText: '9',
   });
+  assertEquals(buildMobileHealthPoolMetrics(state.presented, 'opponent'), {
+    damage: { currentText: '12', lastText: '9' },
+    healing: { currentText: '7', lastText: '4' },
+  });
   assertEquals(
     buildMobileMetricBreakdownGroups({ presentation: state.presented, side: 'opponent' })
       .primary.map((section) => [section.title, section.totalText]),
@@ -165,7 +177,7 @@ Deno.test('mobile HUD and popovers show resolved actuals through next-turn dice 
 });
 
 Deno.test('mobile HUD fixes stat order and uses desktop value-state formatting', () => {
-  assertEquals(MOBILE_STATUS_STAT_ORDER, ['saved', 'bonus', 'damage', 'healing']);
+  assertEquals(MOBILE_STATUS_STAT_ORDER, ['damage', 'healing', 'saved', 'bonus']);
   assertEquals(buildMobileHudMetricPair(pair(availableMetric(8, 'estimated'))), {
     currentText: '8',
     lastText: '3',
@@ -189,6 +201,110 @@ Deno.test('mobile HUD fixes stat order and uses desktop value-state formatting',
   assertEquals(buildMobileHudMetricPair(null), { currentText: '0', lastText: '0' });
 });
 
+Deno.test('mobile health pools pair incoming damage with own healing in both periods', () => {
+  const me = playerMetrics(
+    pair(availableMetric(11, 'estimated'), availableMetric(7, 'last_actual', 3)),
+    pair(availableMetric(5, 'estimated'), availableMetric(2, 'last_actual', 3)),
+  );
+  const opponent = {
+    ...playerMetrics(
+      pair(availableMetric(19, 'privacy_frozen'), availableMetric(13, 'last_actual', 3)),
+      pair(availableMetric(3, 'privacy_frozen'), availableMetric(1, 'last_actual', 3)),
+    ),
+    playerId: 'p2',
+  };
+  const vm = presentation({ me, opponent });
+  const original = JSON.stringify(vm);
+
+  assertEquals(buildMobileHealthPoolMetrics(vm, 'opponent'), {
+    damage: { currentText: '11', lastText: '7' },
+    healing: { currentText: '3', lastText: '1' },
+  });
+  assertEquals(buildMobileHealthPoolMetrics(vm, 'me'), {
+    damage: { currentText: '19', lastText: '13' },
+    healing: { currentText: '5', lastText: '2' },
+  });
+  // Already-oriented inputs also cover the other player/spectator seat order.
+  const reversed = presentation({ me: opponent, opponent: me });
+  assertEquals(
+    buildMobileHealthPoolMetrics(reversed, 'me'),
+    buildMobileHealthPoolMetrics(vm, 'opponent'),
+  );
+  assertEquals(
+    buildMobileHealthPoolMetrics(reversed, 'opponent'),
+    buildMobileHealthPoolMetrics(vm, 'me'),
+  );
+  assertEquals(JSON.stringify(vm), original);
+});
+
+Deno.test('mobile health-pool mapping retains concealment on the contributing side', () => {
+  const concealed = pair({ state: 'concealed', turnNumber: 4 });
+  const vm = presentation({
+    me: playerMetrics(pair(availableMetric(8, 'estimated'))),
+    opponent: { ...playerMetrics(concealed, concealed), playerId: 'p2' },
+  });
+  assertEquals(buildMobileHealthPoolMetrics(vm, 'me'), {
+    damage: { currentText: '?', lastText: '3' },
+    healing: { currentText: '2', lastText: '1' },
+  });
+  assertEquals(buildMobileHealthPoolMetrics(vm, 'opponent'), {
+    damage: { currentText: '8', lastText: '3' },
+    healing: { currentText: '?', lastText: '3' },
+  });
+  assertEquals(buildMobileHealthPoolMetrics(
+    presentation({ me: playerMetrics(concealed, concealed), opponent: playerMetrics(concealed, concealed) }),
+    'opponent',
+  ), {
+    damage: { currentText: '?', lastText: '3' },
+    healing: { currentText: '?', lastText: '3' },
+  });
+});
+
+Deno.test('mobile health-pool mapping preserves zero, unavailable and absent inputs', () => {
+  const vm = presentation({
+    me: playerMetrics(pair(availableMetric(0, 'estimated', 4, []))),
+    opponent: playerMetrics(
+      pair({ state: 'unavailable', turnNumber: 4 }),
+      pair({ state: 'pending', turnNumber: 4 }),
+    ),
+  });
+  assertEquals(buildMobileHealthPoolMetrics(vm, 'opponent'), {
+    damage: { currentText: '0', lastText: '3' },
+    healing: { currentText: '0', lastText: '3' },
+  });
+  assertEquals(buildMobileHealthPoolMetrics(vm, 'me').damage, {
+    currentText: '0', lastText: '3',
+  });
+  for (const missing of [null, undefined]) {
+    assertEquals(buildMobileHealthPoolMetrics(missing, 'me'), {
+      damage: { currentText: '0', lastText: '0' },
+      healing: { currentText: '0', lastText: '0' },
+    });
+  }
+});
+
+Deno.test('mobile health-pool mapping retains final values and genuine previous totals', () => {
+  const vm = presentation({
+    phaseKey: 'game.finished',
+    me: playerMetrics(
+      pair(availableMetric(21, 'final_actual'), availableMetric(8, 'last_actual', 3)),
+      pair(availableMetric(4, 'final_actual'), availableMetric(2, 'last_actual', 3)),
+    ),
+    opponent: playerMetrics(
+      pair(availableMetric(17, 'final_actual'), availableMetric(9, 'last_actual', 3)),
+      pair(availableMetric(6, 'final_actual'), availableMetric(1, 'last_actual', 3)),
+    ),
+  });
+  assertEquals(buildMobileHealthPoolMetrics(vm, 'opponent'), {
+    damage: { currentText: '21', lastText: '8' },
+    healing: { currentText: '6', lastText: '1' },
+  });
+  assertEquals(buildMobileHealthPoolMetrics(vm, 'me'), {
+    damage: { currentText: '17', lastText: '9' },
+    healing: { currentText: '4', lastText: '2' },
+  });
+});
+
 Deno.test('mobile HUD and breakdown retain public Charge uncertainty markers', () => {
   const uncertain = {
     ...availableMetric(13, 'privacy_frozen'),
@@ -198,6 +314,7 @@ Deno.test('mobile HUD and breakdown retain public Charge uncertainty markers', (
   vm.opponent.damage.current = uncertain;
   vm.mobile.opponentDetail = 'this_turn';
   assertEquals(buildMobileHudMetricPair(vm.opponent.damage).currentText, '13 ?');
+  assertEquals(buildMobileHealthPoolMetrics(vm, 'me').damage.currentText, '13 ?');
   assertEquals(
     buildMobileMetricBreakdownGroups({ presentation: vm, side: 'opponent' })
       .primary[0]?.totalText,

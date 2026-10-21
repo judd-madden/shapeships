@@ -16,6 +16,7 @@ import {
   MatchupIntroVersus,
 } from '../matchup/MatchupIntroPresentation';
 import { usePresentedFleetRevealPulse } from '../layout/boardStage/usePresentedFleetRevealPulse';
+import { TurnPhaseStatusStrip } from '../shared/TurnPhaseStatusStrip';
 import { MobileStatusRail } from './MobileStatusRail';
 import type { MobilePopoverPairKind } from './mobileStatPresentation';
 
@@ -91,6 +92,9 @@ export function MobileBoardView({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col w-full">
+      <div className="shrink-0 w-full px-[14px]">
+        <TurnPhaseStatusStrip vm={turnPhasesVm} presentation={turnPhasePresentation} />
+      </div>
       <div
         aria-label="Opponent fleet area"
         className="flex flex-1 min-h-0 w-full overflow-visible"
@@ -144,8 +148,6 @@ export function MobileBoardView({
           hudVm={hudVm}
           boardVm={boardVm}
           leftRailVm={leftRailVm}
-          turnPhasesVm={turnPhasesVm}
-          turnPhasePresentation={turnPhasePresentation}
           thisTurn={thisTurn}
           mobileDiceModifierSlots={boardVm.mobileDiceModifierSlots}
           firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}

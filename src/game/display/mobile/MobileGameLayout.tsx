@@ -869,7 +869,7 @@ export function MobileGameLayout({
         />
       </div>
 
-      <div className="relative flex min-h-0 flex-1 flex-col pt-[8px]">
+      <div className="relative flex min-h-0 flex-1 flex-col">
         <div
           aria-hidden={activeTakeover !== null || isMissionInteractionLocked}
           inert={

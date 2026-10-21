@@ -6,15 +6,12 @@ import type {
   HudStatusTone,
   HudViewModel,
   LeftRailViewModel,
-  TurnPhasePresentationVm,
-  TurnPhaseVm,
 } from '../../client/useGameSession';
 import { MobileDiceModifierSlots } from './MobileDiceModifierSlots';
-import { TurnPhaseStatusStrip } from '../shared/TurnPhaseStatusStrip';
 import { ClockWithIncrement } from '../shared/ClockWithIncrement';
 import { formatHealthChange } from '../layout/boardStage/healthBreakdownPresentation';
 import {
-  buildMobileHudMetricPair,
+  buildMobileHealthPoolMetrics,
   MOBILE_STATUS_STAT_ORDER,
   type MobileHudMetricPairVm,
   type MobilePopoverPairKind,
@@ -27,8 +24,6 @@ interface MobileStatusRailProps {
   hudVm: HudViewModel;
   boardVm: MobileBoardViewModel;
   leftRailVm: LeftRailViewModel;
-  turnPhasesVm: TurnPhaseVm;
-  turnPhasePresentation: TurnPhasePresentationVm;
   thisTurn: GameSessionViewModel['thisTurn'];
   mobileDiceModifierSlots: MobileBoardViewModel['mobileDiceModifierSlots'];
   firstTurnBuildHelperEligible?: boolean;
@@ -71,8 +66,7 @@ interface MobileStatusRailFrameProps {
   clockIncrementTurnNumber?: number | null;
   diceValue: LeftRailViewModel['diceValue'];
   diceAnimateKey: number;
-  turnPhasesVm?: TurnPhaseVm;
-  turnPhasePresentation?: TurnPhasePresentationVm;
+  showHealthBarPlaceholders?: boolean;
   mobileDiceModifierSlots?: MobileBoardViewModel['mobileDiceModifierSlots'];
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
@@ -101,8 +95,6 @@ export function MobileStatusRail({
   hudVm,
   boardVm,
   leftRailVm,
-  turnPhasesVm,
-  turnPhasePresentation,
   thisTurn,
   mobileDiceModifierSlots,
   firstTurnBuildHelperEligible = false,
@@ -128,8 +120,7 @@ export function MobileStatusRail({
     isOnline: hudVm.p2IsOnline,
     health: boardVm.opponentHealth,
     netDelta: boardVm.opponentLastTurnNet,
-    healing: buildMobileHudMetricPair(thisTurn?.opponent.healing),
-    damage: buildMobileHudMetricPair(thisTurn?.opponent.damage),
+    ...buildMobileHealthPoolMetrics(thisTurn, 'opponent'),
     bonus: boardVm.showTurnStartEconomyPresentation
       ? opponentDisplayedBonus
       : undefined,
@@ -151,8 +142,7 @@ export function MobileStatusRail({
     isOnline: hudVm.p1IsOnline,
     health: boardVm.myHealth,
     netDelta: boardVm.myLastTurnNet,
-    healing: buildMobileHudMetricPair(thisTurn?.me.healing),
-    damage: buildMobileHudMetricPair(thisTurn?.me.damage),
+    ...buildMobileHealthPoolMetrics(thisTurn, 'me'),
     bonus: boardVm.showTurnStartEconomyPresentation
       ? myDisplayedBonus
       : undefined,
@@ -181,8 +171,7 @@ export function MobileStatusRail({
       clockIncrementTurnNumber={hudVm.clockIncrementTurnNumber}
       diceValue={leftRailVm.diceValue}
       diceAnimateKey={leftRailVm.diceAnimateKey}
-      turnPhasesVm={turnPhasesVm}
-      turnPhasePresentation={turnPhasePresentation}
+      showHealthBarPlaceholders
       mobileDiceModifierSlots={mobileDiceModifierSlots}
       firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
       firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
@@ -210,8 +199,7 @@ export function MobileStatusRailFrame({
   clockIncrementTurnNumber = null,
   diceValue,
   diceAnimateKey,
-  turnPhasesVm,
-  turnPhasePresentation,
+  showHealthBarPlaceholders = false,
   mobileDiceModifierSlots = EMPTY_MOBILE_DICE_MODIFIER_SLOTS,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
@@ -355,8 +343,13 @@ export function MobileStatusRailFrame({
             onHealthToggle={onHealthToggle}
             onStatsToggle={onStatsToggle}
           />
-          {turnPhasesVm && turnPhasePresentation ? (
-            <TurnPhaseStatusStrip vm={turnPhasesVm} presentation={turnPhasePresentation} />
+          {showHealthBarPlaceholders ? (
+            // Phase 20B replaces this decorative interior with active bars/legend.
+            <div aria-hidden="true" className="pointer-events-none flex w-full shrink-0 flex-col">
+              <div className="h-[12px] w-full shrink-0 bg-[var(--shapeships-grey-90)]" />
+              <div className="h-[12px] w-full shrink-0" />
+              <div className="h-[12px] w-full shrink-0 bg-[var(--shapeships-grey-90)]" />
+            </div>
           ) : (
             <div className="h-px w-full bg-gradient-to-r from-transparent via-white to-transparent opacity-70" />
           )}
@@ -492,7 +485,7 @@ function MobilePlayerStatusRow({
             aria-expanded={healthInteractive ? healthExpanded : undefined}
             aria-label={`Show health breakdown for ${row.name}`}
             onClick={healthInteractive ? onHealthToggle : undefined}
-            className="flex w-[38px] shrink-0 touch-manipulation flex-col items-center bg-transparent p-0 text-center font-bold whitespace-nowrap disabled:cursor-default"
+            className="flex min-w-[38px] shrink-0 touch-manipulation flex-col items-center bg-transparent p-0 text-center font-bold whitespace-nowrap disabled:cursor-default"
           >
             <span className={`text-[26px] leading-[26px] ${hasHealth ? 'text-white' : 'text-transparent'}`}>
               {hasHealth ? health : 0}
@@ -524,7 +517,7 @@ function MobilePlayerStatusRow({
           aria-expanded={statsInteractive ? statsExpanded : undefined}
           aria-label={`Show stat breakdowns for ${row.name}`}
           onClick={statsInteractive ? onStatsToggle : undefined}
-          className="grid shrink-0 touch-manipulation grid-cols-[24px_24px_28px_28px] items-start gap-[3px] bg-transparent p-0 text-center font-bold whitespace-nowrap disabled:cursor-default"
+          className="grid shrink-0 touch-manipulation grid-cols-[minmax(28px,max-content)_minmax(28px,max-content)_minmax(24px,max-content)_minmax(24px,max-content)] items-start gap-[3px] bg-transparent p-0 text-center font-bold whitespace-nowrap disabled:cursor-default"
         >
           {MOBILE_STATUS_STAT_ORDER.map((stat) => {
             if (stat === 'saved') {

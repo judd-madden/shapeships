@@ -10,10 +10,10 @@ import {
 } from '../layout/boardStage/boardStatPresentation';
 
 export const MOBILE_STATUS_STAT_ORDER = [
-  'saved',
-  'bonus',
   'damage',
   'healing',
+  'saved',
+  'bonus',
 ] as const;
 
 export const MOBILE_POPOVER_TAP_THRESHOLD_PX = 8;
@@ -59,6 +59,18 @@ export function buildMobileHudMetricPair(
   return {
     currentText: formatBoardStatMetric(pair?.current, 'current'),
     lastText: formatBoardStatMetric(pair?.last, 'last'),
+  };
+}
+
+export function buildMobileHealthPoolMetrics(
+  presentation: ThisTurnPresentationVm | null | undefined,
+  side: 'me' | 'opponent',
+): Record<MobileMetricKind, MobileHudMetricPairVm> {
+  const damageSide = side === 'me' ? 'opponent' : 'me';
+  // Damage remains damage dealt in the VM; only its display row changes.
+  return {
+    damage: buildMobileHudMetricPair(presentation?.[damageSide].damage),
+    healing: buildMobileHudMetricPair(presentation?.[side].healing),
   };
 }
 
