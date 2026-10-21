@@ -19,8 +19,9 @@ function ship(instanceId: string, shipDefId: string, extra: any = {}) {
 
 function createState(
   complex: boolean,
-  phase: "drawing" | "reveal" | "charge_declaration",
+  phase: "dice_roll" | "line_generation" | "drawing" | "reveal" | "charge_declaration",
 ) {
+  const major = ["dice_roll", "line_generation", "drawing"].includes(phase) ? "build" : "battle";
   const turnNumber = 8;
   const baseP1 = [
     ship("p1-def", "DEF"),
@@ -83,7 +84,7 @@ function createState(
     ],
     gameData: {
       turnNumber,
-      currentPhase: phase === "drawing" ? "build" : "battle",
+      currentPhase: major,
       currentSubPhase: phase,
       phaseReadiness: [],
       ships: { p1: p1Fleet, p2: p2Fleet },
@@ -103,7 +104,7 @@ function createState(
       },
       ancient: {
         schemaVersion: 1,
-        energyByPlayerId: phase !== "drawing"
+        energyByPlayerId: major === "battle"
           ? {
             p2: {
               battleTurnNumber: turnNumber,
@@ -119,7 +120,7 @@ function createState(
       },
       turnData: {
         turnNumber,
-        currentMajorPhase: phase === "drawing" ? "build" : "battle",
+        currentMajorPhase: major,
         currentSubPhase: phase,
         commitments: {},
         baseDiceRoll: 4,
@@ -154,7 +155,7 @@ function createState(
           p1: { savedLines: 60, savedJoiningLines: 30 },
           p2: { savedLines: 30, savedJoiningLines: 15 },
         },
-        ...(phase !== "drawing"
+        ...(major === "battle"
           ? { ancientBattleRevealPreparedTurnNumber: turnNumber }
           : {}),
       },
@@ -297,6 +298,21 @@ Deno.test("Phase 18I in-memory route performance fixtures", async () => {
       ? "27 mixed ships with DRE/SCI/QUE/EVO/SOL and foreign effects"
       : "8 established ships with an empty eligible draft";
 
+    for (const phase of ["dice_roll", "line_generation"] as const) {
+      const early = createState(complex, phase);
+      for (const sessionId of ["p1", "p2", "spec"]) {
+        results.push(await measure({
+          name: `${label}-${phase}-${sessionId}-get`,
+          shape,
+          state: early,
+          sessionId,
+          method: "GET",
+          path: `/make-server-825e19ab/game-state/${early.gameId}`,
+          expectedEstimateCount: sessionId === "p2" ? 3 : 2,
+        }));
+      }
+    }
+
     const drawing: any = createState(complex, "drawing");
     results.push(
       await measure({
@@ -326,18 +342,18 @@ Deno.test("Phase 18I in-memory route performance fixtures", async () => {
         sessionId: "p1",
         method: "GET",
         path: `/make-server-825e19ab/game-state/${waiting.gameId}`,
-        expectedEstimateCount: 1,
+        expectedEstimateCount: 3,
       }),
     );
     results.push(
       await measure({
-        name: `${label}-waiting-opponent-zero-get`,
+        name: `${label}-waiting-opponent-public-get`,
         shape,
         state: waiting,
         sessionId: "p2",
         method: "GET",
         path: `/make-server-825e19ab/game-state/${waiting.gameId}`,
-        expectedEstimateCount: 0,
+        expectedEstimateCount: 2,
       }),
     );
 

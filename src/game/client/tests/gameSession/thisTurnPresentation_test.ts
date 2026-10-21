@@ -18,6 +18,11 @@ import {
   getTurnStartStatOrientationKey,
   syncTurnStartStatPresentation,
 } from '../../gameSession/clienteffects/turnStartPresentationGates';
+import {
+  buildBoardStatHoverSections,
+  formatBoardStatMetric,
+} from '../../../display/layout/boardStage/boardStatPresentation';
+import { buildMobileHudMetricPair } from '../../../display/mobile/mobileStatPresentation';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
   if (!condition) throw new Error(message);
@@ -1548,7 +1553,7 @@ Deno.test('an empty live projection still maps to a card and suppresses the empt
   assert(JSON.stringify(lineText(card.opponent.buildLines)) === JSON.stringify(['Saved']));
 });
 
-Deno.test('spectators stay concealed during Drawing and unresolved terminal data is unavailable', () => {
+Deno.test('missing Drawing public estimates stay concealed and unresolved terminal data is unavailable', () => {
   const spectator = base({ kind: 'idle' }, 'build.drawing', 'spectator');
   assert(spectator.me.damage.current.state === 'concealed');
   assert(spectator.opponent.damage.current.state === 'concealed');
@@ -1557,7 +1562,7 @@ Deno.test('spectators stay concealed during Drawing and unresolved terminal data
   assert(terminal.me.damage.current.state === 'unavailable');
 });
 
-Deno.test('Dice Roll hydration conceals opponent Current while preserving own and Last values', () => {
+Deno.test('Dice Roll hydration supplies public Current estimates while preserving own and Last values', () => {
   const publicThisTurn = {
     identity: { gameId: 'game-1', turnNumber: 4 },
     battleLog: {
@@ -1570,13 +1575,15 @@ Deno.test('Dice Roll hydration conceals opponent Current while preserving own an
     estimatesByPlayerId: {
       p1: {
         status: 'estimated',
+        chargeDeclarationUncertain: true,
         damage: { total: 6, rows: [{ rowKind: 'ship', label: 'Fighter', amount: 6 }] },
         healing: { total: 2, rows: [{ rowKind: 'ship', label: 'Defender', amount: 2 }] },
       },
       p2: {
         status: 'estimated',
-        damage: { total: 99, rows: [{ rowKind: 'ship', label: 'Hidden damage', amount: 99 }] },
-        healing: { total: 88, rows: [{ rowKind: 'ship', label: 'Hidden healing', amount: 88 }] },
+        chargeDeclarationUncertain: true,
+        damage: { total: 1, rows: [{ rowKind: 'ship', label: 'Fighter', amount: 1 }] },
+        healing: { total: 0, rows: [] },
       },
     },
   };
@@ -1584,8 +1591,10 @@ Deno.test('Dice Roll hydration conceals opponent Current while preserving own an
     publicThisTurn,
   });
   assert(player.me.damage.current.state === 'value', 'player own Dice Current was not preserved');
-  assert(player.opponent.damage.current.state === 'concealed', 'opponent Dice damage was not concealed');
-  assert(player.opponent.healing.current.state === 'concealed', 'opponent Dice healing was not concealed');
+  assert(player.me.damage.current.chargeDeclarationUncertain !== true, 'own Dice estimate acquired opponent uncertainty');
+  assert(player.opponent.damage.current.state === 'value' && player.opponent.damage.current.total === 1);
+  assert(player.opponent.damage.current.chargeDeclarationUncertain === true);
+  assert(player.opponent.healing.current.state === 'zero' && player.opponent.healing.current.chargeDeclarationUncertain === true);
   const drawing = base({ kind: 'idle' }, 'build.drawing', 'player', false, {
     activePreviewCandidate: null,
     publicThisTurn,
@@ -1600,16 +1609,141 @@ Deno.test('Dice Roll hydration conceals opponent Current while preserving own an
       JSON.stringify(drawing.opponent.healing.last),
     'opponent Last healing changed between Dice Roll and Drawing',
   );
-  assert(player.mobile.opponentDetail === 'last', 'Dice mobile detail did not match Drawing');
+  assert(player.mobile.opponentDetail === 'this_turn', 'Dice mobile detail omitted the public baseline');
 
   const spectator = base({ kind: 'idle' }, 'build.dice_roll', 'spectator', false, {
     publicThisTurn,
   });
-  assert(spectator.me.damage.current.state === 'concealed', 'spectator left Dice damage was visible');
-  assert(spectator.me.healing.current.state === 'concealed', 'spectator left Dice healing was visible');
-  assert(spectator.opponent.damage.current.state === 'concealed', 'spectator right Dice damage was visible');
-  assert(spectator.opponent.healing.current.state === 'concealed', 'spectator right Dice healing was visible');
-  assert(spectator.mobile.opponentDetail === 'last', 'spectator Dice mobile detail did not match Drawing');
+  for (const side of [spectator.me, spectator.opponent]) {
+    for (const pair of [side.damage, side.healing]) {
+      assert(pair.current.state === 'value' || pair.current.state === 'zero');
+      assert(pair.current.chargeDeclarationUncertain === true);
+    }
+  }
+  assert(spectator.mobile.opponentDetail === 'this_turn');
+});
+
+function publicBaselineDto(phaseKey: string, turnNumber = 4, gameId = 'game-1') {
+  return {
+    identity: { gameId, turnNumber, phaseKey },
+    battleLog: {
+      turnNumber, diceValue: 4, buildLinesByPlayerId: {},
+      battleLinesByPlayerId: {}, concealedBuildPlayerIds: ['p1', 'p2'],
+    },
+    estimatesByPlayerId: {
+      p1: {
+        status: 'estimated', chargeDeclarationUncertain: true,
+        damage: { total: 3, rows: [{ rowKind: 'ship', label: 'Fighter', count: 3, amount: 3 }] },
+        healing: { total: 1, rows: [{ rowKind: 'ship', label: 'Defender', count: 1, amount: 1 }] },
+      },
+      p2: {
+        status: 'estimated', chargeDeclarationUncertain: true,
+        damage: { total: 1, rows: [{ rowKind: 'ship', label: 'Fighter', count: 1, amount: 1 }] },
+        healing: { total: 0, rows: [] },
+      },
+    },
+  };
+}
+
+Deno.test('all unresolved phases share public totals, uncertainty, and desktop/mobile breakdowns', () => {
+  for (const phase of ['build.dice_roll', 'build.line_generation', 'build.drawing', 'battle.reveal', 'battle.first_strike', 'battle.charge_declaration']) {
+    for (const viewerRole of ['player', 'spectator'] as const) {
+      for (const reversed of [false, true]) {
+        const vm = base({ kind: 'idle' }, phase, viewerRole, false, {
+          mePlayerId: reversed ? 'p2' : 'p1', opponentPlayerId: reversed ? 'p1' : 'p2',
+          publicThisTurn: publicBaselineDto(phase),
+        });
+        const expected = reversed ? '3 ?' : '1 ?';
+        assert(formatBoardStatMetric(vm.opponent.damage.current, 'current') === expected);
+        assert(buildMobileHudMetricPair(vm.opponent.damage).currentText === expected);
+        const sections = buildBoardStatHoverSections(vm.opponent.damage);
+        assert(sections[0].totalText === `~${expected}`);
+        assert(vm.opponent.damage.current.state === 'value');
+        assert(JSON.stringify(sections[0].rows) === JSON.stringify(vm.opponent.damage.current.rows));
+        assert(vm.mobile.opponentDetail === 'this_turn');
+        if (!reversed) assert(formatBoardStatMetric(vm.opponent.healing.current, 'current') === '0 ?');
+        if (viewerRole === 'spectator') {
+          assert(formatBoardStatMetric(vm.me.damage.current, 'current') === (reversed ? '1 ?' : '3 ?'));
+          assert(vm.me.damage.current.state === 'value' && vm.me.damage.current.chargeDeclarationUncertain === true);
+        } else if (phase === 'build.drawing') {
+          assert(vm.me.damage.current.state === 'pending', 'public Base replaced a missing private Drawing estimate');
+        }
+      }
+    }
+  }
+});
+
+Deno.test('early own estimates select requester Autocast and never append public uncertainty', () => {
+  for (const phase of ['build.dice_roll', 'build.line_generation']) {
+    const publicThisTurn = publicBaselineDto(phase);
+    const requesterThisTurn = {
+      currentProjection: {
+        ...publicThisTurn.estimatesByPlayerId.p1,
+        chargeDeclarationUncertain: undefined,
+        withAutocast: {
+          damage: { total: 8, rows: [{ rowKind: 'solar_power', solarPowerId: 'SSUP', label: 'Supernova', amount: 8 }] },
+          healing: { total: 9, rows: [] },
+        },
+      },
+    };
+    const args = { publicThisTurn, requesterThisTurn };
+    const baseEstimate = base({ kind: 'idle' }, phase, 'player', false, args);
+    const autocast = base({ kind: 'idle' }, phase, 'player', false, { ...args, ownEstimateMode: 'with_autocast' });
+    assert(formatBoardStatMetric(baseEstimate.me.damage.current, 'current') === '3');
+    assert(formatBoardStatMetric(autocast.me.damage.current, 'current') === '8');
+    assert(autocast.me.damage.current.state === 'value' && autocast.me.damage.current.estimateMode === 'with_autocast');
+    assert(buildBoardStatHoverSections(autocast.me.damage)[0].estimateQualifierText === 'AUTOCAST ESTIMATE');
+    assert(formatBoardStatMetric(autocast.opponent.damage.current, 'current') === '1 ?');
+  }
+});
+
+Deno.test('missing, invalid, or stale public baselines never become numeric zero or borrow private metrics', () => {
+  const phase = 'build.drawing';
+  const dto = publicBaselineDto(phase);
+  const privatePrevious = base({ kind: 'idle' }, 'build.dice_roll', 'player', false, {
+    publicThisTurn: publicBaselineDto('build.dice_roll'),
+  });
+  for (const publicThisTurn of [
+    { ...dto, estimatesByPlayerId: {} },
+    { ...dto, estimatesByPlayerId: { p1: { status: 'unavailable' }, p2: { status: 'unavailable' } } },
+    publicBaselineDto(phase, 3),
+    publicBaselineDto(phase, 4, 'another-game'),
+    publicBaselineDto('build.dice_roll'),
+  ]) {
+    const vm = base({ kind: 'idle' }, phase, 'spectator', false, {
+      publicThisTurn,
+      previousPresentation: { gameId: 'game-1', presentation: privatePrevious },
+    });
+    assert(vm.me.damage.current.state === 'concealed');
+    assert(vm.opponent.healing.current.state === 'concealed');
+    assert(formatBoardStatMetric(vm.me.damage.current, 'current') === '?');
+  }
+  const previous = base({ kind: 'idle' }, phase, 'spectator', false, { publicThisTurn: dto });
+  const next = base({ kind: 'idle' }, phase, 'spectator', false, {
+    turnNumber: 5, publicThisTurn: publicBaselineDto(phase, 4),
+    previousPresentation: { gameId: 'game-1', presentation: previous },
+  });
+  assert(next.opponent.damage.current.state === 'concealed');
+});
+
+Deno.test('public uncertainty ends at resolved and Final Turn actuals', () => {
+  const previous = base({ kind: 'idle' }, 'battle.charge_declaration', 'spectator', false, {
+    publicThisTurn: publicBaselineDto('battle.charge_declaration'),
+  });
+  for (const isTerminalTurn of [false, true]) {
+    const snapshot = buildResolvedThisTurnSnapshot({
+      gameId: 'game-1', resolvedTurnNumber: 4, isTerminalTurn,
+      mePlayerId: 'p1', opponentPlayerId: 'p2', previous,
+      actualMe: { damage: { total: 3, rows: [] }, healing: { total: 1, rows: [] } },
+      actualOpponent: { damage: { total: 1, rows: [] }, healing: { total: 0, rows: [] } },
+    });
+    for (const side of [snapshot.me, snapshot.opponent]) {
+      for (const pair of [side.damage, side.healing]) {
+        assert(!formatBoardStatMetric(pair.current, 'current').includes('?'));
+        assert(!buildBoardStatHoverSections(pair)[0].totalText.includes('?'));
+      }
+    }
+  }
 });
 
 Deno.test('resolved snapshot keeps previous Last while actual N replaces current estimates', () => {

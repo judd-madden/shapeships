@@ -548,7 +548,7 @@ Deno.test("preview accepts empty drafts, ignores hidden revisions, and supports 
   assert.equal(retry.status, 200);
 });
 
-Deno.test("Drawing prelude full GET supplies only a validated requester turn-start projection", async () => {
+Deno.test("Drawing prelude full GET keeps the validated requester turn-start projection private", async () => {
   const state: any = createState();
   setAwaitingCarrierPrelude(state, "p1");
   state.gameData.ships.p1.push(
@@ -780,7 +780,9 @@ Deno.test("submitted player recovers a frozen projection only through full GET",
     ),
     true,
   );
-  assert.equal(p1Body.publicState.thisTurn.estimatesByPlayerId, null);
+  assert.equal(p1Body.publicState.thisTurn.estimatesByPlayerId.p1.damage.total, 0);
+  assert.equal(p1Body.publicState.thisTurn.estimatesByPlayerId.p2.damage.total, 1);
+  assert.equal(p1Body.publicState.thisTurn.estimatesByPlayerId.p1.chargeDeclarationUncertain, true);
   assert.equal("stateRevision" in p1Body.publicState.thisTurn.identity, false);
   assert.equal(
     JSON.stringify(p1Body.gameData).includes("committedProjection"),
@@ -870,12 +872,99 @@ Deno.test("Charge projection ignores canonical revision and hidden declaration d
   assert.equal(
     leftProjection.publicThisTurn.estimatesByPlayerId.p2
       .chargeDeclarationUncertain,
-    false,
+    true,
   );
   assert.equal(
     JSON.stringify(leftProjection).includes("stateRevision"),
     false,
   );
+});
+
+Deno.test("early full GET estimates are public for both players and Ancient variants stay requester-only", async () => {
+  for (const phase of ["build.dice_roll", "build.line_generation"]) {
+    const state: any = createState(phase);
+    configureAncientProjectionPlayer(state, "p1");
+    delete state.gameData.turnData.buildDrawingPublicFleetByPlayerId;
+    delete state.gameData.turnData.drawingPreludeByPlayerId;
+    const before = structuredClone(state);
+    const own = await fullStateBody(state, "p1");
+    const other = await fullStateBody(state, "p2");
+    const spectator = await fullStateBody(state, "spec");
+    assert.deepEqual(other.publicState.thisTurn, own.publicState.thisTurn);
+    assert.deepEqual(spectator.publicState.thisTurn, own.publicState.thisTurn);
+    assert.equal(spectator.requester.thisTurn, null);
+    assert.equal(other.requester.thisTurn, null);
+    assert.ok(own.requester.thisTurn.currentProjection.withAutocast);
+    for (const estimate of Object.values(own.publicState.thisTurn.estimatesByPlayerId) as any[]) {
+      assert.equal(estimate.status, "estimated");
+      assert.equal(estimate.chargeDeclarationUncertain, true);
+      assert.equal("withAutocast" in estimate, false);
+      assert.equal("withSolarSelection" in estimate, false);
+      assert.equal("withChargeDeclaration" in estimate, false);
+    }
+    assert.deepEqual(state, before);
+  }
+});
+
+Deno.test("public dice changes revise estimates while staged choices leave the whole projection unchanged", () => {
+  const state: any = createState("build.dice_roll");
+  state.gameData.ships.p2 = [ship("fri", "FRI")];
+  state.gameData.powerMemory.frigateTriggerByInstanceId.fri = 4;
+  const project = () => projectCurrentTurnFieldsForFullState({ state, requestingParticipantId: "spec" }).publicThisTurn!;
+  const before = project();
+  assert.ok(before.estimatesByPlayerId!.p2.damage.total > 0);
+  state.gameData.turnData.pendingCubeDiceChoiceByPlayerId = { p2: "cube:fri" };
+  state.gameData.turnData.pendingKnoRerollChoiceByPassByPlayerId = { p2: { 1: "reroll" } };
+  state.gameData.turnData.commitments = { private: "pending" };
+  assert.deepEqual(project(), before);
+  state.gameData.turnData.effectiveDiceRollByPlayerId.p2 = 3;
+  const after = project();
+  assert.equal(after.estimatesByPlayerId!.p2.damage.total, 0);
+  assert.equal(after.estimatesByPlayerId!.p2.chargeDeclarationUncertain, true);
+  assert.notEqual(after.identity.sourceContextKey, before.identity.sourceContextKey);
+});
+
+Deno.test("public Drawing snapshots ignore private mutations on either side and reveal adds newly public ships", () => {
+  const state: any = createState();
+  const project = (requestingParticipantId: string) => projectCurrentTurnFieldsForFullState({ state, requestingParticipantId }).publicThisTurn!;
+  const before = project("spec");
+  assert.equal(before.estimatesByPlayerId!.p1.damage.total, 0);
+  assert.equal(before.estimatesByPlayerId!.p2.damage.total, 1);
+  for (const playerId of ["p1", "p2"]) {
+    state.gameData.ships[playerId].push(ship(`${playerId}-hidden`, "FIG", { createdTurn: 5 }));
+    state.players.find((player: any) => player.id === playerId).lines = 1;
+    state.players.find((player: any) => player.id === playerId).joiningLines = 2;
+    state.gameData.turnData.shipsMadeThisTurnByPlayerId ??= {};
+    state.gameData.turnData.shipsMadeThisTurnByPlayerId[playerId] = 99;
+    state.gameData.turnData.queenCreatedXenitesThisTurnByPlayerId ??= {};
+    state.gameData.turnData.queenCreatedXenitesThisTurnByPlayerId[playerId] = 99;
+    state.gameData.powerMemory.frigateTriggerByInstanceId[`${playerId}-hidden`] = 6;
+    state.gameData.powerMemory.onceOnlyFired[`${playerId}-hidden::FIG#0`] = true;
+    state.gameData.turnData.commitments.BUILD_5 ??= {};
+    state.gameData.turnData.commitments.BUILD_5[playerId] = {
+      commitHash: "hidden", revealPayload: { builds: [{ shipDefId: "FIG", count: 1 }] },
+    };
+  }
+  state.gameData.ancient.pendingSimulacrumCopies = [{ hidden: true }];
+  state.gameData.ancient.pendingBlackHoleDestructions = [{ hidden: true }];
+  // This assertion covers identities as well as totals, rows, and flags.
+  for (const viewer of ["p1", "p2", "spec"]) assert.deepEqual(project(viewer), before);
+  state.gameData.currentPhase = "battle";
+  state.gameData.currentSubPhase = "reveal";
+  state.gameData.turnData.currentMajorPhase = "battle";
+  state.gameData.turnData.currentSubPhase = "reveal";
+  state.gameData.ancient.pendingSimulacrumCopies = [];
+  state.gameData.ancient.pendingBlackHoleDestructions = [];
+  const revealed = project("spec");
+  assert.equal(revealed.estimatesByPlayerId!.p1.damage.total, 1);
+  assert.equal(revealed.estimatesByPlayerId!.p2.damage.total, 2);
+  assert.equal(revealed.estimatesByPlayerId!.p2.chargeDeclarationUncertain, true);
+
+  const invalid: any = createState();
+  delete invalid.gameData.turnData.buildDrawingPublicFleetByPlayerId.p1;
+  const unavailable = projectCurrentTurnFieldsForFullState({ state: invalid, requestingParticipantId: "spec" });
+  assert.equal(unavailable.publicThisTurn!.estimatesByPlayerId!.p1.status, "unavailable");
+  assert.equal("damage" in unavailable.publicThisTurn!.estimatesByPlayerId!.p1, false);
 });
 
 Deno.test("complete full GET responses ignore viewer-hidden Drawing, First Strike, and Charge data", async () => {

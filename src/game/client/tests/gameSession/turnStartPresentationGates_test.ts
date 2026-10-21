@@ -379,6 +379,44 @@ Deno.test('dice settlement holds and releases Autocast totals, rows, source, and
   }, 'settlement must release the total, rows, source, and qualifier together');
 });
 
+Deno.test('early public totals and uncertainty release together only after the existing dice gate', () => {
+  const orientationKey = getTurnStartStatOrientationKey({
+    viewerRole: 'player', leftPlayerId: 'p1', rightPlayerId: 'p2',
+  });
+  const early = statPresentation({ turnNumber: 1, total: 0, opponentDetail: 'this_turn' });
+  early.phaseKey = 'build.dice_roll';
+  const markPublic = (vm: ThisTurnPresentationVm) => {
+    for (const pair of [vm.opponent.damage, vm.opponent.healing]) {
+      if (pair.current.state === 'zero' || pair.current.state === 'value') {
+        pair.current = { ...pair.current, chargeDeclarationUncertain: true };
+      }
+    }
+  };
+  markPublic(early);
+  let state = createTurnStartStatPresentationState({
+    gameId: 'game-1', orientationKey, turnNumber: 1,
+    presentation: early, firstTurnRollPresentationActive: true,
+  });
+  const neutral = state.presented;
+  const introductoryMetric = neutral?.opponent.damage.current;
+  assertEquals(introductoryMetric?.state === 'zero' ? introductoryMetric.chargeDeclarationUncertain : null,
+    undefined, 'first-turn intro must preserve its neutral treatment');
+
+  const latest = statPresentation({ turnNumber: 1, total: 4, label: 'Public dice-dependent output', opponentDetail: 'this_turn' });
+  latest.phaseKey = 'build.line_generation';
+  markPublic(latest);
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 1,
+    presentation: latest, settledTurnNumber: null, firstTurnRollPresentationActive: true,
+  });
+  assertEquals(state.presented, neutral, 'new dice output and its breakdown must stay behind the existing gate');
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 1,
+    presentation: latest, settledTurnNumber: 1, firstTurnRollPresentationActive: false,
+  });
+  assertEquals(state.presented, latest, 'settlement must release public totals, rows, and marker atomically');
+});
+
 Deno.test('turn stats retain the complete prior presentation and release the newest estimate at settlement', () => {
   const orientationKey = getTurnStartStatOrientationKey({
     viewerRole: 'player',

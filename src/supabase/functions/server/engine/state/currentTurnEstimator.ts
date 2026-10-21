@@ -56,6 +56,7 @@ export type CurrentTurnEstimateUnavailableReason =
   | "invalid_estimated_player"
   | "unsupported_phase"
   | "drawing_snapshot_unavailable"
+  | "public_baseline_unavailable"
   | "draft_required"
   | "draft_not_allowed"
   | "turn_already_resolved"
@@ -513,14 +514,19 @@ function prepareEstimateState(
     isAncientPlayer(estimatedPlayer);
 
   const drawing = phaseKey === "build.drawing";
+  const earlyBuild = phaseKey === "build.dice_roll" ||
+    phaseKey === "build.line_generation";
+  const preReveal = drawing || earlyBuild;
   const drawingMode = drawing
     ? args.drawingMode ?? "draft_preview"
-    : null;
+    : earlyBuild ? "turn_start_baseline" : null;
   const turnStartBaseline = drawingMode === "turn_start_baseline";
+  const publicBaseline = turnStartBaseline &&
+    args.requestingParticipantId !== args.playerId;
   const battlePublic = phaseKey === "battle.reveal" ||
     phaseKey === "battle.first_strike" ||
     phaseKey === "battle.charge_declaration";
-  if (!drawing && !battlePublic) {
+  if (!preReveal && !battlePublic) {
     return unavailable({ ...args, phaseKey, reason: "unsupported_phase" });
   }
   if (
@@ -529,7 +535,7 @@ function prepareEstimateState(
   ) {
     return unavailable({ ...args, phaseKey, reason: "turn_already_resolved" });
   }
-  if (drawing && args.requestingParticipantId !== args.playerId) {
+  if (drawing && !turnStartBaseline && args.requestingParticipantId !== args.playerId) {
     return unavailable({ ...args, phaseKey, reason: "invalid_requester" });
   }
   if (drawing && !turnStartBaseline && args.draft === null) {
@@ -544,7 +550,7 @@ function prepareEstimateState(
   if (
     args.solarSelection !== undefined &&
     (
-      drawing ||
+      preReveal ||
       args.requestingParticipantId !== args.playerId ||
       !isAncientPlayer(estimatedPlayer)
     )
@@ -570,7 +576,7 @@ function prepareEstimateState(
     const projection = projectDrawingPreludeFleetsForViewerWithAvailability(
       args.state,
       args.state.gameData?.ships,
-      args.requestingParticipantId,
+      turnStartBaseline ? args.playerId : args.requestingParticipantId,
     );
     if (
       !projection.projectionAvailable ||
@@ -596,6 +602,20 @@ function prepareEstimateState(
       );
     } else {
       fleets = projection.fleets;
+    }
+  } else if (earlyBuild) {
+    // Before Drawing there is no entry snapshot. Only the established live
+    // fleet and published dice facts are inputs; pending dice choices are not.
+    fleets = structuredClone(args.state.gameData?.ships ?? {});
+    if (
+      turnNumber <= 0 ||
+      args.state.gameData?.turnData?.turnNumber !== turnNumber ||
+      activePlayerIds.some((playerId) => {
+        const roll = getEffectiveDiceRollForPlayer(args.state, playerId);
+        return typeof roll !== "number" || !Number.isInteger(roll) || roll < 1 || roll > 6;
+      })
+    ) {
+      return unavailable({ ...args, phaseKey, reason: "public_baseline_unavailable" });
     }
   } else if (phaseKey === "battle.charge_declaration") {
     const projection = projectChargeDeclarationStateForViewer(args.state);
@@ -652,7 +672,7 @@ function prepareEstimateState(
 
   if (
     (includeAutocast || args.solarSelection !== undefined) &&
-    !drawing &&
+    !preReveal &&
     (!isObject(recordedRequesterAncientEnergy) ||
       recordedRequesterAncientEnergy.battleTurnNumber !== turnNumber ||
       !isObject(recordedRequesterAncientEnergy.pool))
@@ -661,13 +681,20 @@ function prepareEstimateState(
     recordedRequesterAncientEnergy = null;
   }
 
-  if (activePlayerIds.some((playerId) => !Array.isArray(fleets[playerId]))) {
+  if (activePlayerIds.some((playerId) =>
+    !Array.isArray(fleets[playerId]) ||
+    (earlyBuild && fleets[playerId].some((ship) =>
+      !isObject(ship) ||
+      typeof ship.instanceId !== "string" || ship.instanceId.length === 0 ||
+      typeof ship.shipDefId !== "string" || ship.shipDefId.length === 0
+    ))
+  )) {
     return unavailable({
       ...args,
       phaseKey,
       reason: drawing
         ? "drawing_snapshot_unavailable"
-        : "charge_snapshot_unavailable",
+        : earlyBuild ? "public_baseline_unavailable" : "charge_snapshot_unavailable",
     });
   }
   fleets = Object.fromEntries(
@@ -685,7 +712,10 @@ function prepareEstimateState(
       candidate?.id === playerId
     ) ??
       activePlayers.find((candidate: any) => candidate.id === playerId);
-    return cloneSimulationPlayer(player, playerId === args.playerId);
+    return cloneSimulationPlayer(
+      player,
+      playerId === args.playerId && args.requestingParticipantId === args.playerId,
+    );
   });
 
   const subjectFleet = fleets[args.playerId] ?? [];
@@ -715,7 +745,7 @@ function prepareEstimateState(
     string,
     { battleTurnNumber: number; controllerPlayerId: string }
   > = {};
-  if (!drawing) {
+  if (!preReveal) {
     const recovered = recoverPublicQuantumRevealMemory({
       source: visibleSource,
       fleets,
@@ -792,10 +822,10 @@ function prepareEstimateState(
             visibleSource.gameData?.ancient?.solarLedgerByPlayerId ?? {},
           )
           : {},
-        pendingSimulacrumCopies: structuredClone(
+        pendingSimulacrumCopies: publicBaseline ? [] : structuredClone(
           visibleSource.gameData?.ancient?.pendingSimulacrumCopies ?? [],
         ),
-        pendingBlackHoleDestructions: structuredClone(
+        pendingBlackHoleDestructions: publicBaseline ? [] : structuredClone(
           visibleSource.gameData?.ancient?.pendingBlackHoleDestructions ?? [],
         ),
       },
@@ -838,10 +868,10 @@ function prepareEstimateState(
         buildPhaseNonDestroyRemovedShipsByPlayerId: {
           [args.playerId]: subjectRemoved,
         },
-        revealSpecialPowersAppliedTurnNumber: drawing
+        revealSpecialPowersAppliedTurnNumber: preReveal
           ? 0
           : sourceTurnData.revealSpecialPowersAppliedTurnNumber,
-        ancientBattleRevealPreparedTurnNumber: drawing
+        ancientBattleRevealPreparedTurnNumber: preReveal
           ? 0
           : sourceTurnData.ancientBattleRevealPreparedTurnNumber,
         chargeDeclarationFleetSnapshotByPlayerId: phaseKey === "battle.charge_declaration"
@@ -1010,7 +1040,7 @@ export function estimateCurrentTurnForPlayer(
   const simulationEvents: any[] = [];
   let solarGridChargeTransitions: SolarGridRevealTransition[] = [];
 
-  if (prepared.phaseKey === "build.drawing") {
+  if (prepared.drawingMode !== null) {
     const frozenOpponentFleet = structuredClone(
       workingState.gameData.ships?.[prepared.opponentPlayerId] ?? [],
     );

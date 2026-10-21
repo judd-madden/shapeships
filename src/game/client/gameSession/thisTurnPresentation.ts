@@ -405,6 +405,7 @@ function validPublicThisTurn(value: unknown, args: ThisTurnPresentationArgs): Re
   if (!isRecord(value) || !isRecord(value.identity) || !isRecord(value.battleLog)) return null;
   return value.identity.gameId === args.gameId &&
       value.identity.turnNumber === args.turnNumber &&
+      (value.identity.phaseKey == null || value.identity.phaseKey === args.phaseKey) &&
       value.battleLog.turnNumber === args.turnNumber
     ? value
     : null;
@@ -561,8 +562,8 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
   }
   const isDrawing = args.phaseKey === 'build.drawing';
   const isChargeDeclaration = args.phaseKey === 'battle.charge_declaration';
-  const concealBeforeReveal =
-    isDrawing || args.phaseKey === 'build.dice_roll';
+  const beforeReveal = isDrawing || args.phaseKey === 'build.dice_roll' ||
+    args.phaseKey === 'build.line_generation';
   const ownEstimateMode = args.ownEstimateMode ?? 'base';
   const publicDto = validPublicThisTurn(args.publicThisTurn, args);
   const publicEstimates = isRecord(publicDto?.estimatesByPlayerId)
@@ -604,10 +605,10 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
       : args.chargeDeclarationState?.kind === 'editing'
         ? chargePreview
         : null;
-  const own = concealBeforeReveal && args.viewerRole !== 'player'
-    ? null
+  const own = args.viewerRole !== 'player'
+    ? publicOwn
     : isDrawing
-    ? args.viewerRole === 'player' ? committed ?? preview ?? turnStart : null
+    ? committed ?? preview ?? turnStart
     : isChargeDeclaration
       ? chargeOwn
     : args.viewerRole === 'player' && ownEstimateMode === 'solar_selection'
@@ -615,7 +616,7 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
     : args.viewerRole === 'player' && ownEstimateMode === 'with_autocast'
       ? requesterCurrent
       : publicOwn;
-  const opponent = concealBeforeReveal ? null : estimateFor(
+  const opponent = estimateFor(
     args.opponentPlayerId ? publicEstimates[args.opponentPlayerId] : null,
   );
   const ownAvailable = own?.status === 'estimated' || own?.status === 'privacy_frozen'
@@ -630,14 +631,14 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
     : args.chargeDeclarationState?.kind === 'recovered' && !recoveredCharge
       ? 'invalid_recovered_charge_declaration'
       : undefined;
-  const ownFallback = concealBeforeReveal && args.viewerRole !== 'player'
+  const ownFallback = beforeReveal && args.viewerRole !== 'player'
     ? 'concealed'
     : isChargeDeclaration && args.viewerRole === 'player' && chargeUnavailableReason
       ? 'unavailable'
     : own?.status === 'unavailable' || activePreview?.kind === 'unavailable'
       ? 'unavailable'
       : 'pending';
-  const opponentFallback = concealBeforeReveal
+  const opponentFallback = beforeReveal
     ? 'concealed'
     : opponent?.status === 'unavailable'
       ? 'unavailable'
@@ -663,7 +664,7 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         ownFallback,
         ownUnavailableReason,
         ownAvailable?.estimateMode,
-        isChargeDeclaration && ownAvailable?.chargeDeclarationUncertain === true,
+        args.viewerRole !== 'player' && ownAvailable?.chargeDeclarationUncertain === true,
         ownAvailable?.chargeDeclarationIdentity,
       ),
       healing: metric(
@@ -673,7 +674,7 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         ownFallback,
         ownUnavailableReason,
         ownAvailable?.estimateMode,
-        isChargeDeclaration && ownAvailable?.chargeDeclarationUncertain === true,
+        args.viewerRole !== 'player' && ownAvailable?.chargeDeclarationUncertain === true,
         ownAvailable?.chargeDeclarationIdentity,
       ),
     },
@@ -685,7 +686,7 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         opponentFallback,
         opponentUnavailableReason,
         opponentAvailable?.estimateMode,
-        isChargeDeclaration && opponentAvailable?.chargeDeclarationUncertain === true,
+        opponentAvailable?.chargeDeclarationUncertain === true,
         opponentAvailable?.chargeDeclarationIdentity,
       ),
       healing: metric(
@@ -695,7 +696,7 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         opponentFallback,
         opponentUnavailableReason,
         opponentAvailable?.estimateMode,
-        isChargeDeclaration && opponentAvailable?.chargeDeclarationUncertain === true,
+        opponentAvailable?.chargeDeclarationUncertain === true,
         opponentAvailable?.chargeDeclarationIdentity,
       ),
     },
@@ -768,11 +769,20 @@ function retainSafeCurrentMetric(
   ].find((candidate) => candidate.playerId === playerId);
   const previousMetric = previousPlayer?.[metricKey].current;
 
-  if (
-    previousMetric &&
+  const isPublicMetric = args.viewerRole !== 'player' || playerId !== args.mePlayerId;
+  if (isPublicMetric && (
+    !validPublicThisTurn(args.publicThisTurn, args) ||
+    fresh.state === 'unavailable' ||
+    previous.presentation.phaseKey !== args.phaseKey ||
+    !previousMetric ||
+    (previousMetric.state !== 'zero' && previousMetric.state !== 'value') ||
+    previousMetric.chargeDeclarationUncertain !== true
+  )) {
+    return fresh;
+  }
+  if (!isPublicMetric && previousMetric &&
     (previousMetric.state === 'zero' || previousMetric.state === 'value') &&
-    previousMetric.chargeDeclarationUncertain === true &&
-    args.phaseKey !== 'battle.charge_declaration'
+    previousMetric.chargeDeclarationUncertain === true
   ) {
     return fresh;
   }
@@ -885,10 +895,7 @@ export function buildThisTurnPresentation(args: ThisTurnPresentationArgs): ThisT
     archiveHandoff: args.archiveRecovery,
     mobile: {
       pairKey: `${args.gameId}::${args.turnNumber}`,
-      opponentDetail:
-        args.phaseKey === 'build.drawing' || args.phaseKey === 'build.dice_roll'
-          ? 'last'
-          : 'this_turn',
+      opponentDetail: 'this_turn',
     },
   };
 }

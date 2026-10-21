@@ -61,7 +61,7 @@ function ship(
 }
 
 function createState(args: {
-  phase?: "drawing" | "reveal" | "first_strike" | "charge_declaration";
+  phase?: "dice_roll" | "line_generation" | "drawing" | "reveal" | "first_strike" | "charge_declaration";
   p1Fleet?: ShipInstance[];
   p2Fleet?: ShipInstance[];
   p1Faction?: string;
@@ -70,6 +70,7 @@ function createState(args: {
   turnNumber?: number;
 } = {}): GameState {
   const phase = args.phase ?? "drawing";
+  const major = ["dice_roll", "line_generation", "drawing"].includes(phase) ? "build" : "battle";
   const turnNumber = args.turnNumber ?? 5;
   const p1Fleet = args.p1Fleet ?? [];
   const p2Fleet = args.p2Fleet ?? [];
@@ -100,7 +101,7 @@ function createState(args: {
     ],
     gameData: {
       turnNumber,
-      currentPhase: phase === "drawing" ? "build" : "battle",
+      currentPhase: major,
       currentSubPhase: phase,
       ships: { p1: structuredClone(p1Fleet), p2: structuredClone(p2Fleet) },
       voidShipsByPlayerId: { p1: [], p2: [] },
@@ -124,7 +125,7 @@ function createState(args: {
       },
       turnData: {
         turnNumber,
-        currentMajorPhase: phase === "drawing" ? "build" : "battle",
+        currentMajorPhase: major,
         currentSubPhase: phase,
         effectiveDiceRollByPlayerId: { p1: 4, p2: 2 },
         diceOverrideSourceByPlayerId: { p1: "main", p2: "main" },
@@ -198,6 +199,133 @@ function estimatePublic(state: GameState, playerId = "p1") {
     draft: null,
   });
 }
+
+function publicBaseline(state: GameState, playerId = "p1") {
+  return estimateCurrentTurnForPlayer({
+    state,
+    playerId,
+    draft: null,
+    drawingMode: "turn_start_baseline",
+  });
+}
+
+Deno.test("early public baselines use known fleets and dice without requiring a Drawing snapshot", () => {
+  for (const phase of ["dice_roll", "line_generation"] as const) {
+    const state: any = createState({
+      phase,
+      p1Fleet: [ship("fig", "FIG"), ship("fri", "FRI"), ship("cub", "CUB")],
+      p2Fleet: [ship("def", "DEF")],
+    });
+    delete state.gameData.turnData.drawingPreludeByPlayerId;
+    state.gameData.powerMemory.frigateTriggerByInstanceId.fri = 4;
+    // A prior-turn snapshot must not replace the current public fleet.
+    state.gameData.turnData.buildDrawingPublicFleetByPlayerId = { p1: [], p2: [] };
+    const before = structuredClone(state);
+    const matching = publicBaseline(state);
+    assert.notEqual(matching.status, "unavailable");
+    if (matching.status === "unavailable") continue;
+    assert.ok(matching.damage > 1);
+    assert.equal(matching.withAutocast, undefined);
+    assert.equal(matching.damageRows.reduce((sum, row) => sum + row.amount, 0), matching.damage);
+    const other = publicBaseline(state, "p2");
+    assert.notEqual(other.status, "unavailable");
+    if (other.status !== "unavailable") assert.equal(other.healing, 1);
+    assert.deepEqual(state, before);
+
+    state.gameData.turnData.pendingCubeDiceChoiceByPlayerId = { p1: "cube:cub" };
+    state.gameData.turnData.pendingKnoRerollChoiceByPassByPlayerId = { p1: { 1: "reroll" } };
+    assert.deepEqual(publicBaseline(state), matching);
+    state.gameData.turnData.effectiveDiceRollByPlayerId.p1 = 3;
+    const changed = publicBaseline(state);
+    assert.notEqual(changed.status, "unavailable");
+    if (changed.status !== "unavailable") {
+      assert.equal(changed.damage, 1);
+      assert.notEqual(changed.identity.sourceContextKey, matching.identity.sourceContextKey);
+    }
+    state.gameData.turnData.cubeDiceSelectionByPlayerId = {
+      p1: { choiceId: "cube:cub", sourceInstanceId: "cub", value: 3 },
+    };
+    const selected = publicBaseline(state);
+    assert.notEqual(selected.status, "unavailable");
+    if (selected.status !== "unavailable") {
+      assert.equal(selected.damage, 5, "Cube damage must start only after the selected die is public");
+    }
+  }
+});
+
+Deno.test("early requester Autocast reuses Drawing simulation and remains requester-only", () => {
+  const fleets = { p1Fleet: [ship("plu", "PLU"), ship("mer", "MER"), ship("sol", "SOL", { chargesCurrent: 1 })] };
+  const drawing = estimateTurnStart(createState(fleets));
+  for (const phase of ["dice_roll", "line_generation"] as const) {
+    const state = createState({ ...fleets, phase });
+    const own = estimateCurrentTurnForPlayer({ state, playerId: "p1", requestingParticipantId: "p1", draft: null });
+    assert.notEqual(own.status, "unavailable");
+    if (own.status === "unavailable") continue;
+    assert.deepEqual(own.withAutocast, drawing.withAutocast);
+    assert.equal(own.healing, drawing.healing);
+    assert.deepEqual(own.reveal, drawing.reveal);
+    for (const requestingParticipantId of [undefined, "p2", "spec"]) {
+      const other = estimateCurrentTurnForPlayer({ state, playerId: "p1", requestingParticipantId, draft: null });
+      assert.notEqual(other.status, "unavailable");
+      if (other.status !== "unavailable") {
+        assert.equal(other.withAutocast, undefined);
+        assert.equal(other.withSolarSelection, undefined);
+        assert.equal(other.withChargeDeclaration, undefined);
+      }
+    }
+  }
+});
+
+Deno.test("public Drawing baseline and identity exclude hidden builds and all private side inputs", () => {
+  const state: any = createState({ p1Fleet: [ship("fig", "FIG")], p2Fleet: [ship("def", "DEF")] });
+  const expected = [publicBaseline(state, "p1"), publicBaseline(state, "p2")];
+  for (const playerId of ["p1", "p2"]) {
+    const player = state.players.find((player: any) => player.id === playerId);
+    player.lines = 999;
+    player.joiningLines = 999;
+    state.gameData.ships[playerId] = [ship(`${playerId}-hidden`, "BAT")];
+    state.gameData.voidShipsByPlayerId[playerId] = [ship(`${playerId}-void`, "STA")];
+    state.gameData.turnData.shipsMadeThisTurnByPlayerId ??= {};
+    state.gameData.turnData.shipsMadeThisTurnByPlayerId[playerId] = 999;
+    state.gameData.turnData.queenCreatedXenitesThisTurnByPlayerId ??= {};
+    state.gameData.turnData.queenCreatedXenitesThisTurnByPlayerId[playerId] = 999;
+    state.gameData.powerMemory.onceOnlyFired[`${playerId}-hidden::BAT#0`] = true;
+    state.gameData.powerMemory.frigateTriggerByInstanceId[`${playerId}-hidden`] = 6;
+  }
+  state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByInstanceId = { fig: 999 };
+  state.gameData.turnData.buildPhaseNonDestroyRemovedShipsByPlayerId = { p1: { removed: ship("removed", "STA") } };
+  state.gameData.ancient.pendingSimulacrumCopies = [{ private: "copy" }];
+  state.gameData.ancient.pendingBlackHoleDestructions = [{ private: "destruction" }];
+  state.gameData.ancient.acceptedDeclarationByPlayerId = { p1: { private: true } };
+  state.gameData.turnData.commitments = { BUILD_5: { p1: { revealPayload: { builds: [{ shipDefId: "BAT", count: 1 }] } } } };
+  assert.deepEqual([publicBaseline(state, "p1"), publicBaseline(state, "p2")], expected);
+});
+
+Deno.test("invalid early baseline facts and missing or stale Drawing snapshots remain unavailable", () => {
+  const early: any = createState({ phase: "dice_roll" });
+  for (const mutate of [
+    (state: any) => { state.gameData.turnData.turnNumber = 4; },
+    (state: any) => { delete state.gameData.ships.p2; },
+    (state: any) => { state.gameData.ships.p2 = [{}]; },
+    (state: any) => { state.gameData.turnData.effectiveDiceRollByPlayerId.p2 = 0; },
+  ]) {
+    const invalid = structuredClone(early);
+    mutate(invalid);
+    const result = publicBaseline(invalid);
+    assert.equal(result.status, "unavailable");
+    if (result.status === "unavailable") assert.equal(result.reason, "public_baseline_unavailable");
+  }
+  for (const mutate of [
+    (state: any) => { delete state.gameData.turnData.buildDrawingPublicFleetByPlayerId.p2; },
+    (state: any) => { state.gameData.turnData.drawingPreludeByPlayerId.p2.turnNumber = 4; },
+  ]) {
+    const invalid: any = createState();
+    mutate(invalid);
+    const result = publicBaseline(invalid);
+    assert.equal(result.status, "unavailable");
+    if (result.status === "unavailable") assert.equal(result.reason, "drawing_snapshot_unavailable");
+  }
+});
 
 Deno.test("Drawing simulation includes automatic SOL Reveal spending and depleted healing", () => {
   const state = createState({

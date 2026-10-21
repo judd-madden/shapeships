@@ -303,20 +303,6 @@ function getRecoveredChargeDeclaration(
   });
 }
 
-function getChargeDeclarationUncertain(state: any, playerId: string): boolean {
-  const eligible = state?.gameData?.turnData
-    ?.chargeDeclarationEligibleSourceIdsByPlayerId?.[playerId];
-  if (Array.isArray(eligible) && eligible.length > 0) return true;
-  const player = state?.players?.find((candidate: any) => candidate?.id === playerId);
-  if (!isAncientPlayer(player)) return false;
-  const snapshot = state?.gameData?.turnData?.chargeDeclarationVisibilitySnapshot;
-  if (snapshot?.battleTurnNumber !== getTurnNumber(state)) return false;
-  const pool = snapshot?.ancientEnergyByPlayerId?.[playerId]?.pool;
-  return [pool?.green, pool?.red, pool?.blue].some((value) =>
-    typeof value === "number" && Number.isFinite(value) && value > 0
-  );
-}
-
 function validatePreviewEnvelope(value: unknown):
   | { ok: true; value: PreviewRequest }
   | { ok: false; reason: string } {
@@ -913,6 +899,8 @@ export function projectCurrentTurnFieldsForFullState(args: {
   let estimateCount = 0;
   let estimatesByPlayerId: Record<string, any> | null = null;
   if (
+    phaseKey === "build.dice_roll" || phaseKey === "build.line_generation" ||
+    phaseKey === "build.drawing" ||
     phaseKey === "battle.reveal" || phaseKey === "battle.first_strike" ||
     phaseKey === "battle.charge_declaration"
   ) {
@@ -922,15 +910,16 @@ export function projectCurrentTurnFieldsForFullState(args: {
         state,
         playerId: player.id,
         draft: null,
+        ...(phaseKey === "build.drawing" ? { drawingMode: "turn_start_baseline" as const } : {}),
       });
       estimateCount++;
       estimatesByPlayerId[player.id] = toEstimateDto(
         estimate,
         false,
         undefined,
-        phaseKey === "battle.charge_declaration"
-          ? getChargeDeclarationUncertain(state, player.id)
-          : undefined,
+        // Kept under the existing DTO field for compatibility. Public estimates
+        // remain uncertain throughout the unresolved turn, even at zero.
+        true,
       );
     }
   }
@@ -1030,13 +1019,15 @@ export function projectCurrentTurnFieldsForFullState(args: {
   } else if (
     requester &&
     isAncientPlayer(requester) &&
-    (phaseKey === "battle.reveal" ||
+    (phaseKey === "build.dice_roll" ||
+      phaseKey === "build.line_generation" ||
+      phaseKey === "battle.reveal" ||
       phaseKey === "battle.first_strike")
   ) {
-    const acceptedSolarSelection = getSupportedAcceptedSolarSelection(
+    const acceptedSolarSelection = phaseKey.startsWith("battle.") ? getSupportedAcceptedSolarSelection(
       state,
       requester.id,
-    );
+    ) : null;
     const estimate = estimateCurrentTurnForPlayer({
       state,
       requestingParticipantId: requester.id,
