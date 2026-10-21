@@ -9,7 +9,9 @@ import type {
   BoardViewModel,
   GameSessionActions,
   GameSessionViewModel,
+  HudViewModel,
 } from '../../client/useGameSession';
+import { TopHud } from './TopHud';
 import { ChooseSpeciesStage } from './boardModes/ChooseSpeciesStage';
 import { FleetArea, toSpeciesKey } from './boardStage/FleetArea';
 import { FleetShipHoverCard } from './boardStage/FleetShipHoverCard';
@@ -38,6 +40,7 @@ import {
 
 interface BoardStageProps {
   vm: BoardViewModel;
+  hudVm: HudViewModel;
   thisTurn: GameSessionViewModel['thisTurn'];
   presentedThisTurnStats: GameSessionViewModel['presentedThisTurnStats'];
   gameStats: GameSessionViewModel['gameStats'];
@@ -50,6 +53,18 @@ interface BoardStageProps {
 
 function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');
+}
+
+function BoardStageFrame({ hudVm, children }: { hudVm: HudViewModel; children: ReactNode }) {
+  return (
+    <div
+      className="relative grid w-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_var(--ss-board-center-width)_minmax(0,1fr)] grid-rows-[var(--ss-desktop-header-height)_minmax(0,1fr)] gap-x-[8px] [--ss-board-center-width:200px] min-[1600px]:[--ss-board-center-width:230px] [--ss-desktop-header-height:68px] max-[1199px]:[--ss-desktop-header-height:124px] min-[1400px]:[--ss-desktop-header-height:78px] min-[1920px]:[--ss-desktop-header-height:90px]"
+      data-name="Board Stage"
+    >
+      <TopHud vm={hudVm} />
+      {children}
+    </div>
+  );
 }
 
 function useAnimatedHealth(targetValue: number): number {
@@ -448,6 +463,7 @@ function HealthTrigger({
 
 export function BoardStage({
   vm,
+  hudVm,
   thisTurn,
   presentedThisTurnStats,
   gameStats,
@@ -475,13 +491,17 @@ export function BoardStage({
   // Choose species mode
   if (vm.mode === 'choose_species') {
     return (
-      <ChooseSpeciesStage
-        vm={vm}
-        onSelectSpecies={actions.onSelectSpecies}
-        onSelectBotSpecies={actions.onSelectBotSpecies}
-        onConfirmSpecies={actions.onConfirmSpecies}
-        onCopyGameUrl={actions.onCopyGameUrl}
-      />
+      <BoardStageFrame hudVm={hudVm}>
+        <div className="col-span-3 row-start-2 min-h-0 min-w-0">
+          <ChooseSpeciesStage
+            vm={vm}
+            onSelectSpecies={actions.onSelectSpecies}
+            onSelectBotSpecies={actions.onSelectBotSpecies}
+            onConfirmSpecies={actions.onConfirmSpecies}
+            onCopyGameUrl={actions.onCopyGameUrl}
+          />
+        </div>
+      </BoardStageFrame>
     );
   }
 
@@ -609,10 +629,8 @@ export function BoardStage({
 
   // Board mode
   return (
-    <div
-      className="content-stretch flex gap-[8px] items-start justify-center px-0 py-[12px] relative size-full"
-      data-name="Board Stage"
-    >
+    <BoardStageFrame hudVm={hudVm}>
+      <div className="col-start-1 row-start-2 flex min-h-0 min-w-0">
       <FleetArea 
         title="MY FLEET" 
         ships={vm.myFleet} 
@@ -643,11 +661,28 @@ export function BoardStage({
           />
         ) : null}
       />
+      </div>
 
       <div
-        className="content-stretch flex flex-col h-full items-center justify-between relative shrink-0 w-[230px] cursor-default select-none min-[768px]:max-[1599px]:w-[200px]"
+        className="relative col-start-2 row-span-2 row-start-1 min-h-0 min-w-0 cursor-default select-none"
         data-name="Health and Stats"
       >
+        {/* Preserve metric overhang, including Centaur/joining rows, without
+            creating a scroll container or clipping real content. */}
+        <div
+          className="absolute inset-0 flex flex-col items-center overflow-visible"
+          data-name="Central Stats Content"
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none flex w-full min-h-0 max-h-[330px] basis-[330px] shrink items-stretch justify-center"
+            data-name="Inactive Health Bar Placeholders"
+          >
+            <div className="w-[24px] shrink-0 bg-[var(--shapeships-grey-90)]" />
+            <div className="w-[56px] shrink-0" />
+            <div className="w-[24px] shrink-0 bg-[var(--shapeships-grey-90)]" />
+          </div>
+          <div className="flex w-[230px] grow shrink-0 flex-col items-center justify-between min-[768px]:max-[1599px]:w-[200px]" data-name="Existing Board Stats">
         {/* Health */}
         <div
           className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full"
@@ -899,8 +934,10 @@ export function BoardStage({
           />
         </div>
 
+          </div>
+        </div>
         {matchupIntro ? (
-          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center overflow-hidden select-none">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[var(--ss-desktop-header-height)] z-20 flex items-center justify-center overflow-hidden select-none">
             <div className="-translate-y-[29px]">
               <MatchupIntroVersus matchupIntro={matchupIntro} variant="desktop" />
             </div>
@@ -908,6 +945,7 @@ export function BoardStage({
         ) : null}
       </div>
 
+      <div className="col-start-3 row-start-2 flex min-h-0 min-w-0">
       <FleetArea 
         title="OPPONENT FLEET" 
         ships={vm.opponentFleet} 
@@ -938,6 +976,7 @@ export function BoardStage({
           />
         ) : null}
       />
+      </div>
 
       {fleetHover.presentState.activeShipId && fleetHover.presentState.anchorRect ? (
         <FleetShipHoverCard
@@ -955,6 +994,6 @@ export function BoardStage({
           motionState={statHover.motionState}
         />
       ) : null}
-    </div>
+    </BoardStageFrame>
   );
 }

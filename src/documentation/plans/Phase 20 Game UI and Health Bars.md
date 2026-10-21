@@ -13,6 +13,15 @@
 
 > This is the main planning baseline, not permission to implement every pass in one operation. Judd will supply designs and review individual pass plans and implementations. At Judd's discretion, an approved individual pass plan may change the scope, sequence, measurements or behaviour proposed here. Further responsive requirements are expected. Preserve all existing behaviour unless a change is explicitly part of the approved pass.
 
+### 2026-10-21 — Combined 20A.1 + 20A.2 implementation
+
+- Combined the affected presentation inventory with desktop board/header foundations. Header and fleet columns now share the existing 200/230px centre column and 8px gaps; clocks and headers remain mounted across setup transitions.
+- Initial header tiers: 768–1399px uses name/clock/status/species sizes 16/16/12/10px; 1400–1919px uses 24/20/14/12px; 1920px+ uses 36/28/18/15px. Pill heights are 36/42/50px. Header reservations are 68/78/90px. Stacking below 1200px with a 124px reservation is a proposed fallback pending visual review.
+- Desktop increment cues sit centred 2px below their clocks; lifecycle and mobile treatment are unchanged. Decorative 24px tracks share a blank 56px legend lane and shrink from at most 330px to zero before central scrolling is necessary.
+- Existing stats retain their typography, spacing, grouping, formatting and gates. The central scroll gutter accommodates existing horizontal row overhang, including Centaur/joining variants. Scrolling dismisses active health/stat/economy cards immediately, including retained exit content; fresh entry/focus captures a new anchor.
+- Dice/helpers remain in LeftRail. Stat regrouping and typography remain deferred to 20A.4; active health bars and mobile changes remain deferred to their respective passes.
+- Owner visual review is **pending** for L/M/S reference sizes, intermediate/narrow desktops, long names/statuses, increment cues, short-screen collapse/scrolling, setup/intros/missions, finished games and unchanged mobile presentation. No Vite/browser testing was performed by Codex.
+
 ---
 
 ## Contents

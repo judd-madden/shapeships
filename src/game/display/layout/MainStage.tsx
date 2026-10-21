@@ -5,8 +5,6 @@
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { GameVerticalLine } from '../../../components/ui/primitives';
-import { TopHud } from './TopHud';
 import { BoardStage } from './BoardStage';
 import { BottomActionRail } from './BottomActionRail';
 import { ActionPanelFrame } from '../actionPanel/ActionPanelFrame';
@@ -306,29 +304,28 @@ export function MainStage({
 
   return (
     <div
-      className="content-stretch flex flex-col items-center relative flex-1 min-w-0 min-h-0 h-full pt-[30px] pb-[25px] min-[768px]:max-[1599px]:pb-[16px]"
+      className="content-stretch flex flex-col items-center relative flex-1 min-w-0 min-h-0 h-full pt-[20px] pb-[25px] min-[768px]:max-[1599px]:pb-[16px]"
       data-name="Main Stage"
     >
       {/* Background vertical line */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <GameVerticalLine
-          className="absolute h-full left-[49.74%] max-w-none top-0"
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-[var(--shapeships-grey-70)]"
         />
       </div>
 
       {/* Main Stage Wrapper */}
       <div
-        className={`content-stretch flex flex-col grow items-center justify-between mb-[-24px] min-h-px min-w-px relative w-full z-20 ${
+        className={`content-stretch flex flex-col grow items-center justify-between mb-[-24px] min-h-0 min-w-0 relative w-full z-20 ${
           isMissionInteractionLocked ? 'pointer-events-none' : ''
         }`}
         data-name="Main Stage Wrapper"
       >
-        {/* Top Hud */}
-        <TopHud vm={hudVm} />
-
         {/* Board Stage */}
         <BoardStage
           vm={boardVm}
+          hudVm={hudVm}
           thisTurn={thisTurn}
           presentedThisTurnStats={presentedThisTurnStats}
           gameStats={gameStats}
@@ -411,7 +408,7 @@ export function MainStage({
 
       {/* Action Panel Wrapper */}
       <div
-        className={`content-stretch flex flex-col h-[344px] items-end relative w-full ${
+        className={`content-stretch flex flex-col h-[344px] shrink-0 items-end relative w-full ${
           isMissionInteractionLocked ? 'pointer-events-none' : ''
         }`}
         data-name="Action Panel Wrapper"

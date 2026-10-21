@@ -127,8 +127,8 @@ export function ClockWithIncrement({
   }, [incrementSeconds, prefersReducedMotion, scopeKey, turnNumber]);
 
   const cueClassName = variant === 'desktop'
-    ? 'ml-[8px] text-[17px]'
-    : 'ml-[2px] text-[9px]';
+    ? 'left-1/2 top-full mt-[2px] -translate-x-1/2 text-[17px]'
+    : 'left-full top-1/2 -translate-y-1/2 ml-[2px] text-[9px]';
 
   return (
     <span className="relative inline-block">
@@ -136,7 +136,7 @@ export function ClockWithIncrement({
       {isCueMounted ? (
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute left-full top-1/2 -translate-y-1/2 whitespace-nowrap font-medium leading-none text-[var(--shapeships-grey-20)] ${cueClassName}`}
+          className={`pointer-events-none absolute whitespace-nowrap font-medium leading-none text-[var(--shapeships-grey-20)] ${cueClassName}`}
           style={{
             opacity: isCueVisible ? 1 : 0,
             transition: prefersReducedMotion

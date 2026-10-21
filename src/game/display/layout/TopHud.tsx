@@ -8,25 +8,12 @@
  * - Opponent is ALWAYS on the RIGHT
  */
 
-import type React from 'react';
 import type { HudViewModel } from '../../client/useGameSession';
 import { FitSingleLineText } from '../../../components/ui/primitives/layout/FitSingleLineText';
 import { ClockWithIncrement } from '../shared/ClockWithIncrement';
 
 interface TopHudProps {
   vm: HudViewModel;
-}
-
-function StatusWrapper({ children }: React.PropsWithChildren<{}>) {
-  return (
-    <div className="bg-[var(--shapeships-grey-90)] h-[50px] relative rounded-[10px] shrink-0 w-full">
-      <div className="flex flex-row items-center justify-center size-full">
-        <div className="content-stretch flex items-center justify-center px-[20px] py-[19px] relative size-full">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function OnlineStatus({ isOnline }: { isOnline: boolean }) {
@@ -47,135 +34,98 @@ function OnlineStatus({ isOnline }: { isOnline: boolean }) {
   );
 }
 
-export function TopHud({ vm }: TopHudProps) {
+interface PlayerHeaderProps {
+  vm: HudViewModel;
+  side: 'left' | 'right';
+}
+
+function PlayerHeader({ vm, side }: PlayerHeaderProps) {
+  const isLeft = side === 'left';
+  const name = isLeft ? vm.p1Name : vm.p2Name;
+  const species = isLeft ? vm.p1Species : vm.p2Species;
+  const isOnline = isLeft ? vm.p1IsOnline : vm.p2IsOnline;
+  const isReady = isLeft ? vm.p1IsReady : vm.p2IsReady;
+  const statusText = isLeft ? vm.p1StatusText : vm.p2StatusText;
+  const statusTone = isLeft ? vm.p1StatusTone : vm.p2StatusTone;
+
   return (
     <div
-      className="content-stretch flex items-start justify-between max-w-[1120px] relative shrink-0 w-full"
-      data-name="Top Hud"
+      className={`relative z-30 row-start-1 flex min-w-0 items-start gap-[8px] min-[1400px]:gap-[12px] min-[1920px]:gap-[20px] max-[1199px]:flex-col max-[1199px]:gap-[4px] [--ss-header-track-gap:20px] min-[1400px]:[--ss-header-track-gap:28px] min-[1920px]:[--ss-header-track-gap:40px] [--ss-header-inset:calc(var(--ss-board-center-width)_/_2_+_8px_-_52px_-_var(--ss-header-track-gap))] ${
+        isLeft
+          ? 'col-start-1 -mr-[var(--ss-header-inset)] justify-end max-[1199px]:items-end'
+          : 'col-start-3 -ml-[var(--ss-header-inset)] justify-start max-[1199px]:items-start'
+      }`}
+      data-name={isLeft ? 'Me Header' : 'Opponent Header'}
     >
-      {/* Me Status and Time */}
       <div
-        className="content-stretch flex flex-col gap-[5px] items-center relative shrink-0 w-[200px]"
-        data-name="Me Status and Time"
+        className={`h-[36px] w-[136px] max-w-full shrink-0 min-[1400px]:h-[42px] min-[1400px]:w-[164px] min-[1920px]:h-[50px] min-[1920px]:w-[200px] max-[1199px]:order-3 ${
+          isLeft ? 'order-1' : 'order-3'
+        }`}
       >
-        {vm.p1StatusTone !== 'hidden' && (
-          <StatusWrapper>
-            <p
-              className={`font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap ${
-                vm.p1StatusTone === 'ready' ? 'text-[var(--shapeships-pastel-green)]' : 'text-white'
+        {statusTone !== 'hidden' ? (
+          <div className="flex size-full items-center justify-center rounded-[10px] bg-[var(--shapeships-grey-90)] px-[8px] min-[1400px]:px-[12px] min-[1920px]:px-[20px]">
+            <FitSingleLineText
+              text={statusText ?? ''}
+              maxFontSize={18}
+              minFontSize={10}
+              align="center"
+              className={`w-full font-black leading-normal text-[12px] min-[1400px]:text-[14px] min-[1920px]:text-[18px] ${
+                statusTone === 'ready' ? 'text-[var(--shapeships-pastel-green)]' : 'text-white'
               }`}
-            >
-              {vm.p1StatusText}
-            </p>
-          </StatusWrapper>
-        )}
-        <p
-          className={`font-bold leading-[normal] relative shrink-0 text-[28px] text-center w-full ${
-            vm.p1IsReady ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]'
-          }`}
-        >
-          <ClockWithIncrement
-            clock={vm.p1Clock}
-            incrementSeconds={vm.clockIncrementSeconds}
-            scopeKey={vm.clockIncrementScopeKey}
-            turnNumber={vm.clockIncrementTurnNumber}
-            variant="desktop"
-          />
-        </p>
+            />
+          </div>
+        ) : null}
       </div>
 
-      {/* Player Names */}
       <div
-        className="content-stretch flex gap-[79px] items-center justify-center relative shrink-0 w-[595px]"
-        data-name="Player Names"
+        className={`order-2 flex h-[36px] w-[7ch] shrink-0 items-center justify-center whitespace-nowrap font-bold text-[16px] leading-normal tabular-nums min-[1400px]:h-[42px] min-[1400px]:text-[20px] min-[1920px]:h-[50px] min-[1920px]:text-[28px] max-[1199px]:h-[40px] max-[1199px]:items-start ${
+          isReady ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]'
+        }`}
       >
-        {/* Me Name Species */}
-        <div
-          className="basis-0 content-stretch flex flex-col gap-px grow items-end min-h-px min-w-0 relative shrink-0"
-          data-name="Me Name Species"
-        >
-          <div
-            className="content-stretch flex items-center justify-end min-w-0 relative shrink-0 w-full"
-            data-name="Me Name"
-          >
-            <div className="inline-flex max-w-full min-w-0 items-center gap-[8px]">
-              <OnlineStatus isOnline={vm.p1IsOnline} />
-              <div className="max-w-full min-w-0 overflow-hidden">
-                <FitSingleLineText
-                  text={vm.p1Name}
-                  maxFontSize={36}
-                  align="right"
-                  className="font-normal leading-[normal] text-[36px] text-white"
-                />
-              </div>
-            </div>
-          </div>
-          <p
-            className="capitalize font-normal leading-[normal] relative shrink-0 text-[15px] text-right text-white w-full"
-          >
-            {vm.p1Species}
-          </p>
-        </div>
-
-        {/* Opponent Name Species */}
-        <div
-          className="basis-0 content-stretch flex flex-col grow items-start min-h-px min-w-0 relative shrink-0"
-          data-name="Opponent Name Species"
-        >
-          <div
-            className="content-stretch flex items-center justify-start min-w-0 relative shrink-0 w-full"
-            data-name="Opponent Name"
-          >
-            <div className="inline-flex max-w-full min-w-0 items-center gap-[8px]">
-              <div className="max-w-full min-w-0 overflow-hidden">
-                <FitSingleLineText
-                  text={vm.p2Name}
-                  maxFontSize={36}
-                  align="left"
-                  className="font-normal leading-[normal] text-[36px] text-white"
-                />
-              </div>
-              <OnlineStatus isOnline={vm.p2IsOnline} />
-            </div>
-          </div>
-          <p
-            className="capitalize font-normal leading-[normal] relative shrink-0 text-[15px] text-white w-full"
-          >
-            {vm.p2Species}
-          </p>
-        </div>
+        <ClockWithIncrement
+          clock={isLeft ? vm.p1Clock : vm.p2Clock}
+          incrementSeconds={vm.clockIncrementSeconds}
+          scopeKey={vm.clockIncrementScopeKey}
+          turnNumber={vm.clockIncrementTurnNumber}
+          variant="desktop"
+        />
       </div>
 
-      {/* Opponent Status and Time */}
       <div
-        className="content-stretch flex flex-col gap-[5px] items-center relative shrink-0 w-[200px]"
-        data-name="Opponent Status and Time"
+        className={`min-w-0 max-w-[176px] flex-1 min-[1400px]:max-w-[240px] min-[1920px]:max-w-[320px] max-[1199px]:order-1 max-[1199px]:w-full max-[1199px]:flex-none max-[1199px]:pb-[15px] ${
+          isLeft ? 'order-3' : 'order-1'
+        }`}
       >
-        {vm.p2StatusTone !== 'hidden' && (
-          <StatusWrapper>
-            <p
-              className={`font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap ${
-                vm.p2StatusTone === 'ready' ? 'text-[var(--shapeships-pastel-green)]' : 'text-white'
-              }`}
-            >
-              {vm.p2StatusText}
+        <div className={`grid h-[36px] w-full min-w-0 items-center gap-x-[8px] min-[1400px]:h-[42px] min-[1920px]:h-[50px] max-[1199px]:h-[22px] ${
+          isLeft ? 'grid-cols-[minmax(0,1fr)_12px]' : 'grid-cols-[12px_minmax(0,1fr)]'
+        }`}>
+          <div className={`relative row-start-1 min-w-0 ${isLeft ? 'col-start-1' : 'col-start-2'}`}>
+            <FitSingleLineText
+              text={name}
+              maxFontSize={36}
+              align={isLeft ? 'right' : 'left'}
+              className="w-full min-w-0 font-normal leading-[1.1] text-[16px] text-white min-[1400px]:text-[24px] min-[1920px]:text-[36px]"
+            />
+            {/* Anchor species to the fitted name box, not the fixed control slot. */}
+            <p className={`absolute inset-x-0 top-full mt-[2px] truncate text-[10px] font-normal capitalize leading-[1.1] text-white min-[1400px]:text-[12px] min-[1920px]:text-[15px] ${isLeft ? 'text-right' : 'text-left'}`} title={species}>
+              {species}
             </p>
-          </StatusWrapper>
-        )}
-        <p
-          className={`font-bold leading-[normal] relative shrink-0 text-[28px] text-center w-full ${
-            vm.p2IsReady ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]'
-          }`}
-        >
-          <ClockWithIncrement
-            clock={vm.p2Clock}
-            incrementSeconds={vm.clockIncrementSeconds}
-            scopeKey={vm.clockIncrementScopeKey}
-            turnNumber={vm.clockIncrementTurnNumber}
-            variant="desktop"
-          />
-        </p>
+          </div>
+          <div className={`row-start-1 ${isLeft ? 'col-start-2' : 'col-start-1'}`}>
+            <OnlineStatus isOnline={isOnline} />
+          </div>
+        </div>
       </div>
     </div>
+  );
+}
+
+// Fragment children occupy the same grid columns as the fleets beneath them.
+export function TopHud({ vm }: TopHudProps) {
+  return (
+    <>
+      <PlayerHeader vm={vm} side="left" />
+      <PlayerHeader vm={vm} side="right" />
+    </>
   );
 }

@@ -64,8 +64,10 @@ export function useBoardStatHover(): BoardStatHoverController {
 
   return {
     state,
-    presentState: presentValue ?? EMPTY_BOARD_STAT_HOVER_STATE,
-    motionState,
+    presentState: activePresenceState ?? presentValue ?? EMPTY_BOARD_STAT_HOVER_STATE,
+    motionState: activePresenceState && activePresenceState !== presentValue
+      ? 'entering'
+      : motionState,
     onEnter,
     onLeave,
     onFocus: onEnter,
