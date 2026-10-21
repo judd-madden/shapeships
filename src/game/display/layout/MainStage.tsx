@@ -415,7 +415,7 @@ export function MainStage({
 
       {/* Action Panel Wrapper */}
       <div
-        className={`content-stretch flex flex-col h-[344px] shrink-0 items-end relative w-full ${
+        className={`content-stretch flex flex-col h-[274px] 2xl:h-[344px] shrink-0 items-end relative w-full ${
           isMissionInteractionLocked ? 'pointer-events-none' : ''
         }`}
         data-name="Action Panel Wrapper"
@@ -445,7 +445,7 @@ export function MainStage({
 
         {/* Action Panel Content */}
         <div
-          className={`bg-black h-[302px] border-2 border-[var(--shapeships-grey-70)] border-solid relative rounded-bl-[10px] rounded-br-[10px] rounded-tl-[10px] w-full ${
+          className={`bg-black h-[232px] 2xl:h-[302px] border-2 border-[var(--shapeships-grey-70)] border-solid relative rounded-bl-[10px] rounded-br-[10px] rounded-tl-[10px] w-full ${
             actionPanelVm.healthResolutionOverlay ? 'z-[70]' : 'z-10'
           }`}
           data-name="AP - Action Panel CONTENT"

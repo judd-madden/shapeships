@@ -6,12 +6,14 @@
 - **Status:** Approved direction; implementation details remain subject to owner review at each pass
 - **Prepared:** 2026-10-21
 - **Audited source:** supplied `1020.zip`
-- **Phase 20A:** Game UI Updates — complete and review before activating Phase 20B
-- **Phase 20B:** Health Bars — dynamic scales, dedicated animation sequence and integration
+- **Phase 20A:** Game UI Updates — implementation and automated validation complete through 20A.7; final owner visual acceptance pending
+- **Phase 20B:** Health Bars — not started; separate owner-reviewed passes required for dynamic scales, animation and integration
 - **Architecture:** server-authoritative gameplay; client-owned presentation
 - **Suggested repository location:** `\src\documentation\plans\Phase 20 Game UI and Health Bars.md`
 
 > This is the main planning baseline, not permission to implement every pass in one operation. Judd will supply designs and review individual pass plans and implementations. At Judd's discretion, an approved individual pass plan may change the scope, sequence, measurements or behaviour proposed here. Further responsive requirements are expected. Preserve all existing behaviour unless a change is explicitly part of the approved pass.
+
+Implementation notes below are historical pass records. For the current Phase A contract, the 20A.4 refinements supersede the original bar-height cap, spacing and wide combat cards; 20A.6 supersedes interim mobile inspection; 20A.7 supersedes earlier desktop numeric typography and selector-based positioning notes. Earlier validation counts describe those passes only.
 
 ### 2026-10-21 — Combined 20A.1 + 20A.2 implementation
 
@@ -55,7 +57,9 @@
 - Economy order is Saved Lines, Bonus, Fleet. Ordinary/joining resources, Centaur categories, intentional zeros, bonus breakdowns and streak details remain separate. Fleet uses the exact label `Fleet`, 18px values and the same 12px central-label size as other medium/large economy rows, all pastel purple. **Fleet is hidden below 1400px** and has no new hover.
 - Live Fleet Value sums summary counts times mirrored core definitions' integer `totalLineCost`, with unknown/null/noninteger costs contributing zero. The runtime exposes optional board `presentedFleetValue`, calculated from viewer-safe fleets after build-preview/materialisation filtering and before exact-target projections. Void fleets, Solar ledger entries, unmaterialised copies and targeting graphic substitutions are excluded. Historical `fleetValueEnd` is not used.
 
-| Desktop stats geometry | Small: 768–1399px | Medium: 1400–1919px | Large: ≥1920px |
+The following is the initial 20A.4 geometry record. Numeric sizes are superseded by the 20A.7 table; flexible spacing is superseded by the refinement below.
+
+| Initial desktop stats geometry | Small: 768–1399px | Medium: 1400–1919px | Large: ≥1920px |
 | --- | ---: | ---: | ---: |
 | Current contribution | 20px | 24px | 28px |
 | Resolved contribution, opacity 0.66 | 14px | 16px | 18px |
@@ -113,6 +117,39 @@
 - Combat uses incoming damage on the left and own healing on the right, with viewer-relative/spectator owner labels and one formatted total per contribution. Existing current/estimate/final heading helpers are reused. Mobile alone simplifies Autocast wording to **(ESTIMATE)** while preserving estimate inputs, approximation/uncertainty text and source rows. Concealed/unavailable columns do not hide an available sibling. Tab events stay inside the controls; ordinary content tap-dismissal, the 8px tap threshold, pointer identity/cancellation and scroll containment remain.
 - **Validation:** npm run typecheck, npm run build and npm run test:client passed (**39 files, 360 tests**). Focused coverage includes period reopening/rollover/new-game identity, all four trigger callbacks/accessibility, owner mapping, economy invariance, Fleet absence/zero, joining/even/streak rows, estimate/final/uncertainty presentation, concealment, held/final/preceding-source validation, wrong-turn/equal-total rejection, tab containment, drag/cancel handling and board-centred tail geometry. The existing non-blocking >500kB build chunk-size warning remains. Automated callback/render tests do not establish browser layout or native event/scroll behavior.
 - **Not run — browser/Vite testing handled by user.** Owner review remains **pending** for the 360px reference and other supported phone widths/heights, long source lists and resource/owner labels, tab switching/dismissal/scrolling, tails/clearance, spectators, held/final states and surrounding mobile controls.
+
+### 2026-10-21 — 20A.7 typography, explicit refs and Phase A integration checkpoint
+
+- **Pass type:** Client/UI. **Primary layer:** Display. Implementation and automated validation complete; **final owner visual acceptance pending**. Bars remain inactive. No server, gameplay, networking, runtime, tooling or configuration changes; Phase 20B has not started.
+- The following exact desktop numeric tiers supersede prior health/delta, Saved/Bonus and resolved-contribution specifications, including the initial 20A.4 table and provisional Appendix B typography. **Every value uses explicit `line-height: 1` (`leading-none`), including inherited damage/healing span line heights.** Current contribution sizes already matched and were retained.
+
+| Numeric element | Small: 768–1399px | Medium: 1400–1919px | Large: ≥1920px |
+| --- | ---: | ---: | ---: |
+| Health | 30px | 40px | 64px |
+| Net delta | 16px | 24px | 28px |
+| Current damage/healing | 20px | 24px | 28px |
+| Saved Lines and Bonus values | 20px | 24px | 28px |
+| Previous damage/healing | 14px | 16px | 20px |
+
+- Both sides and all shared ordinary/joining/Centaur resource values use these tiers. Weights, colours, opacity, formatting, uncertainty markers and left-side right/right-side left alignment remain intact. Previous contributions stay centred in the health-number grid row; delta remains in its separate row with unchanged visibility/animation keys. Mobile typography/geometry, Fleet's 18px values and visibility, labels, names, clocks, hover-card typography and dice/helper dimensions are unchanged. The independent **1600px** centre-width/column-width transition remains intact.
+- Stable board-root and bar-region refs are owned by `BoardStage` before its setup/board branch, attached in the shared `BoardStageFrame`, and supplied locally to the hover hook and dice component. Stat hover directly observes its trigger, board root and bar region instead of walking descriptive ancestors/querying placeholders. Dice guidance directly observes the board/bar refs instead of `closest('[data-name="Board Stage"]')`; bar observation also handles bar-height changes that leave root dimensions unchanged. Descriptive attributes remain inspection-only for these paths. Upstream dice presentation inputs do not acquire DOM-ref responsibilities.
+- Existing layout-effect remeasurement, stat captured-scroll/viewport handling, disconnected/disabled trigger clearing, focus/card handoff, positioning calculations and observer/listener cleanup are retained. The same mounted die/keys remain in the same shared frame across setup and board modes. Guidance keeps its 500ms appearance delay, 150ms dismissal fade, overlay suppression and flip/clamp calculations; no context, registry, polling or timing layer was added.
+- Central layout remains a full-height flex composition: uncapped bars grow into remaining space, real rows retain their height, zero-minimum spacers yield, and no central scrolling is introduced. Current-stack reservations still exactly cover two lines plus the 2px gap (42/50px), with 20px extra bottom padding at large sizes (78px). No additional spacing correction or obsolete-fragment removal was justified by source review.
+
+| Integration area | Source review and automated evidence |
+| --- | --- |
+| Setup, concealment, intros, missions and player ordering | Shared frame/TopHud mounting, viewer-safe inputs and GameScreen/MainStage/mobile overlay gates retained; existing species-selection, matchup and mission coverage passes. |
+| Clocks, dice/helpers and presentation holds | ClockWithIncrement inputs/lifecycle, GameScreen sound/Ready ownership, helper slots/keys and presented-stat gates retained; existing clock, helper and hold tests pass. Six new ref/observer tests cover direct targets without descriptive attributes, layout/viewport/scroll measurement, disabled/disconnected anchors, handoff, guidance delay/suppression/fade and cleanup. |
+| Current/resolved/final stats | Existing affected-pool mapping, source/turn/total matching, concealment, uncertainty, Autocast qualifiers and final/history fallback retained; desktop/mobile semantic and rendering tests pass. |
+| Economy, Fleet and streaks | Shared metrics cover saved/joining/even categories; existing live viewer-safe Fleet input, optional mobile row and streak details retained; Fleet, mobile economy and streak coverage passes. |
+| Inspection, targeting, fitting and reveal | Desktop portal/focus wiring and mobile unified controls/period/row refs retained; FleetArea callbacks, FitToBox sizing and reveal/activation paths source-reviewed. Existing targeting/fleet presentation and inspection tests pass; native hit-testing, fitting and animation appearance require owner review. |
+| Takeovers, finished surfaces and lower controls | Existing MainStage action-panel allocation and mobile mission/takeover/postgame gates/callbacks source-reviewed; no replacement or removal of working controls. |
+| Responsive transitions and dense content | Production CSS confirms numeric tiers/line height and the independent 1600px centre width; shared frame identity and flex geometry source-reviewed. Short-window fit, long totals and dense resource/helper collisions remain browser-review items. |
+
+- **Validation:** `npm run typecheck`, `npm run build` and `npm run test:client` passed (**40 files, 366 tests**, including six new behavioural cases). Production CSS inspection confirmed the emitted font sizes, media rules and `line-height: 1`. The existing non-blocking >500kB build chunk-size warning remains. Automated element doubles and source review do not establish native browser layout, focus/scroll behaviour or animation fidelity. No additional direct integration regression fixes were identified beyond observing bar-driven guidance movement.
+- **Not run — browser/Vite testing handled by user.**
+- **Owner review:** typography at 768/1400/1920px boundaries and the independent 1600px transition; short desktop height/bar growth/gap collapse/no central scrolling; long totals and dense Centaur/joining/helper combinations; previous-value centring with delta hidden/visible/animating; hover handoff and guidance during setup/intros/missions/resizing; representative spectator/finished views and unchanged phone layout/inspection.
+- **Phase B remains unapproved:** resolve input completeness (D09), positive/negative scale geometry and retention (D10–D12), counter behaviour (D13), overheal (D14), timing/recovery and hold coordination (D15), preferences/reduced motion/sound (D16), and outcome styling (D17) in their separate passes. Final Phase A visual acceptance remains a prerequisite for active fills, scales, legends and resolution animation.
 
 ## Contents
 
@@ -357,11 +394,11 @@ Apply this grouping to current values, last-turn values and their breakdowns. Th
 
 Desktop current stacks open compact 240px cards with vertically stacked current damage/healing sections; entire health/resolved-value groups open the same stacked treatment for validated resolved contributions. Owners and Autocast qualifiers remain attached to their applicable sections; the period heading retains its estimate qualifier. The separate desktop health-summary hover has been removed. Accessible health descriptions retain health/max-health information; visible caps await the future legend by owner decision. Economy breakdowns remain available.
 
-20A.4 implements outward placement with viewport flip/clamp, responsive anchor measurement and internally scrollable cards. Owner visual review remains pending. Mobile inspection remains unchanged until its scoped pass.
+20A.4 implements outward placement with viewport flip/clamp and internally scrollable cards; 20A.7 supplies explicit board/bar refs for responsive anchor measurement. Owner visual review remains pending. Mobile uses the implemented 20A.6 unified inspection contract below.
 
 ### 6.4 Mobile paired popovers
 
-The intended direction is two paired cards with:
+The implemented 20A.6 direction is two paired cards with:
 
 1. A stable current economy summary above the tabs: saved resources, Fleet Value when its presented input is available, and bonus sources.
 2. Internal `LAST TURN` (left) and `THIS TURN` / `THIS TURN (ESTIMATE)` / `FINAL TURN` (right) controls for combat contributions.
@@ -531,17 +568,17 @@ The following sequence is recommended. Each pass may be revised by Judd; exact n
 
 **Acceptance:** either card switches both; headers remain current; taps do not dismiss or reach the board; long content and tiny viewports remain navigable; last-turn values use resolved data. No duplication of estimate logic.
 
-### 20A.7 — Integration, responsive review and Phase A acceptance
+### 20A.7 — Typography, integration and Phase A acceptance
 
 **Type:** Client/UI Pass. **Dependency:** all approved 20A passes.
 
-**Goal:** Resolve interactions across the reorganised board and establish the reviewed Phase B geometry.
+**Goal:** Finalise exact desktop numeric typography, remove the two selector dependencies and check Phase A integration before active health bars. **Implementation and automated validation complete; final owner visual acceptance pending.**
 
-**Expected scope:** only components and helpers touched by Phase A, plus direct regression fixes identified during owner review.
+**Expected scope:** `BoardStage.tsx`, `useBoardStatHover.tsx`, `DesktopDicePresentation.tsx`, focused behavioural tests and this plan. Other Phase A components receive only named, narrowly justified direct regression fixes.
 
-**Work:** review the preservation matrix, live post-ZIP changes, setup, spectator and finished views, first-turn guidance, menus and responsive transitions. Remove obsolete presentation fragments only after their behaviour has a working replacement.
+**Work:** apply the exact 20A.7 numeric table above with line-height 1; pass explicit board-root/bar-region refs through existing composition; review the preservation matrix, setup, spectator/finished views, guidance, menus and responsive transitions. Preserve the independent 1600px width change. Remove obsolete presentation fragments only after their replacement and all consumers are verified.
 
-**Acceptance:** Phase A stands alone with inactive bars, approved layout and all existing behaviours retained. Record remaining open Phase B choices. Judd reviews this checkpoint before active health bars are introduced.
+**Acceptance:** implementation/automated checks complete; Phase A stands alone with inactive placeholders. Final layout/interaction acceptance remains pending Judd's browser review. Record remaining Phase B choices without implementing active fills, scales, legends or health-resolution animation.
 
 ## 10. Phase 20B — Authoritative inputs and server posture
 
@@ -858,8 +895,8 @@ This register is part of the plan and should be updated as passes are approved.
 | --- | --- | --- | --- |
 | D01 | Phase order | Locked: 20A first; placeholders allowed; active bars in 20B. | Established |
 | D02 | Pixel calibration | Open: received extra-dice raster is 2048px wide; owner original is reported as 2241px. Intended CSS viewport/export scale not yet confirmed. | 20A.1–20A.2 measurements |
-| D03 | Responsive rules | Open: further owner requirements expected; current 767/768/1599 boundaries are baseline facts only. | Each affected layout pass |
-| D04 | Header and omitted elements | Target direction established; exact species/clock/status/intro variants need inventory and pass design. | 20A.1–20A.2 |
+| D03 | Responsive rules | Phase A implemented: 767/768px mobile boundary; desktop typography tiers at 1400/1920px with independent 1600px centre-width change. Final visual acceptance and any further owner requirements remain pending. | Each affected layout pass |
+| D04 | Header and omitted elements | Phase A header/setup/clock/status/intro inventory and source review complete; owner visual acceptance pending. | 20A.1–20A.7 |
 | D05 | Fleet Value | Implemented: desktop purple `Fleet` below Bonus from 1400px; mobile `Fleet Value` below Saved lines in both inspection cards. Reuses the optional live viewer-safe value. Owner visual review pending. | 20A.4–20A.6 |
 | D06 | Shared mobile time tabs | Implemented: shared selection retained within a game turn; reset on next opening after rollover/new game. Last uses the genuine preceding slot; held/final current actuals stay on the right. Owner visual review pending. | 20A.6 |
 | D07 | Desktop last-turn inspection | Implemented: entire health/net/resolved-value group opens matching resolved damage/healing sections; current stacks open current-only sections. Both use compact 240px stacked cards. Owner visual review pending. | 20A.4 |
@@ -873,13 +910,16 @@ This register is part of the plan and should be updated as passes are approved.
 | D15 | Animation timings | Open: named settings and bounded whole sequence; agree with existing hold/next-dice lifecycle. | 20B.4 |
 | D16 | Preferences | Open: Health Flash, Battle Effects name, bar-motion switch, reduced-motion and existing sound coordination. | 20B.4–20B.7 |
 | D17 | Outcome markers | Preserve canonical outcomes; exact loss/draw/narrow-victory styling provisional. | 20B.3/20B.7 |
-| D18 | Placeholder treatment | Static/non-active; exact drawn fill and legend treatment owner-reviewed. | 20A.2/20A.5 |
+| D18 | Placeholder treatment | Implemented neutral tracks/blank lanes: desktop 24px tracks and 56px lane; mobile 12px tracks/lane. No active fills, scale or legend in Phase A. Owner visual acceptance pending. | 20A.2/20A.5/20A.7 |
+| D19 | Desktop numeric typography and refs | Exact 20A.7 tiers/line-height 1 and explicit board/bar refs implemented and automated checks passed; final owner visual acceptance pending. | 20A.7 |
 
 Additional discovered requirements should be added here with their affected pass. A later approved pass plan may supersede an entry at Judd's discretion.
 
 ## 17. Completion criteria
 
 ### Phase 20A complete
+
+Implementation and automated validation are complete through 20A.7. The owner-review items below remain pending; this is not final Phase A acceptance or approval to begin Phase B.
 
 - Desktop layout and header reorganised and owner-reviewed.
 - Desktop die/helpers moved with behaviour retained; mobile die unchanged.
@@ -888,6 +928,7 @@ Additional discovered requirements should be added here with their affected pass
 - Placeholders reserve accepted bar geometry without active sequences.
 - Further responsive requirements relevant to Phase A are incorporated.
 - Current conditional features and live post-ZIP fixes remain intact.
+- Exact 20A.7 desktop numeric tiers use line-height 1; both layout-selector dependencies use explicit owner refs, with automated behavioural coverage.
 
 ### Phase 20B complete
 
@@ -934,9 +975,11 @@ Until the intended CSS viewport/export relationship is known:
 
 This appendix makes the spec concrete while preventing unverified measurements from becoming accidental requirements. Values marked P or R are reviewable. It is expected to be refined with each pass's supplied designs and responsive requirements.
 
-**Codes:** E = existing CSS in `1020.zip`; R = approximate raster measurement from named reference; P = proposed initial CSS value; O = open.
+**Codes:** E = existing CSS in `1020.zip`; R = approximate raster measurement from named reference; P = proposed initial CSS value; A = approved CSS target, pending final owner visual acceptance; O = open.
 
 ### B.1 Existing CSS anchors
+
+This table records the historical ZIP baseline, not current implementation requirements. Phase A pass records supersede changed values; desktop numeric typography uses the exact 20A.7 table above. Do not reapply historical overrides.
 
 | Element | Value / baseline | Class | Notes |
 | --- | --- | --- | --- |
@@ -946,9 +989,9 @@ This appendix makes the spec concrete while preventing unverified measurements f
 | Desktop left-rail width | 290px | E | Check all visibility/parent rules before altering. |
 | Brand type | 45px/45px; 40px/40px intermediate | E | Existing font-size/line-height. |
 | Centre stats column | 230px; 200px intermediate | E | Existing `BoardStage.tsx` width. Target may differ. |
-| Desktop health number | 64px/64px; 56px/56px intermediate | E | Preserve until target typography is calibrated. |
-| Desktop net delta | 28px/28px | E | Existing health display. |
-| Standard desktop metric | 36px/36px; 30px/30px intermediate | E | New hierarchy may use smaller proposed values. |
+| Desktop health number | 64px/64px; 56px/56px intermediate | E | Historical; superseded by 20A.7 tiers and line-height 1. |
+| Desktop net delta | 28px/28px | E | Historical; superseded by 20A.7 tiers and line-height 1. |
+| Standard desktop metric | 36px/36px; 30px/30px intermediate | E | Historical; use the approved per-category 20A.7 tiers. |
 | Desktop helper die | 60px square | E | Existing helper rendering. |
 | Desktop helper source graphic | 52px square | E | Existing helper rendering. |
 | Intermediate desktop main die | 140px square override | E | Shared primitive supplies its other existing dimensions. |
@@ -971,7 +1014,7 @@ Reference: `image(20261020-235222).png`, 2048 × 1167. Raster coordinates are ap
 | Shared health axis | Near x=1165 | R | Centre within the main board after the left rail; not whole-window centre. |
 | Bar tracks | About 26px wide, 402px high, starting near y=18 | R | Proposed starting width 24–26 CSS px only if calibration supports 1:1; height governed by reviewed layout. |
 | Gap between tracks | About 72px including legend region | R | Preserve a readable central tick-label lane; exact gap O. |
-| Health-number row | Near y=441–485 | R | Below bars; use E typography initially rather than reading glyph height as font-size. |
+| Health-number row | Near y=441–485 | R | Below bars; current typography uses 20A.7 tiers, not raster glyph height. |
 | Net-delta row | Near y=497–517 | R | Directly associated with its health number. |
 | Main die visible box | About 134px square, near x=1099/y=538 | R | Review against existing Dice primitive; no compulsory 134px CSS assignment. |
 | Helper dice visible boxes | About 50px square | R | Do not overwrite existing 60px helper sizing solely from a potentially scaled export. |
@@ -982,17 +1025,17 @@ Header arrangement follows the supplied design, but fixed x coordinates are inap
 
 ### B.3 Provisional component-level starting values
 
-These are deliberate proposals, not claimed pixel-perfect readings. Replace them with owner-approved values before the relevant implementation.
+Unimplemented entries remain proposals, not claimed pixel-perfect readings. The approved numeric targets below replace the earlier provisional 28px current/18px previous/28px economy starting values; all three categories use line-height 1. Health and delta use the full 20A.7 table.
 
 | Element | Initial proposal | Class | Review |
 | --- | --- | --- | --- |
 | Desktop bar track | Square-ended dark track, white fill, red/green transient layers | P | 20B.3; use existing palette tokens. |
 | Desktop legend text | Start at 11–12 CSS px; fit labels by density, not blanket scaling | P | 20A.2/20B.2. |
-| Desktop current contribution | Start at 28 CSS px, bold | P | 20A.4; compare with existing 36px metric and calibrated target. |
-| Desktop last contribution | Start at 18 CSS px, reduced emphasis | P | 20A.4; keep sufficient contrast. |
-| Desktop economy | Start at 28px primary values and 11–13px labels | P | 20A.4; test joining/even lines. |
+| Desktop current contribution | 20/24/28px at small/medium/large tiers, bold | A | 20A.7; retained matching implementation. |
+| Desktop last contribution | 14/16/20px, opacity 0.66 | A | 20A.7; centred against health number, excluding delta. |
+| Desktop economy | Saved/Bonus 20/24/28px; labels remain 11/12/12px | A | 20A.7; includes ordinary/joining/Centaur categories. |
 | Desktop header text | Reuse current appropriate header components/sizes before making targeted changes | P | 20A.1/20A.2. |
-| Fleet Value | Secondary row; purple where approved | P | Exact font/label/location O. |
+| Fleet Value | Desktop purple `Fleet`, 18px from 1400px; mobile optional `Fleet Value` in inspection | A | Implemented 20A.4/20A.6; final owner visual acceptance pending. |
 | Hover headings/body | Reuse current typography where compatible | P | 20A.4; preserve source-row readability. |
 
 ### B.4 Mobile target reference

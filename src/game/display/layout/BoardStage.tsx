@@ -4,7 +4,7 @@
  * NO LOGIC - displays view-model data only (Pass 1.25)
  */
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import type {
   BoardViewModel,
   GameSessionActions,
@@ -63,6 +63,8 @@ function cx(...parts: Array<string | undefined | false>) {
 }
 
 interface BoardStageFrameProps {
+  boardRootRef: RefObject<HTMLDivElement | null>;
+  barRegionRef: RefObject<HTMLDivElement | null>;
   hudVm: HudViewModel;
   desktopDicePresentation: DesktopDicePresentationProps;
   isChoosingSpecies?: boolean;
@@ -74,6 +76,8 @@ interface BoardStageFrameProps {
 }
 
 function BoardStageFrame({
+  boardRootRef,
+  barRegionRef,
   hudVm,
   desktopDicePresentation,
   isChoosingSpecies = false,
@@ -85,6 +89,7 @@ function BoardStageFrame({
 }: BoardStageFrameProps) {
   return (
     <div
+      ref={boardRootRef}
       className="relative grid w-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_var(--ss-board-center-width)_minmax(0,1fr)] grid-rows-[var(--ss-desktop-header-height)_minmax(0,1fr)] gap-x-[8px] [--ss-board-center-width:200px] min-[1600px]:[--ss-board-center-width:230px] [--ss-desktop-header-height:68px] max-[1199px]:[--ss-desktop-header-height:124px] min-[1400px]:[--ss-desktop-header-height:78px] min-[1920px]:[--ss-desktop-header-height:90px]"
       data-name="Board Stage"
     >
@@ -99,6 +104,7 @@ function BoardStageFrame({
         {/* Placeholders yield first; metric spacers can then compress without clipping real content. */}
         <div className="absolute inset-0 flex flex-col items-center overflow-visible" data-name="Central Stats Content">
           <div
+            ref={barRegionRef}
             className="relative flex w-full min-h-[42px] basis-0 grow items-stretch justify-center min-[1400px]:min-h-[50px] min-[1920px]:min-h-[78px]"
             data-name="Inactive Health Bar Placeholders"
           >
@@ -113,6 +119,8 @@ function BoardStageFrame({
             <div aria-hidden="true" className="min-h-0 basis-[8px] shrink min-[1400px]:basis-[12px] min-[1920px]:basis-[24px] min-[2560px]:basis-[32px]" />
             <DesktopDicePresentation
               {...desktopDicePresentation}
+              boardRootRef={boardRootRef}
+              barRegionRef={barRegionRef}
               guidanceSuppressed={isChoosingSpecies || Boolean(matchupIntro) || desktopDicePresentation.guidanceSuppressed}
             />
             <div aria-hidden="true" className="min-h-0 basis-[8px] shrink min-[1400px]:basis-[12px] min-[1920px]:basis-[24px] min-[2560px]:basis-[32px]" />
@@ -216,7 +224,7 @@ function Metric({
       )}
     >
       <p
-        className="font-bold leading-none relative shrink-0 text-[24px] min-[1400px]:text-[28px] min-w-[32px] whitespace-nowrap"
+        className="font-bold leading-none relative shrink-0 text-[20px] min-[1400px]:text-[24px] min-[1920px]:text-[28px] min-w-[32px] whitespace-nowrap"
       >
         {value}
       </p>
@@ -296,7 +304,7 @@ function CombatValues({
     <span className={cx(
       'inline-flex w-max shrink-0 flex-col gap-[2px] whitespace-nowrap font-bold leading-none',
       previous
-        ? 'text-[14px] opacity-[0.66] min-[1400px]:text-[16px] min-[1920px]:text-[18px]'
+        ? 'text-[14px] opacity-[0.66] min-[1400px]:text-[16px] min-[1920px]:text-[20px]'
         : 'text-[20px] min-[1400px]:text-[24px] min-[1920px]:text-[28px]',
     )}>
       <span className="text-[var(--shapeships-pastel-red)]">{damage}</span>
@@ -412,13 +420,13 @@ function HealthTrigger({
     >
       {isRight ? previousValues : null}
       <span className={cx(
-        'row-start-1 text-[64px] leading-[64px] text-white min-[768px]:max-[1599px]:text-[56px] min-[768px]:max-[1599px]:leading-[56px]',
+        'row-start-1 text-[30px] leading-none text-white min-[1400px]:text-[40px] min-[1920px]:text-[64px]',
         isRight ? 'col-start-2' : 'col-start-1',
       )}>
         {health}
       </span>
       <span
-        className={cx('row-start-2 text-[28px] leading-[28px]', isRight ? 'col-start-2' : 'col-start-1')}
+        className={cx('row-start-2 justify-self-center text-[16px] leading-none min-[1400px]:text-[24px] min-[1920px]:text-[28px]', isRight ? 'col-start-2' : 'col-start-1')}
         style={{
           color: netDelta > 0
             ? 'var(--shapeships-pastel-green)'
@@ -456,7 +464,9 @@ export function BoardStage({
 }: BoardStageProps) {
   const isBattleReveal = phaseKey === 'battle.reveal';
   const fleetHover = useFleetShipHover();
-  const statHover = useBoardStatHover();
+  const boardRootRef = useRef<HTMLDivElement | null>(null);
+  const barRegionRef = useRef<HTMLDivElement | null>(null);
+  const statHover = useBoardStatHover({ boardRootRef, barRegionRef });
   const myBonusAnchorRef = useRef<HTMLDivElement | null>(null);
   const opponentBonusPrimaryAnchorRef = useRef<HTMLDivElement | null>(null);
   const opponentBonusJoiningAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -473,6 +483,8 @@ export function BoardStage({
   if (vm.mode === 'choose_species') {
     return (
       <BoardStageFrame
+        boardRootRef={boardRootRef}
+        barRegionRef={barRegionRef}
         hudVm={hudVm}
         desktopDicePresentation={desktopDicePresentation}
         isChoosingSpecies
@@ -591,6 +603,8 @@ export function BoardStage({
   // Board mode
   return (
     <BoardStageFrame
+      boardRootRef={boardRootRef}
+      barRegionRef={barRegionRef}
       hudVm={hudVm}
       desktopDicePresentation={desktopDicePresentation}
       matchupIntro={matchupIntro}

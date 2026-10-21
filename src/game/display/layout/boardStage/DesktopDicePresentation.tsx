@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { Dice } from '../../../../components/ui/primitives';
 import { Cube } from '../../../../graphics/ancient/Cube';
 import type { LeftRailViewModel } from '../../../client/useGameSession';
@@ -82,6 +82,8 @@ function DesktopDiceHelper({ slot }: {
 }
 
 export function DesktopDicePresentation({
+  boardRootRef,
+  barRegionRef,
   diceValue,
   diceAnimateKey,
   diceManipulationSlots,
@@ -89,7 +91,10 @@ export function DesktopDicePresentation({
   firstTurnBuildHelperDismissSignal = 0,
   onFirstTurnBuildHelperDismiss,
   guidanceSuppressed = false,
-}: DesktopDicePresentationProps) {
+}: DesktopDicePresentationProps & {
+  boardRootRef: RefObject<HTMLElement | null>;
+  barRegionRef: RefObject<HTMLElement | null>;
+}) {
   const [isHelperMounted, setIsHelperMounted] = useState(false);
   const [isHelperVisible, setIsHelperVisible] = useState(false);
   const [helperPosition, setHelperPosition] = useState({ left: 0, top: 0, pointerTop: 50, onRight: true });
@@ -188,17 +193,15 @@ export function DesktopDicePresentation({
       ? new ResizeObserver(measureHelperPosition)
       : null;
     if (helperRef.current) observer?.observe(helperRef.current);
-    if (mainDieRef.current) {
-      observer?.observe(mainDieRef.current);
-      const board = mainDieRef.current.closest('[data-name="Board Stage"]');
-      if (board) observer?.observe(board);
-    }
+    if (mainDieRef.current) observer?.observe(mainDieRef.current);
+    if (boardRootRef.current) observer?.observe(boardRootRef.current);
+    if (barRegionRef.current) observer?.observe(barRegionRef.current);
     window.addEventListener('resize', measureHelperPosition);
     return () => {
       observer?.disconnect();
       window.removeEventListener('resize', measureHelperPosition);
     };
-  }, [isHelperMounted, guidanceSuppressed]);
+  }, [isHelperMounted, guidanceSuppressed, boardRootRef, barRegionRef]);
 
   const showGuidance = isHelperVisible && !guidanceSuppressed;
 

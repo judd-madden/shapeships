@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import {
   useHoverPanelPresence,
   type HoverPanelMotionState,
@@ -36,7 +36,10 @@ const EMPTY_BOARD_STAT_HOVER_STATE: BoardStatHoverState = {
   anchorRect: null,
 };
 
-export function useBoardStatHover(): BoardStatHoverController {
+export function useBoardStatHover({ boardRootRef, barRegionRef }: {
+  boardRootRef: RefObject<HTMLElement | null>;
+  barRegionRef: RefObject<HTMLElement | null>;
+}): BoardStatHoverController {
   const [state, setState] = useState<BoardStatHoverState>({
     activeKey: null,
     anchorRect: null,
@@ -132,15 +135,8 @@ export function useBoardStatHover(): BoardStatHoverController {
   useEffect(() => {
     if (!state.activeKey) return;
     const observer = new ResizeObserver(refreshAnchor);
-    let element = anchorRef.current;
-    while (element) {
-      observer.observe(element);
-      if (element.dataset.name === 'Board Stage') {
-        const placeholders = element.querySelector('[data-name="Inactive Health Bar Placeholders"]');
-        if (placeholders) observer.observe(placeholders);
-        break;
-      }
-      element = element.parentElement;
+    for (const element of [anchorRef.current, boardRootRef.current, barRegionRef.current]) {
+      if (element) observer.observe(element);
     }
     window.addEventListener('resize', refreshAnchor);
     window.addEventListener('scroll', refreshAnchor, true);
@@ -149,7 +145,7 @@ export function useBoardStatHover(): BoardStatHoverController {
       window.removeEventListener('resize', refreshAnchor);
       window.removeEventListener('scroll', refreshAnchor, true);
     };
-  }, [state.activeKey, refreshAnchor]);
+  }, [state.activeKey, refreshAnchor, boardRootRef, barRegionRef]);
   useEffect(() => cancelClose, [cancelClose]);
 
   return {
