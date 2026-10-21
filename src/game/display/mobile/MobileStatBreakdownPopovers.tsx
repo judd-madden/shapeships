@@ -5,12 +5,17 @@ import type {
   GameSessionViewModel,
 } from '../../client/useGameSession';
 import {
-  buildMobileMetricBreakdownGroups,
+  buildMobileCombatBreakdowns,
+  getMobilePopoverTailLeft,
   formatMobileBreakdownAmount,
   isMobilePopoverTapGesture,
-  type MobileMetricBreakdownSectionVm,
+  type MobilePopoverPeriod,
 } from './mobileStatPresentation';
-import type { HealthBreakdownCardVm } from '../layout/boardStage/healthBreakdownPresentation';
+import { getHealthContributionLabels } from '../layout/boardStage/healthBreakdownPresentation';
+import {
+  getBoardCombatHeadingPresentation,
+  type BoardCombatBreakdownVm,
+} from '../layout/boardStage/boardStatPresentation';
 import type { WinStreakGameViewModel } from '../../client/winStreak/types';
 import {
   shouldShowWinStreakBonusDetail,
@@ -33,6 +38,11 @@ export interface MobileStatAnchorRect {
 interface MobileStatBreakdownPopoversProps {
   boardVm: MobileBoardViewModel;
   thisTurn: GameSessionViewModel['thisTurn'];
+  viewer: GameSessionViewModel['viewer'];
+  gameStats: GameSessionViewModel['gameStats'];
+  period: MobilePopoverPeriod;
+  onPeriodChange: (period: MobilePopoverPeriod) => void;
+  boardCenterX: number;
   topAnchorRect: MobileStatAnchorRect;
   bottomAnchorRect: MobileStatAnchorRect;
   topPopoverRef?: RefObject<HTMLDivElement | null>;
@@ -47,9 +57,9 @@ interface StatSectionVm {
   totalText: string;
   tone: SectionTone;
   rows: BoardStatBreakdownRowVm[];
-  secondaryRows?: Array<{ label: string; amountText: string }>;
+  secondaryRows?: Array<{ label: string; amountText: string; purple?: boolean }>;
   signlessContributions?: boolean;
-  estimateLabel?: 'ESTIMATE' | 'AUTOCAST ESTIMATE';
+  unavailableText?: string;
   streakBonusCount?: number;
 }
 
@@ -59,6 +69,11 @@ const CARD_GAP_PX = 10;
 export function MobileStatBreakdownPopovers({
   boardVm,
   thisTurn,
+  viewer,
+  gameStats,
+  period,
+  onPeriodChange,
+  boardCenterX,
   topAnchorRect,
   bottomAnchorRect,
   topPopoverRef,
@@ -69,36 +84,35 @@ export function MobileStatBreakdownPopovers({
   const myDisplayedBonus = boardVm.myBonusLines;
   const opponentDisplayedBonus = boardVm.opponentBonusLines;
 
-  const topMetricGroups = buildMobileMetricBreakdownGroups({
-    presentation: thisTurn,
-    side: 'opponent',
+  const labels = getHealthContributionLabels(viewer, gameStats);
+  const topCombat = buildMobileCombatBreakdowns({
+    presentation: thisTurn, side: 'opponent',
+    damageLabel: labels.viewerDamage, healingLabel: labels.opponentHealing,
   });
-  const bottomMetricGroups = buildMobileMetricBreakdownGroups({
-    presentation: thisTurn,
-    side: 'me',
+  const bottomCombat = buildMobileCombatBreakdowns({
+    presentation: thisTurn, side: 'my',
+    damageLabel: labels.opponentDamage, healingLabel: labels.viewerHealing,
   });
-  const topSections: StatSectionVm[] = [
-    ...buildEconomySections({
-      bonus: opponentDisplayedBonus,
-      bonusRows: boardVm.opponentBonusBreakdownRows,
-      savedLines: boardVm.opponentDisplayedSavedLines,
-      savedJoiningLines: boardVm.opponentDisplayedSavedJoiningLines,
-      streakBonusCount: shouldShowWinStreakBonusDetail(winStreak)
-        ? winStreak.appliedBonus.count
-        : undefined,
-    }),
-    ...topMetricGroups.primary.map(toStatSection),
-  ];
-  const bottomSections: StatSectionVm[] = [
-    ...buildEconomySections({
-      bonus: myDisplayedBonus,
-      bonusRows: boardVm.myBonusBreakdownRows,
-      savedLines: boardVm.myDisplayedSavedLines,
-      savedJoiningLines: boardVm.myDisplayedSavedJoiningLines,
-    }),
-    ...bottomMetricGroups.primary.map(toStatSection),
-  ];
-  const bottomLastSections = bottomMetricGroups.last.map(toStatSection);
+  const topEconomy = buildEconomySections({
+    bonus: opponentDisplayedBonus,
+    bonusRows: boardVm.opponentBonusBreakdownRows,
+    savedLines: boardVm.opponentDisplayedSavedLines,
+    savedJoiningLines: boardVm.opponentDisplayedSavedJoiningLines,
+    fleetValue: boardVm.presentedFleetValue?.opponent,
+    joiningBonus: boardVm.opponentJoiningBonusLines,
+    bonusOnEven: boardVm.opponentSpeciesId === 'centaur' ? boardVm.opponentBonusLinesOnEven : undefined,
+    streakBonusCount: shouldShowWinStreakBonusDetail(winStreak)
+      ? winStreak.appliedBonus.count : undefined,
+  });
+  const bottomEconomy = buildEconomySections({
+    bonus: myDisplayedBonus,
+    bonusRows: boardVm.myBonusBreakdownRows,
+    savedLines: boardVm.myDisplayedSavedLines,
+    savedJoiningLines: boardVm.myDisplayedSavedJoiningLines,
+    fleetValue: boardVm.presentedFleetValue?.my,
+    joiningBonus: boardVm.myJoiningBonusLines,
+    bonusOnEven: boardVm.mySpeciesId === 'centaur' ? boardVm.myBonusLinesOnEven : undefined,
+  });
 
   return (
     <div className="fixed inset-0 z-[52] pointer-events-none">
@@ -106,65 +120,74 @@ export function MobileStatBreakdownPopovers({
         refEl={topPopoverRef}
         side="top"
         anchorRect={topAnchorRect}
+        boardCenterX={boardCenterX}
         onDismiss={onDismiss}
       >
-        <SectionGrid sections={topSections} className="px-[16px] py-[12px]" />
+        <MobileInspectionCardContent
+          economy={topEconomy} combat={topCombat[period]} current={topCombat.current}
+          period={period} onPeriodChange={onPeriodChange}
+        />
       </MobilePopoverCardFrame>
       <MobilePopoverCardFrame
         refEl={bottomPopoverRef}
         side="bottom"
         anchorRect={bottomAnchorRect}
+        boardCenterX={boardCenterX}
         onDismiss={onDismiss}
       >
-        <SectionGrid sections={bottomSections} className="px-[16px] py-[12px]" />
-        {bottomLastSections.length > 0 ? (
-          <SectionGrid
-            sections={bottomLastSections}
-            className="border-t border-[var(--shapeships-grey-70)] bg-[#101010] px-[16px] py-[12px]"
-          />
-        ) : null}
+        <MobileInspectionCardContent
+          economy={bottomEconomy} combat={bottomCombat[period]} current={bottomCombat.current}
+          period={period} onPeriodChange={onPeriodChange}
+        />
       </MobilePopoverCardFrame>
     </div>
   );
 }
 
-export function MobileHealthBreakdownPopovers({
-  topCard,
-  bottomCard,
-  topAnchorRect,
-  bottomAnchorRect,
-  topPopoverRef,
-  bottomPopoverRef,
-  onDismiss,
+function MobileInspectionCardContent({
+  economy, combat, current, period, onPeriodChange,
 }: {
-  topCard: HealthBreakdownCardVm;
-  bottomCard: HealthBreakdownCardVm;
-  topAnchorRect: MobileStatAnchorRect;
-  bottomAnchorRect: MobileStatAnchorRect;
-  topPopoverRef?: RefObject<HTMLDivElement | null>;
-  bottomPopoverRef?: RefObject<HTMLDivElement | null>;
-  onDismiss: () => void;
+  economy: StatSectionVm[];
+  combat: BoardCombatBreakdownVm;
+  current: BoardCombatBreakdownVm;
+  period: MobilePopoverPeriod;
+  onPeriodChange: (period: MobilePopoverPeriod) => void;
 }) {
+  const heading = getBoardCombatHeadingPresentation(current);
+  const currentLabel = heading.heading + (heading.qualifier ? ' (ESTIMATE)' : '');
   return (
-    <div className="fixed inset-0 z-[52] pointer-events-none">
-      <MobilePopoverCardFrame
-        refEl={topPopoverRef}
-        side="top"
-        anchorRect={topAnchorRect}
-        widthPx={180}
-        onDismiss={onDismiss}
-      >
-        <MobileHealthBreakdownCardContent card={topCard} />
-      </MobilePopoverCardFrame>
-      <MobilePopoverCardFrame
-        refEl={bottomPopoverRef}
-        side="bottom"
-        anchorRect={bottomAnchorRect}
-        widthPx={180}
-        onDismiss={onDismiss}
-      >
-        <MobileHealthBreakdownCardContent card={bottomCard} />
-      </MobilePopoverCardFrame>
+    <div className="px-[16px] py-[12px]">
+      <SectionGrid sections={economy} className="" />
+      <div className="my-[16px] flex items-baseline gap-[20px]">
+        {(['last', 'current'] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={period === value}
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            onPointerCancel={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onPeriodChange(value);
+            }}
+            className={
+              'bg-transparent p-0 text-left text-[12px] font-semibold leading-[15px] ' +
+              (period === value ? 'text-white underline' : 'text-[var(--shapeships-grey-50)]')
+            }
+          >
+            {value === 'last' ? 'LAST TURN' : currentLabel}
+          </button>
+        ))}
+      </div>
+      <SectionGrid
+        sections={[combat.damage, combat.healing].map((column) => ({
+          key: column.tone, title: column.label, totalText: column.totalText,
+          tone: column.tone, rows: column.section?.rows ?? [],
+          signlessContributions: true, unavailableText: column.unavailableText,
+        }))}
+        className=""
+      />
     </div>
   );
 }
@@ -174,12 +197,18 @@ function buildEconomySections({
   bonusRows,
   savedLines,
   savedJoiningLines,
+  fleetValue,
+  joiningBonus,
+  bonusOnEven,
   streakBonusCount,
 }: {
   bonus: number;
   bonusRows: BoardStatBreakdownRowVm[];
   savedLines: number;
   savedJoiningLines: number;
+  fleetValue?: number;
+  joiningBonus: number;
+  bonusOnEven?: number;
   streakBonusCount?: number;
 }): StatSectionVm[] {
   return [
@@ -189,9 +218,10 @@ function buildEconomySections({
       totalText: String(savedLines),
       tone: 'saved',
       rows: [],
-      secondaryRows: savedJoiningLines > 0
-        ? [{ label: 'Saved joining lines', amountText: String(savedJoiningLines) }]
-        : undefined,
+      secondaryRows: [
+        ...(fleetValue !== undefined ? [{ label: 'Fleet Value', amountText: String(fleetValue), purple: true }] : []),
+        ...(savedJoiningLines > 0 ? [{ label: 'Saved joining lines', amountText: String(savedJoiningLines) }] : []),
+      ],
     },
     {
       key: 'bonus',
@@ -200,29 +230,26 @@ function buildEconomySections({
       tone: 'bonus',
       rows: streakBonusCount ? withoutWinStreakBreakdownRow(bonusRows) : bonusRows,
       streakBonusCount,
+      secondaryRows: [
+        ...(bonusOnEven !== undefined ? [{ label: 'Lines on even turns', amountText: String(bonusOnEven) }] : []),
+        ...(joiningBonus > 0 ? [{ label: 'Joining lines', amountText: String(joiningBonus) }] : []),
+      ],
     },
   ];
-}
-
-function toStatSection(section: MobileMetricBreakdownSectionVm): StatSectionVm {
-  return {
-    ...section,
-    signlessContributions: true,
-  };
 }
 
 function MobilePopoverCardFrame({
   refEl,
   side,
   anchorRect,
-  widthPx,
+  boardCenterX,
   onDismiss,
   children,
 }: {
   refEl?: RefObject<HTMLDivElement | null>;
   side: PopoverSide;
   anchorRect: MobileStatAnchorRect;
-  widthPx?: number;
+  boardCenterX: number;
   onDismiss: () => void;
   children: ReactNode;
 }) {
@@ -233,10 +260,9 @@ function MobilePopoverCardFrame({
   } | null>(null);
   const viewportWidth = typeof window === 'undefined' ? 360 : window.innerWidth;
   const availableWidth = Math.max(0, viewportWidth - HORIZONTAL_MARGIN_PX * 2);
-  const width = Math.min(widthPx ?? availableWidth, availableWidth);
+  const width = availableWidth;
   const left = HORIZONTAL_MARGIN_PX;
-  const anchorCenterX = anchorRect.left + anchorRect.width / 2;
-  const tailLeft = clamp(anchorCenterX - left - 6, 18, Math.max(18, width - 30));
+  const tailLeft = getMobilePopoverTailLeft(boardCenterX, left, width);
   const top = side === 'top'
     ? Math.max(8, anchorRect.top - CARD_GAP_PX)
     : anchorRect.bottom + CARD_GAP_PX;
@@ -308,40 +334,6 @@ function MobilePopoverCardFrame({
   );
 }
 
-function MobileHealthBreakdownCardContent({ card }: { card: HealthBreakdownCardVm }) {
-  const changeToneClass = card.changeTone === 'healing'
-    ? 'text-[var(--shapeships-pastel-green)]'
-    : card.changeTone === 'damage'
-      ? 'text-[var(--shapeships-pastel-red)]'
-      : 'text-[var(--shapeships-grey-50)]';
-
-  return (
-    <section className="px-[16px] py-[12px]">
-      <h3 className="text-[13px] font-semibold leading-[16px] text-[var(--shapeships-grey-20)]">
-        {card.heading}
-      </h3>
-      <div className="my-[6px] h-px bg-[var(--shapeships-grey-70)]" />
-      <div className="flex items-center justify-between gap-[12px] text-[12px] leading-[17px]">
-        <span className="min-w-0 text-white">{card.damageLabel}</span>
-        <span className="shrink-0 font-bold text-[var(--shapeships-pastel-red)]">
-          {card.damageText}
-        </span>
-      </div>
-      <div className="flex items-center justify-between gap-[12px] text-[12px] leading-[17px]">
-        <span className="min-w-0 text-white">{card.healingLabel}</span>
-        <span className="shrink-0 font-bold text-[var(--shapeships-pastel-green)]">
-          {card.healingText}
-        </span>
-      </div>
-      <div className="my-[6px] h-px bg-[var(--shapeships-grey-70)]" />
-      <div className="flex items-center justify-between gap-[12px] text-[12px] font-semibold leading-[17px]">
-        <span className="min-w-0 text-white">Health Change</span>
-        <span className={`shrink-0 ${changeToneClass}`}>{card.changeText}</span>
-      </div>
-    </section>
-  );
-}
-
 function SectionGrid({
   sections,
   className,
@@ -395,9 +387,9 @@ function BreakdownSection({
         </span>
       </div>
 
-      {section.estimateLabel ? (
-        <p className="mb-[5px] text-[12px] font-normal leading-[15px] text-[var(--shapeships-grey-20)]">
-          ({section.estimateLabel})
+      {section.unavailableText ? (
+        <p className="text-[12px] leading-[15px] text-[var(--shapeships-grey-20)]">
+          {section.unavailableText}
         </p>
       ) : null}
 
@@ -424,7 +416,7 @@ function BreakdownSection({
           {section.secondaryRows?.map((row) => (
             <div key={row.label} className="flex items-start justify-between gap-[8px] text-[12px] leading-[15px]">
               <span className="min-w-0 flex-1 text-[var(--shapeships-grey-20)]">{row.label}</span>
-              <span className="shrink-0 font-bold text-white">{row.amountText}</span>
+              <span className={row.purple ? 'shrink-0 font-bold text-[var(--shapeships-pastel-purple)]' : 'shrink-0 font-bold text-white'}>{row.amountText}</span>
             </div>
           ))}
         </div>
@@ -472,8 +464,4 @@ function getToneClassName(tone: SectionTone): string {
   }
 
   return 'text-white';
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
 }

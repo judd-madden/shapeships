@@ -18,11 +18,13 @@ import {
 import { usePresentedFleetRevealPulse } from '../layout/boardStage/usePresentedFleetRevealPulse';
 import { TurnPhaseStatusStrip } from '../shared/TurnPhaseStatusStrip';
 import { MobileStatusRail } from './MobileStatusRail';
-import type { MobilePopoverPairKind } from './mobileStatPresentation';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 
 interface MobileBoardViewProps {
+  boardRef?: RefObject<HTMLDivElement | null>;
+  topRowRef?: RefObject<HTMLDivElement | null>;
+  bottomRowRef?: RefObject<HTMLDivElement | null>;
   hudVm: HudViewModel;
   boardVm: MobileBoardViewModel;
   leftRailVm: LeftRailViewModel;
@@ -46,11 +48,9 @@ interface MobileBoardViewProps {
   bottomHealthAnchorRef?: RefObject<HTMLButtonElement | null>;
   topStatsAnchorRef?: RefObject<HTMLButtonElement | null>;
   bottomStatsAnchorRef?: RefObject<HTMLButtonElement | null>;
-  healthBreakdownAvailable?: boolean;
   healthDeltaVisible?: boolean;
-  activePopoverKind?: MobilePopoverPairKind | null;
-  onHealthToggle?: () => void;
-  onStatsToggle?: () => void;
+  popoverExpanded?: boolean;
+  onPopoverToggle?: () => void;
 }
 
 const MOBILE_FLEET_ROW_OVERRIDES = {
@@ -58,6 +58,9 @@ const MOBILE_FLEET_ROW_OVERRIDES = {
 } satisfies Partial<Record<ShipDefId, 1 | 2 | 3 | 4>>;
 
 export function MobileBoardView({
+  boardRef,
+  topRowRef,
+  bottomRowRef,
   hudVm,
   boardVm,
   leftRailVm,
@@ -77,11 +80,9 @@ export function MobileBoardView({
   bottomHealthAnchorRef,
   topStatsAnchorRef,
   bottomStatsAnchorRef,
-  healthBreakdownAvailable,
   healthDeltaVisible,
-  activePopoverKind,
-  onHealthToggle,
-  onStatsToggle,
+  popoverExpanded,
+  onPopoverToggle,
 }: MobileBoardViewProps) {
   const opponentSpeciesKey = toSpeciesKey(boardVm.opponentSpeciesId);
   const mySpeciesKey = toSpeciesKey(boardVm.mySpeciesId);
@@ -91,8 +92,8 @@ export function MobileBoardView({
     boardVm.destroyTargeting?.activeSourceInstanceId != null;
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col w-full">
-      <div className="shrink-0 w-full px-[14px]">
+    <div ref={boardRef} className="flex-1 min-h-0 flex flex-col w-full">
+      <div className="shrink-0 w-full px-[14px] pb-[2px]">
         <TurnPhaseStatusStrip vm={turnPhasesVm} presentation={turnPhasePresentation} />
       </div>
       <div
@@ -145,6 +146,8 @@ export function MobileBoardView({
       </div>
       <div className="relative shrink-0 w-full">
         <MobileStatusRail
+          topRowRef={topRowRef}
+          bottomRowRef={bottomRowRef}
           hudVm={hudVm}
           boardVm={boardVm}
           leftRailVm={leftRailVm}
@@ -157,11 +160,9 @@ export function MobileBoardView({
           bottomHealthAnchorRef={bottomHealthAnchorRef}
           topStatsAnchorRef={topStatsAnchorRef}
           bottomStatsAnchorRef={bottomStatsAnchorRef}
-          healthBreakdownAvailable={healthBreakdownAvailable}
           healthDeltaVisible={healthDeltaVisible}
-          activePopoverKind={activePopoverKind}
-          onHealthToggle={onHealthToggle}
-          onStatsToggle={onStatsToggle}
+          popoverExpanded={popoverExpanded}
+          onPopoverToggle={onPopoverToggle}
         />
         {matchupIntro ? (
           <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center overflow-hidden select-none">

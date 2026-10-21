@@ -18,14 +18,13 @@ import { MobileBoardView } from './MobileBoardView';
 import { MobileBottomPhase } from './MobileBottomPhase';
 import { MobileBottomTabs } from './MobileBottomTabs';
 import {
-  MobileHealthBreakdownPopovers,
   MobileStatBreakdownPopovers,
   type MobileStatAnchorRect,
 } from './MobileStatBreakdownPopovers';
 import { buildHealthBreakdownPresentation } from '../layout/boardStage/healthBreakdownPresentation';
 import {
-  toggleMobilePopoverPair,
-  type MobilePopoverPairKind,
+  getMobilePopoverPeriodOnOpen,
+  type MobilePopoverPeriodSelection,
 } from './mobileStatPresentation';
 import { MobileActionPanel } from './actionPanel/MobileActionPanel';
 import { MobileAutocastInfoModal } from './actionPanel/MobileAutocastInfoModal';
@@ -89,7 +88,7 @@ type ActiveMobileBottomPanel = 'normal' | 'void';
 type PostgameMissionPresentation = { loreUnlocked: boolean } | null;
 
 type MobilePopoverPair = {
-  kind: MobilePopoverPairKind;
+  boardCenterX: number;
   top: MobileStatAnchorRect;
   bottom: MobileStatAnchorRect;
 };
@@ -170,6 +169,12 @@ export function MobileGameLayout({
     lastSeenChatMessageCount: leftRailVm.chatMessages.length,
     baselineEstablished: false,
   }));
+  const [popoverPeriodSelection, setPopoverPeriodSelection] = useState<MobilePopoverPeriodSelection>({
+    gameId, turnNumber: actionPanelVm.menu.turnNumber, period: 'current',
+  });
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const topRowRef = useRef<HTMLDivElement | null>(null);
+  const bottomRowRef = useRef<HTMLDivElement | null>(null);
   const topHealthAnchorRef = useRef<HTMLButtonElement | null>(null);
   const bottomHealthAnchorRef = useRef<HTMLButtonElement | null>(null);
   const topStatsAnchorRef = useRef<HTMLButtonElement | null>(null);
@@ -441,25 +446,16 @@ export function MobileGameLayout({
     handleCloseSolarModal,
     handleClosePopoverPair,
   ]);
-  const handleTogglePopoverPair = useCallback((kind: MobilePopoverPairKind) => {
-    const nextKind = toggleMobilePopoverPair(activePopoverPair?.kind ?? null, kind);
-    if (!nextKind) {
+  const handleTogglePopoverPair = useCallback(() => {
+    if (activePopoverPair) {
       handleClosePopoverPair();
       return;
     }
 
-    if (nextKind === 'health' && !healthBreakdown?.hoverEligible) {
-      return;
-    }
-
-    const topAnchorEl = nextKind === 'health'
-      ? topHealthAnchorRef.current
-      : topStatsAnchorRef.current;
-    const bottomAnchorEl = nextKind === 'health'
-      ? bottomHealthAnchorRef.current
-      : bottomStatsAnchorRef.current;
-
-    if (!topAnchorEl || !bottomAnchorEl) {
+    const boardEl = boardRef.current;
+    const topAnchorEl = topRowRef.current;
+    const bottomAnchorEl = bottomRowRef.current;
+    if (!boardEl || !topAnchorEl || !bottomAnchorEl) {
       return;
     }
 
@@ -468,19 +464,30 @@ export function MobileGameLayout({
     handleCloseSiphonInspection();
     setActiveFleetShipHover(null);
     handleCloseAutocastInfo();
+    setPopoverPeriodSelection((selection) => getMobilePopoverPeriodOnOpen(
+      selection, gameId, actionPanelVm.menu.turnNumber,
+    ));
+    const boardRect = boardEl.getBoundingClientRect();
     setActivePopoverPair({
-      kind: nextKind,
+      boardCenterX: boardRect.left + boardRect.width / 2,
       top: snapshotRect(topAnchorEl.getBoundingClientRect()),
       bottom: snapshotRect(bottomAnchorEl.getBoundingClientRect()),
     });
   }, [
-    activePopoverPair?.kind,
+    activePopoverPair,
+    gameId,
+    actionPanelVm.menu.turnNumber,
     handleCloseAutocastInfo,
     handleCloseSiphonInspection,
     handleCloseSolarModal,
     handleClosePopoverPair,
-    healthBreakdown?.hoverEligible,
   ]);
+
+  useEffect(() => {
+    handleClosePopoverPair();
+    setPopoverPeriodSelection({ gameId, turnNumber: 0, period: 'current' });
+  }, [gameId, handleClosePopoverPair]);
+
   const handleOpenChat = useCallback(() => {
     setMobileChatReadState({
       gameCode: leftRailVm.gameCode,
@@ -764,16 +771,6 @@ export function MobileGameLayout({
   ]);
 
   useEffect(() => {
-    if (activePopoverPair?.kind === 'health' && !healthBreakdown?.hoverEligible) {
-      handleClosePopoverPair();
-    }
-  }, [
-    activePopoverPair?.kind,
-    handleClosePopoverPair,
-    healthBreakdown?.hoverEligible,
-  ]);
-
-  useEffect(() => {
     if (!activePopoverPair) {
       return;
     }
@@ -884,6 +881,9 @@ export function MobileGameLayout({
         >
           {boardVm.mode === 'board' ? (
             <MobileBoardView
+              boardRef={boardRef}
+              topRowRef={topRowRef}
+              bottomRowRef={bottomRowRef}
               hudVm={hudVm}
               boardVm={boardVm}
               leftRailVm={leftRailVm}
@@ -903,11 +903,9 @@ export function MobileGameLayout({
               bottomHealthAnchorRef={bottomHealthAnchorRef}
               topStatsAnchorRef={topStatsAnchorRef}
               bottomStatsAnchorRef={bottomStatsAnchorRef}
-              healthBreakdownAvailable={healthBreakdown?.hoverEligible === true}
               healthDeltaVisible={healthBreakdown?.deltaVisible}
-              activePopoverKind={activePopoverPair?.kind ?? null}
-              onHealthToggle={() => handleTogglePopoverPair('health')}
-              onStatsToggle={() => handleTogglePopoverPair('stats')}
+              popoverExpanded={activePopoverPair !== null}
+              onPopoverToggle={handleTogglePopoverPair}
             />
           ) : (
             <MobileSpeciesSelectionView
@@ -1063,32 +1061,21 @@ export function MobileGameLayout({
       {!isMissionInteractionLocked &&
       activeTakeover === null &&
       boardVm.mode === 'board' &&
-      activePopoverPair?.kind === 'stats' ? (
+      activePopoverPair ? (
         <MobileStatBreakdownPopovers
           boardVm={boardVm}
           thisTurn={presentedThisTurnStats}
+          viewer={viewer}
+          gameStats={gameStats}
+          period={popoverPeriodSelection.period}
+          onPeriodChange={(period) => setPopoverPeriodSelection((selection) => ({ ...selection, period }))}
+          boardCenterX={activePopoverPair.boardCenterX}
           topAnchorRect={activePopoverPair.top}
           bottomAnchorRect={activePopoverPair.bottom}
           topPopoverRef={topPopoverRef}
           bottomPopoverRef={bottomPopoverRef}
           onDismiss={handleClosePopoverPair}
           winStreak={winStreak}
-        />
-      ) : null}
-
-      {!isMissionInteractionLocked &&
-      activeTakeover === null &&
-      activePopoverPair?.kind === 'health' &&
-      healthBreakdown?.my &&
-      healthBreakdown.opponent ? (
-        <MobileHealthBreakdownPopovers
-          topCard={healthBreakdown.opponent}
-          bottomCard={healthBreakdown.my}
-          topAnchorRect={activePopoverPair.top}
-          bottomAnchorRect={activePopoverPair.bottom}
-          topPopoverRef={topPopoverRef}
-          bottomPopoverRef={bottomPopoverRef}
-          onDismiss={handleClosePopoverPair}
         />
       ) : null}
 

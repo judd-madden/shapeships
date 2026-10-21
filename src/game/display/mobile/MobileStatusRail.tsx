@@ -14,13 +14,14 @@ import {
   buildMobileHealthPoolMetrics,
   MOBILE_STATUS_STAT_ORDER,
   type MobileHudMetricPairVm,
-  type MobilePopoverPairKind,
 } from './mobileStatPresentation';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 type MobileRowPosition = 'top' | 'bottom';
 
 interface MobileStatusRailProps {
+  topRowRef?: RefObject<HTMLDivElement | null>;
+  bottomRowRef?: RefObject<HTMLDivElement | null>;
   hudVm: HudViewModel;
   boardVm: MobileBoardViewModel;
   leftRailVm: LeftRailViewModel;
@@ -33,11 +34,9 @@ interface MobileStatusRailProps {
   bottomHealthAnchorRef?: RefObject<HTMLButtonElement | null>;
   topStatsAnchorRef?: RefObject<HTMLButtonElement | null>;
   bottomStatsAnchorRef?: RefObject<HTMLButtonElement | null>;
-  healthBreakdownAvailable?: boolean;
   healthDeltaVisible?: boolean;
-  activePopoverKind?: MobilePopoverPairKind | null;
-  onHealthToggle?: () => void;
-  onStatsToggle?: () => void;
+  popoverExpanded?: boolean;
+  onPopoverToggle?: () => void;
 }
 
 export interface MobileStatusRailRowData {
@@ -77,10 +76,8 @@ interface MobileStatusRailFrameProps {
   bottomHealthAnchorRef?: RefObject<HTMLButtonElement | null>;
   topStatsAnchorRef?: RefObject<HTMLButtonElement | null>;
   bottomStatsAnchorRef?: RefObject<HTMLButtonElement | null>;
-  healthBreakdownAvailable?: boolean;
-  activePopoverKind?: MobilePopoverPairKind | null;
-  onHealthToggle?: () => void;
-  onStatsToggle?: () => void;
+  popoverExpanded?: boolean;
+  onPopoverToggle?: () => void;
 }
 
 const EMPTY_MOBILE_DICE_MODIFIER_SLOTS: MobileBoardViewModel['mobileDiceModifierSlots'] = {
@@ -92,6 +89,8 @@ const FIRST_TURN_BUILD_HELPER_SHOW_DELAY_MS = 500;
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 
 export function MobileStatusRail({
+  topRowRef,
+  bottomRowRef,
   hudVm,
   boardVm,
   leftRailVm,
@@ -104,11 +103,9 @@ export function MobileStatusRail({
   bottomHealthAnchorRef,
   topStatsAnchorRef,
   bottomStatsAnchorRef,
-  healthBreakdownAvailable = false,
   healthDeltaVisible,
-  activePopoverKind = null,
-  onHealthToggle,
-  onStatsToggle,
+  popoverExpanded = false,
+  onPopoverToggle,
 }: MobileStatusRailProps) {
   const opponentDisplayedBonus = boardVm.opponentBonusLines;
   const myDisplayedBonus = boardVm.myBonusLines;
@@ -161,6 +158,8 @@ export function MobileStatusRail({
 
   return (
     <MobileStatusRailFrame
+      topRowRef={topRowRef}
+      bottomRowRef={bottomRowRef}
       topRow={opponentStatus}
       bottomRow={currentPlayerStatus}
       showDeltas={showDeltas}
@@ -180,10 +179,8 @@ export function MobileStatusRail({
       bottomHealthAnchorRef={bottomHealthAnchorRef}
       topStatsAnchorRef={topStatsAnchorRef}
       bottomStatsAnchorRef={bottomStatsAnchorRef}
-      healthBreakdownAvailable={healthBreakdownAvailable}
-      activePopoverKind={activePopoverKind}
-      onHealthToggle={onHealthToggle}
-      onStatsToggle={onStatsToggle}
+      popoverExpanded={popoverExpanded}
+      onPopoverToggle={onPopoverToggle}
     />
   );
 }
@@ -210,10 +207,8 @@ export function MobileStatusRailFrame({
   bottomHealthAnchorRef,
   topStatsAnchorRef,
   bottomStatsAnchorRef,
-  healthBreakdownAvailable = false,
-  activePopoverKind = null,
-  onHealthToggle,
-  onStatsToggle,
+  popoverExpanded = false,
+  onPopoverToggle,
 }: MobileStatusRailFrameProps) {
   const [isFirstTurnBuildHelperMounted, setIsFirstTurnBuildHelperMounted] = useState(false);
   const [isFirstTurnBuildHelperVisible, setIsFirstTurnBuildHelperVisible] = useState(false);
@@ -337,11 +332,8 @@ export function MobileStatusRailFrame({
             row={topRow}
             position="top"
             showDeltas={showDeltas}
-            healthBreakdownAvailable={healthBreakdownAvailable}
-            healthExpanded={activePopoverKind === 'health'}
-            statsExpanded={activePopoverKind === 'stats'}
-            onHealthToggle={onHealthToggle}
-            onStatsToggle={onStatsToggle}
+            popoverExpanded={popoverExpanded}
+            onPopoverToggle={onPopoverToggle}
           />
           {showHealthBarPlaceholders ? (
             // Phase 20B replaces this decorative interior with active bars/legend.
@@ -360,11 +352,8 @@ export function MobileStatusRailFrame({
             row={bottomRow}
             position="bottom"
             showDeltas={showDeltas}
-            healthBreakdownAvailable={healthBreakdownAvailable}
-            healthExpanded={activePopoverKind === 'health'}
-            statsExpanded={activePopoverKind === 'stats'}
-            onHealthToggle={onHealthToggle}
-            onStatsToggle={onStatsToggle}
+            popoverExpanded={popoverExpanded}
+            onPopoverToggle={onPopoverToggle}
           />
         </div>
 
@@ -445,11 +434,8 @@ function MobilePlayerStatusRow({
   row,
   position,
   showDeltas,
-  healthBreakdownAvailable,
-  healthExpanded,
-  statsExpanded,
-  onHealthToggle,
-  onStatsToggle,
+  popoverExpanded,
+  onPopoverToggle,
 }: {
   rowRef?: RefObject<HTMLDivElement | null>;
   healthAnchorRef?: RefObject<HTMLButtonElement | null>;
@@ -457,19 +443,15 @@ function MobilePlayerStatusRow({
   row: MobileStatusRailRowData;
   position: MobileRowPosition;
   showDeltas: boolean;
-  healthBreakdownAvailable: boolean;
-  healthExpanded: boolean;
-  statsExpanded: boolean;
-  onHealthToggle?: () => void;
-  onStatsToggle?: () => void;
+  popoverExpanded: boolean;
+  onPopoverToggle?: () => void;
 }) {
   const health = row.health;
   const netDelta = row.netDelta;
   const hasHealth = health !== undefined;
   const hasNetDelta = netDelta !== undefined;
   const shouldShowNetDelta = hasNetDelta && showDeltas;
-  const healthInteractive = healthBreakdownAvailable && onHealthToggle !== undefined;
-  const statsInteractive = onStatsToggle !== undefined;
+  const interactive = onPopoverToggle !== undefined;
 
   return (
     <div
@@ -481,10 +463,10 @@ function MobilePlayerStatusRow({
           <button
             ref={healthAnchorRef}
             type="button"
-            disabled={!healthInteractive}
-            aria-expanded={healthInteractive ? healthExpanded : undefined}
+            disabled={!interactive}
+            aria-expanded={interactive ? popoverExpanded : undefined}
             aria-label={`Show health breakdown for ${row.name}`}
-            onClick={healthInteractive ? onHealthToggle : undefined}
+            onClick={interactive ? onPopoverToggle : undefined}
             className="flex min-w-[38px] shrink-0 touch-manipulation flex-col items-center bg-transparent p-0 text-center font-bold whitespace-nowrap disabled:cursor-default"
           >
             <span className={`text-[26px] leading-[26px] ${hasHealth ? 'text-white' : 'text-transparent'}`}>
@@ -513,10 +495,10 @@ function MobilePlayerStatusRow({
         <button
           ref={statsAnchorRef}
           type="button"
-          disabled={!statsInteractive}
-          aria-expanded={statsInteractive ? statsExpanded : undefined}
+          disabled={!interactive}
+          aria-expanded={interactive ? popoverExpanded : undefined}
           aria-label={`Show stat breakdowns for ${row.name}`}
-          onClick={statsInteractive ? onStatsToggle : undefined}
+          onClick={interactive ? onPopoverToggle : undefined}
           className="grid shrink-0 touch-manipulation grid-cols-[minmax(28px,max-content)_minmax(28px,max-content)_minmax(24px,max-content)_minmax(24px,max-content)] items-start gap-[3px] bg-transparent p-0 text-center font-bold whitespace-nowrap disabled:cursor-default"
         >
           {MOBILE_STATUS_STAT_ORDER.map((stat) => {

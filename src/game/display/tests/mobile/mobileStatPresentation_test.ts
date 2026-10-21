@@ -12,12 +12,15 @@ import type {
 import {
   buildMobileHealthPoolMetrics,
   buildMobileHudMetricPair,
-  buildMobileMetricBreakdownGroups,
+  buildMobileCombatBreakdowns,
+  getMobilePopoverPeriodOnOpen,
+  getMobilePopoverTailLeft,
   formatMobileBreakdownAmount,
   isMobilePopoverTapGesture,
   MOBILE_STATUS_STAT_ORDER,
-  toggleMobilePopoverPair,
 } from '../../mobile/mobileStatPresentation';
+import { getBoardCombatHeadingPresentation } from '../../layout/boardStage/boardStatPresentation';
+import { findResolvedBoardCombatMetric } from '../../layout/boardStage/healthBreakdownPresentation';
 import {
   createTurnStartStatPresentationState,
   getTurnStartStatOrientationKey,
@@ -133,9 +136,8 @@ Deno.test('mobile HUD and popovers show resolved actuals through next-turn dice 
     healing: { currentText: '6', lastText: '1' },
   });
   assertEquals(
-    buildMobileMetricBreakdownGroups({ presentation: state.presented, side: 'opponent' })
-      .primary.map((section) => [section.title, section.totalText]),
-    [['This turn damage', '14'], ['This turn healing', '6']],
+    combat(state.presented, 'opponent').current.damage.totalText,
+    '14',
   );
 
   state = syncTurnStartStatPresentation(state, {
@@ -151,8 +153,7 @@ Deno.test('mobile HUD and popovers show resolved actuals through next-turn dice 
     currentText: '14', lastText: '3',
   });
   assertEquals(
-    buildMobileMetricBreakdownGroups({ presentation: state.presented, side: 'me' })
-      .primary[0]?.rows.map((row) => row.label),
+    combat(state.presented, 'opponent').current.damage.section?.rows.map((row) => row.label),
     ['Centaur charge'],
   );
 
@@ -170,9 +171,11 @@ Deno.test('mobile HUD and popovers show resolved actuals through next-turn dice 
     healing: { currentText: '7', lastText: '4' },
   });
   assertEquals(
-    buildMobileMetricBreakdownGroups({ presentation: state.presented, side: 'opponent' })
-      .primary.map((section) => [section.title, section.totalText]),
-    [['This turn damage', '~12'], ['This turn healing', '~7']],
+    [
+      combat(state.presented, 'opponent').current.damage.totalText,
+      combat(state.presented, 'opponent').current.healing.totalText,
+    ],
+    ['~12', '~7'],
   );
 });
 
@@ -316,169 +319,9 @@ Deno.test('mobile HUD and breakdown retain public Charge uncertainty markers', (
   assertEquals(buildMobileHudMetricPair(vm.opponent.damage).currentText, '13 ?');
   assertEquals(buildMobileHealthPoolMetrics(vm, 'me').damage.currentText, '13 ?');
   assertEquals(
-    buildMobileMetricBreakdownGroups({ presentation: vm, side: 'opponent' })
-      .primary[0]?.totalText,
+    combat(vm, 'my').current.damage.totalText,
     '~13 ?',
   );
-});
-
-Deno.test('mobile estimate qualifier distinguishes Base and Autocast current estimates', () => {
-  const autocastMetrics = playerMetrics(
-    pair(
-      availableMetric(8, 'estimated', 4, [shipRow], 'with_autocast'),
-      availableMetric(3, 'last_actual', 3),
-    ),
-    pair(
-      availableMetric(0, 'estimated', 4, [], 'with_autocast'),
-      availableMetric(1, 'last_actual', 3),
-    ),
-  );
-  const groups = buildMobileMetricBreakdownGroups({
-    presentation: presentation({ me: autocastMetrics }),
-    side: 'me',
-  });
-
-  assertEquals(groups.primary.map((section) => ({
-    title: section.title,
-    estimateLabel: section.estimateLabel,
-    totalText: section.totalText,
-  })), [
-    {
-      title: 'This turn damage',
-      estimateLabel: 'AUTOCAST ESTIMATE',
-      totalText: '~8',
-    },
-    {
-      title: 'This turn healing',
-      estimateLabel: 'AUTOCAST ESTIMATE',
-      totalText: '~0',
-    },
-  ]);
-  assertEquals(groups.last.map((section) => section.estimateLabel), [undefined, undefined]);
-  assertEquals(
-    buildMobileMetricBreakdownGroups({ presentation: presentation(), side: 'me' })
-      .primary.map((section) => section.estimateLabel),
-    ['ESTIMATE', 'ESTIMATE'],
-  );
-});
-
-Deno.test('own popover pairs estimated current with genuine Last and preserves calculated zero rows', () => {
-  const vm = presentation({
-    me: playerMetrics(
-      pair(availableMetric(0, 'estimated', 4, [shipRow])),
-      pair(
-        availableMetric(5, 'privacy_frozen'),
-        availableMetric(1, 'last_actual', 3),
-      ),
-    ),
-  });
-  const groups = buildMobileMetricBreakdownGroups({ presentation: vm, side: 'me' });
-  assertEquals(groups.primary.map((section) => [section.title, section.totalText, section.rows.length]), [
-    ['This turn damage', '~0', 1],
-    ['This turn healing', '~5', 1],
-  ]);
-  assertEquals(groups.last.map((section) => [section.title, section.totalText]), [
-    ['Last turn damage', '3'],
-    ['Last turn healing', '1'],
-  ]);
-});
-
-Deno.test('active unavailable metrics use neutral zero fallbacks without rows', () => {
-  const unavailable = pair({ state: 'unavailable', turnNumber: 4 });
-  const vm = presentation({ me: playerMetrics(unavailable, unavailable) });
-  const groups = buildMobileMetricBreakdownGroups({ presentation: vm, side: 'me' });
-  assertEquals(groups.primary.map((section) => [section.totalText, section.rows.length]), [
-    ['0', 0],
-    ['0', 0],
-  ]);
-});
-
-Deno.test('opponent detail swaps from genuine Last before Reveal to current only after Reveal', () => {
-  const before = presentation();
-  assertEquals(
-    buildMobileMetricBreakdownGroups({ presentation: before, side: 'opponent' }),
-    {
-      primary: [
-        { key: 'damage:last_turn', title: 'Last turn damage', totalText: '3', tone: 'damage', rows: [shipRow] },
-        { key: 'healing:last_turn', title: 'Last turn healing', totalText: '1', tone: 'healing', rows: [shipRow] },
-      ],
-      last: [],
-    },
-  );
-
-  const after = presentation({
-    phaseKey: 'build.reveal',
-    mobile: { pairKey: 'game-1::4', opponentDetail: 'this_turn' },
-  });
-  const groups = buildMobileMetricBreakdownGroups({ presentation: after, side: 'opponent' });
-  assertEquals(groups.primary.map((section) => [section.title, section.totalText]), [
-    ['This turn damage', '~8'],
-    ['This turn healing', '~2'],
-  ]);
-  assertEquals(groups.last, []);
-});
-
-Deno.test('spectator concealment exposes no current detail before Reveal', () => {
-  const concealedMetrics = playerMetrics(
-    pair({ state: 'concealed', turnNumber: 4 }),
-    pair({ state: 'concealed', turnNumber: 4 }),
-  );
-  const vm = presentation({ me: concealedMetrics, opponent: concealedMetrics });
-  const own = buildMobileMetricBreakdownGroups({ presentation: vm, side: 'me' });
-  const opponent = buildMobileMetricBreakdownGroups({ presentation: vm, side: 'opponent' });
-  assertEquals(own.primary, []);
-  assertEquals(own.last.map((section) => section.title), [
-    'Last turn damage',
-    'Last turn healing',
-  ]);
-  assertEquals(opponent.primary.map((section) => section.title), [
-    'Last turn damage',
-    'Last turn healing',
-  ]);
-});
-
-Deno.test('held and final actuals are plain, with Final retaining only a genuine preceding Last', () => {
-  const heldMetrics = playerMetrics(pair(availableMetric(9, 'held_actual')));
-  const held = presentation({ me: heldMetrics });
-  assertEquals(
-    buildMobileMetricBreakdownGroups({ presentation: held, side: 'me' }).primary[0]?.totalText,
-    '9',
-  );
-
-  const finalMetrics = playerMetrics(pair(availableMetric(11, 'final_actual')));
-  const final = presentation({ phaseKey: 'game.finished', me: finalMetrics });
-  const finalGroups = buildMobileMetricBreakdownGroups({ presentation: final, side: 'me' });
-  assertEquals(finalGroups.primary[0]?.title, 'Final turn damage');
-  assertEquals(finalGroups.primary[0]?.totalText, '11');
-  assertEquals(finalGroups.last[0]?.title, 'Last turn damage');
-
-  const turnOnePair = pair(
-    availableMetric(11, 'final_actual', 1),
-    availableMetric(0, 'last_actual', 0, []),
-  );
-  const turnOneMetrics = playerMetrics(turnOnePair, turnOnePair);
-  const turnOne = presentation({ turnNumber: 1, phaseKey: 'game.finished', me: turnOneMetrics });
-  assertEquals(
-    buildMobileMetricBreakdownGroups({ presentation: turnOne, side: 'me' }).last,
-    [],
-  );
-});
-
-Deno.test('unresolved terminal completion never fabricates Final Turn sections', () => {
-  const unavailable = pair(
-    { state: 'unavailable', turnNumber: 4 },
-    availableMetric(3, 'last_actual', 3),
-  );
-  const vm = presentation({
-    phaseKey: 'game.finished',
-    me: playerMetrics(unavailable, unavailable),
-  });
-  const groups = buildMobileMetricBreakdownGroups({ presentation: vm, side: 'me' });
-  assertEquals(groups.primary, []);
-  assertEquals(groups.last.map((section) => section.title), [
-    'Last turn damage',
-    'Last turn healing',
-  ]);
 });
 
 Deno.test('mobile row formatting removes contribution signs but preserves adjustments and Bonus text', () => {
@@ -508,10 +351,107 @@ Deno.test('popover tap threshold distinguishes taps from card scrolling', () => 
   assertEquals(isMobilePopoverTapGesture(start, { clientX: 100, clientY: 240 }), false);
 });
 
-Deno.test('mobile popover pairs close on repeat and replace across trigger kinds', () => {
-  assertEquals(toggleMobilePopoverPair(null, 'stats'), 'stats');
-  assertEquals(toggleMobilePopoverPair('stats', 'stats'), null);
-  assertEquals(toggleMobilePopoverPair('stats', 'health'), 'health');
-  assertEquals(toggleMobilePopoverPair('health', 'stats'), 'stats');
-  assertEquals(toggleMobilePopoverPair('health', 'health'), null);
+
+function combat(vm: ThisTurnPresentationVm | null, side: 'my' | 'opponent' = 'my') {
+  return buildMobileCombatBreakdowns({
+    presentation: vm, side, damageLabel: side === 'my' ? 'Opponent Damage' : 'Your Damage',
+    healingLabel: side === 'my' ? 'Your Healing' : 'Opponent Healing',
+  });
+}
+
+Deno.test('shared period survives reopening and resets on another turn or game', () => {
+  const selected = { gameId: 'one', turnNumber: 4, period: 'last' as const };
+  assertEquals(getMobilePopoverPeriodOnOpen(selected, 'one', 4), selected);
+  assertEquals(getMobilePopoverPeriodOnOpen(selected, 'one', 5), {
+    gameId: 'one', turnNumber: 5, period: 'current',
+  });
+  assertEquals(getMobilePopoverPeriodOnOpen(selected, 'two', 4), {
+    gameId: 'two', turnNumber: 4, period: 'current',
+  });
+  // Input identity is retained on reopen; no period change is scheduled while open.
+  assertEquals(getMobilePopoverPeriodOnOpen(selected, 'one', 4) === selected, true);
+});
+
+Deno.test('both cards use current contributions instead of automatic opponent history', () => {
+  const vm = presentation({
+    me: playerMetrics(pair(availableMetric(11, 'estimated'))),
+    opponent: playerMetrics(pair(availableMetric(19, 'privacy_frozen')),
+      pair(availableMetric(5, 'privacy_frozen'))),
+  });
+  assertEquals(vm.mobile.opponentDetail, 'last');
+  const top = combat(vm, 'opponent');
+  const bottom = combat(vm);
+  assertEquals([top.current.damage.totalText, top.current.healing.totalText], ['~11', '~5']);
+  assertEquals([bottom.current.damage.totalText, bottom.current.healing.totalText], ['~19', '~2']);
+  assertEquals([top.last.damage.totalText, bottom.last.damage.totalText], ['3', '3']);
+});
+
+Deno.test('estimate headings preserve Autocast inputs, zeroes and uncertainty without special wording', () => {
+  for (const source of ['estimated', 'turn_start_baseline', 'privacy_frozen', 'held_actual', 'final_actual'] as const) {
+    const vm = presentation();
+    vm.opponent.damage.current = {
+      ...availableMetric(13, source, 4, [shipRow], 'with_autocast'),
+      chargeDeclarationUncertain: true,
+    } as ThisTurnMetricVm;
+    vm.me.healing.current = availableMetric(0, source, 4, []);
+    const card = combat(vm).current;
+    assertEquals(getBoardCombatHeadingPresentation(card), {
+      heading: source === 'final_actual' ? 'FINAL TURN' : 'THIS TURN',
+      qualifier: source === 'held_actual' || source === 'final_actual' ? null : 'ESTIMATE',
+    });
+    assertEquals(card.damage.totalText, source === 'final_actual' ? '13' :
+      source === 'held_actual' ? '13 ?' : '~13 ?');
+    assertEquals(card.damage.section?.rows, [shipRow]);
+    assertEquals(card.healing.totalText, source === 'held_actual' || source === 'final_actual' ? '0' : '~0');
+  }
+});
+
+Deno.test('concealed and unavailable columns never block the other contribution', () => {
+  const vm = presentation();
+  vm.opponent.damage.current = { state: 'concealed', turnNumber: 4 };
+  const card = combat(vm).current;
+  assertEquals([card.damage.totalText, card.damage.section, card.damage.unavailableText], ['?', null, 'Concealed']);
+  assertEquals([card.healing.totalText, card.healing.section?.rows], ['~2', [shipRow]]);
+  vm.opponent.damage.current = { state: 'pending', turnNumber: 4 };
+  assertEquals(combat(vm).current.damage.section, null);
+  assertEquals(combat(null).current.damage.unavailableText, 'Breakdown unavailable');
+});
+
+Deno.test('Last uses only the exact preceding last_actual slot through held and final periods', () => {
+  for (const source of ['held_actual', 'final_actual'] as const) {
+    const vm = presentation();
+    vm.opponent.damage.current = availableMetric(9, source, 4, [{ ...shipRow, label: 'Current' }]);
+    vm.opponent.damage.last = availableMetric(9, 'last_actual', 3, [{ ...shipRow, label: 'Previous' }]);
+    assertEquals(combat(vm).last.damage.section?.rows[0]?.label, 'Previous');
+    vm.opponent.damage.last = availableMetric(9, 'last_actual', 2);
+    assertEquals(combat(vm).last.damage.section, null);
+    vm.opponent.damage.last = availableMetric(9, 'estimated', 3);
+    assertEquals(combat(vm).last.damage.section, null);
+  }
+  const turnOne = presentation({ turnNumber: 1 });
+  turnOne.opponent.damage.last = availableMetric(0, 'last_actual', 0, []);
+  assertEquals(combat(turnOne).last.damage.section, null);
+  assertEquals(combat(turnOne).last.healing.section, null);
+});
+
+Deno.test('resolved matcher retains desktop source, turn and total validation', () => {
+  const last = availableMetric(8, 'last_actual', 3);
+  const held = availableMetric(8, 'held_actual', 3);
+  const final = availableMetric(8, 'final_actual', 3);
+  const find = (candidates: ThisTurnMetricVm[], heading: 'LAST TURN' | 'FINAL TURN' = 'LAST TURN') =>
+    findResolvedBoardCombatMetric({ candidates, turnNumber: 3, totalText: '8', heading });
+  assertEquals(find([last]), last);
+  assertEquals(find([held]), held);
+  assertEquals(find([final]), undefined);
+  assertEquals(find([final], 'FINAL TURN'), final);
+  assertEquals(find([availableMetric(8, 'last_actual', 2)]), undefined);
+  assertEquals(find([availableMetric(9, 'last_actual', 3)]), undefined);
+  assertEquals(find([availableMetric(8, 'estimated', 3)]), undefined);
+});
+
+Deno.test('board tails use actual horizontal geometry, including offset boards', () => {
+  for (const width of [320, 360, 414, 600]) {
+    assertEquals(getMobilePopoverTailLeft(width / 2, 16, width - 32) + 16 + 6, width / 2);
+  }
+  assertEquals(getMobilePopoverTailLeft(40 + 300 / 2, 16, 568) + 16 + 6, 190);
 });

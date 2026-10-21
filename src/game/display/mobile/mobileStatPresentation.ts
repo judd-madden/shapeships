@@ -4,10 +4,14 @@ import type {
   ThisTurnPresentationVm,
 } from '../../client/gameSession/types';
 import {
-  buildBoardStatHoverSections,
+  buildCurrentBoardCombatBreakdown,
+  getAffectedHealthMetrics,
+  type BoardCombatBreakdownVm,
+  type BoardCombatColumnVm,
   formatBoardMetricBreakdownAmount,
   formatBoardStatMetric,
 } from '../layout/boardStage/boardStatPresentation';
+import { findResolvedBoardCombatMetric } from '../layout/boardStage/healthBreakdownPresentation';
 
 export const MOBILE_STATUS_STAT_ORDER = [
   'damage',
@@ -18,13 +22,30 @@ export const MOBILE_STATUS_STAT_ORDER = [
 
 export const MOBILE_POPOVER_TAP_THRESHOLD_PX = 8;
 
-export type MobilePopoverPairKind = 'stats' | 'health';
+export type MobilePopoverPeriod = 'current' | 'last';
 
-export function toggleMobilePopoverPair(
-  activeKind: MobilePopoverPairKind | null,
-  requestedKind: MobilePopoverPairKind,
-): MobilePopoverPairKind | null {
-  return activeKind === requestedKind ? null : requestedKind;
+export interface MobilePopoverPeriodSelection {
+  gameId: string;
+  turnNumber: number;
+  period: MobilePopoverPeriod;
+}
+
+export function getMobilePopoverPeriodOnOpen(
+  selection: MobilePopoverPeriodSelection,
+  gameId: string,
+  turnNumber: number,
+): MobilePopoverPeriodSelection {
+  return selection.gameId === gameId && selection.turnNumber === turnNumber
+    ? selection
+    : { gameId, turnNumber, period: 'current' };
+}
+
+export function getMobilePopoverTailLeft(
+  boardCenterX: number,
+  cardLeft: number,
+  cardWidth: number,
+): number {
+  return Math.min(Math.max(boardCenterX - cardLeft - 6, 18), Math.max(18, cardWidth - 30));
 }
 
 export interface MobileHudMetricPairVm {
@@ -33,20 +54,6 @@ export interface MobileHudMetricPairVm {
 }
 
 export type MobileMetricKind = 'damage' | 'healing';
-
-export interface MobileMetricBreakdownSectionVm {
-  key: string;
-  title: string;
-  totalText: string;
-  tone: MobileMetricKind;
-  rows: BoardStatBreakdownRowVm[];
-  estimateLabel?: 'ESTIMATE' | 'AUTOCAST ESTIMATE';
-}
-
-export interface MobileMetricBreakdownGroupsVm {
-  primary: MobileMetricBreakdownSectionVm[];
-  last: MobileMetricBreakdownSectionVm[];
-}
 
 interface PointerPosition {
   clientX: number;
@@ -74,36 +81,47 @@ export function buildMobileHealthPoolMetrics(
   };
 }
 
-export function buildMobileMetricBreakdownGroups(args: {
-  presentation: ThisTurnPresentationVm | null | undefined;
-  side: 'me' | 'opponent';
-}): MobileMetricBreakdownGroupsVm {
-  const { presentation, side } = args;
-  if (!presentation) {
-    return { primary: [], last: [] };
-  }
-
-  const metrics = presentation[side];
-  const current = (['damage', 'healing'] as const).flatMap((metricKind) => {
-    const section = buildCurrentMetricSection({
-      pair: metrics[metricKind],
-      metricKind,
-      terminalWithoutResolution: presentation.phaseKey === 'game.finished',
-    });
-    return section ? [section] : [];
-  });
-  const last = (['damage', 'healing'] as const).flatMap((metricKind) => {
-    const section = buildLastMetricSection(metrics[metricKind], metricKind);
-    return section ? [section] : [];
-  });
-
-  if (side === 'opponent') {
-    return presentation.mobile.opponentDetail === 'last'
-      ? { primary: last, last: [] }
-      : { primary: current, last: [] };
-  }
-
-  return { primary: current, last };
+export function buildMobileCombatBreakdowns(args: {
+  presentation: ThisTurnPresentationVm | null;
+  side: 'my' | 'opponent';
+  damageLabel: string;
+  healingLabel: string;
+}): { current: BoardCombatBreakdownVm; last: BoardCombatBreakdownVm } {
+  const current = buildCurrentBoardCombatBreakdown(args);
+  const metrics = getAffectedHealthMetrics(args.presentation, args.side);
+  const turnNumber = (args.presentation?.turnNumber ?? 1) - 1;
+  const column = (tone: MobileMetricKind, label: string): BoardCombatColumnVm => {
+    const last = metrics[tone]?.last;
+    const totalText = formatBoardStatMetric(last, 'last');
+    // Only the genuine preceding slot is eligible; never borrow held/final current rows.
+    const metric = turnNumber > 0 && last &&
+      (last.state === 'value' || last.state === 'zero') && last.source === 'last_actual'
+      ? findResolvedBoardCombatMetric({
+          candidates: [last], turnNumber, totalText, heading: 'LAST TURN',
+        })
+      : undefined;
+    return {
+      label,
+      tone,
+      totalText: metric ? totalText : last?.state === 'concealed' ? '?' : '0',
+      section: metric ? {
+        kind: 'last_turn', heading: 'LAST TURN', showEstimateQualifier: false,
+        totalText, rows: metric.rows,
+      } : null,
+      ...(!metric ? {
+        unavailableText: last?.state === 'concealed'
+          ? 'Concealed' as const : 'Breakdown unavailable' as const,
+      } : {}),
+    };
+  };
+  return {
+    current,
+    last: {
+      heading: 'LAST TURN',
+      damage: column('damage', args.damageLabel),
+      healing: column('healing', args.healingLabel),
+    },
+  };
 }
 
 export function isMobilePopoverTapGesture(
@@ -119,67 +137,4 @@ export function formatMobileBreakdownAmount(
   signlessContribution: boolean,
 ): string {
   return signlessContribution ? formatBoardMetricBreakdownAmount(row) : row.amountText;
-}
-
-function buildCurrentMetricSection(args: {
-  pair: ThisTurnMetricPairVm;
-  metricKind: MobileMetricKind;
-  terminalWithoutResolution: boolean;
-}): MobileMetricBreakdownSectionVm | null {
-  const { pair, metricKind, terminalWithoutResolution } = args;
-  const source = buildBoardStatHoverSections(pair).find(
-    (section) => section.kind !== 'last_turn',
-  );
-
-  if (source) {
-    const turnLabel = source.kind === 'final_turn' ? 'Final turn' : 'This turn';
-    return {
-      key: `${metricKind}:${source.kind}`,
-      title: `${turnLabel} ${metricKind}`,
-      totalText: source.totalText,
-      tone: metricKind,
-      rows: source.rows,
-      ...(source.kind === 'this_turn_estimate'
-        ? {
-            estimateLabel:
-              (pair.current.state === 'zero' || pair.current.state === 'value') &&
-                pair.current.estimateMode === 'with_autocast'
-              ? 'AUTOCAST ESTIMATE' as const
-              : 'ESTIMATE' as const,
-          }
-        : {}),
-    };
-  }
-
-  if (pair.current.state === 'concealed' || terminalWithoutResolution) {
-    return null;
-  }
-
-  return {
-    key: `${metricKind}:this_turn_fallback`,
-    title: `This turn ${metricKind}`,
-    totalText: '0',
-    tone: metricKind,
-    rows: [],
-  };
-}
-
-function buildLastMetricSection(
-  pair: ThisTurnMetricPairVm,
-  metricKind: MobileMetricKind,
-): MobileMetricBreakdownSectionVm | null {
-  const source = buildBoardStatHoverSections(pair).find(
-    (section) => section.kind === 'last_turn',
-  );
-  if (!source) {
-    return null;
-  }
-
-  return {
-    key: `${metricKind}:last_turn`,
-    title: `Last turn ${metricKind}`,
-    totalText: source.totalText,
-    tone: metricKind,
-    rows: source.rows,
-  };
 }

@@ -102,6 +102,18 @@
 - **Validation:** `npm run typecheck`, `npm run build` and `npm run test:client` passed (38 files, 353 tests). Focused coverage verifies both periods' incoming-damage/own-healing ownership, reversed viewer-relative orientation, source immutability, concealment, Charge uncertainty, neutral fallbacks, held actuals/dice-settle release and final values, while retaining existing popover/gesture tests. The build retains the existing non-blocking >500kB chunk-size warning.
 - **Not run — browser/Vite testing handled by user.** Owner visual review remains **pending** for the 360px reference and other supported phone widths, phase movement/wrap/press labels, horizontal placeholders, reordered metrics, long names/totals, helper combinations, setup/intros/missions, spectator/finished views, existing popover access and unchanged bottom controls. Automated checks do not establish browser fit or animation correctness.
 
+### 2026-10-21 — 20A.6 unified mobile popovers and shared period controls
+
+- **Pass type:** Client/UI. **Primary layer:** Display. Implemented; owner visual review remains **pending**. Scope is mobile inspection/prop plumbing, one reusable resolved-metric matcher, focused tests and this note. Desktop presentation, authoritative rules, networking, valuation/estimate calculations, tooling and Phase 20B are unchanged.
+- All four health/stat buttons toggle the same two full-width cards and share expanded state, without the old health-summary availability gate. The separate mobile health renderer, duplicate summary and health/stats variant-selection paths are removed. Names, clocks, dice and board backgrounds gain no toggle action. Existing mission/takeover locks, fleet-inspection exclusion and outside-tap dismissal remain.
+- Opponent/top and requester/bottom cards retain the 16px viewport margins, 16px horizontal/12px vertical padding, frame/tails and bounded scrolling. Explicit board/row refs supply geometry: both tails follow the whole board midpoint and vertical positions follow their player rows, independent of trigger type. Existing viewport/orientation dismissal remains; no observers, ancestor searches or timers were added.
+- Each current economy header has saved resources and purple **Fleet Value** on the left, bonus total/sources on the right. Fleet reads only the optional viewer-safe presentedFleetValue and is visible at phone widths when supplied; absence omits the row instead of inventing zero. Saved joining lines, joining bonuses, Centaur even-turn distinctions (including zero) and the applied win-streak explanation remain accessible. Changing combat period leaves economy unchanged.
+- Both cards share local **LAST TURN / THIS TURN** selection. Either card updates both selected indicators. Selection persists across closing/reopening in the same game turn; the next opening after rollover resets to This Turn, and a new game resets/dismisses inspection. Existing phase/turn dismissal is preserved. Content continues to read live presented inputs; no inspection snapshots or selection timers exist.
+- **Owner-confirmed period policy:** LAST TURN uses only the genuine preceding last_actual slot at presented turn minus one. Held current actuals and final results remain on the right tab. The extracted existing resolved matcher requires the expected source, exact turn and total; no equal-valued current/history fallback is used. Turn 1 has unavailable previous detail. Current inputs retain the dice-settle gate and requester/spectator privacy; the old automatic opponent-history substitution is removed.
+- Combat uses incoming damage on the left and own healing on the right, with viewer-relative/spectator owner labels and one formatted total per contribution. Existing current/estimate/final heading helpers are reused. Mobile alone simplifies Autocast wording to **(ESTIMATE)** while preserving estimate inputs, approximation/uncertainty text and source rows. Concealed/unavailable columns do not hide an available sibling. Tab events stay inside the controls; ordinary content tap-dismissal, the 8px tap threshold, pointer identity/cancellation and scroll containment remain.
+- **Validation:** npm run typecheck, npm run build and npm run test:client passed (**39 files, 360 tests**). Focused coverage includes period reopening/rollover/new-game identity, all four trigger callbacks/accessibility, owner mapping, economy invariance, Fleet absence/zero, joining/even/streak rows, estimate/final/uncertainty presentation, concealment, held/final/preceding-source validation, wrong-turn/equal-total rejection, tab containment, drag/cancel handling and board-centred tail geometry. The existing non-blocking >500kB build chunk-size warning remains. Automated callback/render tests do not establish browser layout or native event/scroll behavior.
+- **Not run — browser/Vite testing handled by user.** Owner review remains **pending** for the 360px reference and other supported phone widths/heights, long source lists and resource/owner labels, tab switching/dismissal/scrolling, tails/clearance, spectators, held/final states and surrounding mobile controls.
+
 ## Contents
 
 1. Authority, review and change control
@@ -339,7 +351,7 @@ Apply this grouping to current values, last-turn values and their breakdowns. Th
 - Desktop current values anchor beside bar bottoms; resolved values sit beside health numbers and use the period matching displayed health/net delta, including held/final cases.
 - No new renderer may bypass the dice-settle gate or infer a hidden opponent estimate.
 - Unknown values remain unknown; do not substitute numeric zero or derive bar previews from them.
-- Preserve `AUTOCAST ESTIMATE` and its current applicability. A generic time tab must not erase this qualifier or expose it for an opponent.
+- Preserve Autocast estimate inputs and their current applicability/privacy. Desktop retains `AUTOCAST ESTIMATE`; mobile 20A.6 uses `(ESTIMATE)` wording under the approved pass.
 
 ### 6.3 Desktop inspection
 
@@ -351,20 +363,20 @@ Desktop current stacks open compact 240px cards with vertically stacked current 
 
 The intended direction is two paired cards with:
 
-1. A stable current economy summary above the tabs: saved resources, Fleet Value if enabled, and bonus sources.
-2. Internal `THIS TURN ESTIMATE` and `LAST TURN` selection for battle contributions.
+1. A stable current economy summary above the tabs: saved resources, Fleet Value when its presented input is available, and bonus sources.
+2. Internal `LAST TURN` (left) and `THIS TURN` / `THIS TURN (ESTIMATE)` / `FINAL TURN` (right) controls for combat contributions.
 3. Two contribution columns grouped by affected health pool.
 
 Use one shared selected period. Activating either card's tab changes both cards and both selected indicators. Never show one card's current estimate against the other card's last-turn result accidentally.
 
 The economy header remains current on both tabs. Establish that scope through separation and labels, not by making historical values look current.
 
-Provisional interaction defaults for 20A.6 review:
+Implemented 20A.6 period policy (owner visual review pending):
 
-- Open initially on This Turn Estimate.
+- Open initially on This Turn; derive estimate/final wording from the presented current source.
 - Remember selection when closing/reopening during the same game turn.
 - Do not unexpectedly change selection while the user is inspecting an open card.
-- Specify turn rollover, new game and end-game behaviour explicitly in the individual pass plan.
+- Reset to This Turn on the next opening after a turn change; reset/dismiss on a new game. Preserve existing phase/turn dismissal. LAST TURN retains the genuine preceding slot during held/final presentation; the right tab carries current/final actuals.
 - On Turn 1, treat unavailable previous history as unavailable, not invented breakdowns; retain existing meaningful neutral totals where applicable.
 
 Preserve outside-tap dismissal, tap-versus-drag handling, pointer containment and anchors. Tab taps must not dismiss the pair or activate the board behind it. Long content must remain reachable within the available viewport.
@@ -375,7 +387,7 @@ Preserve outside-tap dismissal, tap-versus-drag handling, pointer containment an
 - Preserve all Centaur bonus categories and their established conditional visibility, including zero where current behaviour intentionally shows it.
 - Preserve source breakdowns and win-streak bonus explanation.
 - Fleet Value is a secondary metric, not a new resource or ship count. Reuse existing canonical valuation/presentation inputs; do not invent a local cost formula in JSX.
-- Desktop 20A.4 includes a pastel-purple `Fleet` row beneath Bonus, visible from 1400px. Mobile placement remains provisional; no new desktop Fleet hover is introduced.
+- Desktop 20A.4 includes a pastel-purple `Fleet` row beneath Bonus, visible from 1400px. Mobile 20A.6 shows `Fleet Value` beneath Saved lines inside the paired cards at phone widths when the presented input exists; no new desktop Fleet hover is introduced.
 - Live value uses filtered viewer-safe fleet summaries and mirrored integer `totalLineCost`, before transient target projections. An end-of-turn history value must not be relabelled as current.
 - Current opponent build concealment applies to Fleet Value as well as ship graphics.
 
@@ -511,7 +523,7 @@ The following sequence is recommended. Each pass may be revised by Judd; exact n
 
 **Type:** Client/UI Pass. **Dependency:** 20A.5 anchors and shared stats semantics.
 
-**Goal:** Implement the paired popover design and a shared current/last period selection.
+**Goal:** Implement the paired popover design and a shared current/last period selection. **Implemented 2026-10-21; owner visual review pending.**
 
 **Expected scope:** `MobileStatBreakdownPopovers.tsx`, `mobileStatPresentation.ts`, existing anchor/selection owner in `MobileStatusRail.tsx` or its current parent, and directly related shared presentation helpers.
 
@@ -848,8 +860,8 @@ This register is part of the plan and should be updated as passes are approved.
 | D02 | Pixel calibration | Open: received extra-dice raster is 2048px wide; owner original is reported as 2241px. Intended CSS viewport/export scale not yet confirmed. | 20A.1–20A.2 measurements |
 | D03 | Responsive rules | Open: further owner requirements expected; current 767/768/1599 boundaries are baseline facts only. | Each affected layout pass |
 | D04 | Header and omitted elements | Target direction established; exact species/clock/status/intro variants need inventory and pass design. | 20A.1–20A.2 |
-| D05 | Fleet Value | Desktop implemented: purple `Fleet` below Bonus from 1400px; live viewer-safe presentation value. Owner visual review pending; mobile placement remains open. | 20A.4–20A.6 |
-| D06 | Shared mobile time tabs | Intended direction: one period selection controls both cards. Reset/rollover/endgame policy provisional. | 20A.6 |
+| D05 | Fleet Value | Implemented: desktop purple `Fleet` below Bonus from 1400px; mobile `Fleet Value` below Saved lines in both inspection cards. Reuses the optional live viewer-safe value. Owner visual review pending. | 20A.4–20A.6 |
+| D06 | Shared mobile time tabs | Implemented: shared selection retained within a game turn; reset on next opening after rollover/new game. Last uses the genuine preceding slot; held/final current actuals stay on the right. Owner visual review pending. | 20A.6 |
 | D07 | Desktop last-turn inspection | Implemented: entire health/net/resolved-value group opens matching resolved damage/healing sections; current stacks open current-only sections. Both use compact 240px stacked cards. Owner visual review pending. | 20A.4 |
 | D08 | Helper placement | 20A.3 implemented using the approved L/M/S CSS targets and compact CHR grid; existing selection preserved. Owner visual review pending. | 20A.3 |
 | D09 | Server extension | Conditional, not presumed necessary. | 20B.1 |

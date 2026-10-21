@@ -251,6 +251,22 @@ export function buildHealthBreakdownPresentation(args: {
   };
 }
 
+export function findResolvedBoardCombatMetric(args: {
+  candidates: Array<ThisTurnMetricVm | null | undefined>;
+  turnNumber: number;
+  totalText: string;
+  heading: HealthBreakdownCardVm['heading'];
+}): AvailableMetric | undefined {
+  return args.candidates.find((candidate): candidate is AvailableMetric =>
+    candidate != null && isAvailableMetric(candidate) &&
+    candidate.turnNumber === args.turnNumber &&
+    candidate.total === Number(args.totalText) &&
+    (candidate.source === 'last_actual' ||
+      (args.heading === 'LAST TURN' && candidate.source === 'held_actual') ||
+      (args.heading === 'FINAL TURN' && candidate.source === 'final_actual'))
+  );
+}
+
 /** Reuse the health source gate, then require detailed rows to match that exact period. */
 export function buildResolvedBoardCombatBreakdown(args: {
   card: HealthBreakdownCardVm | null;
@@ -263,14 +279,12 @@ export function buildResolvedBoardCombatBreakdown(args: {
   const column = (tone: BoardStatMetricTone): BoardCombatColumnVm => {
     const pair = metrics[tone];
     const totalText = tone === 'damage' ? card.damageText : card.healingText;
-    const metric = [pair?.current, pair?.last].find((candidate): candidate is AvailableMetric =>
-      candidate != null && isAvailableMetric(candidate) &&
-      candidate.turnNumber === card.turnNumber &&
-      candidate.total === Number(totalText) &&
-      (candidate.source === 'last_actual' ||
-        (card.heading === 'LAST TURN' && candidate.source === 'held_actual') ||
-        (card.heading === 'FINAL TURN' && candidate.source === 'final_actual'))
-    );
+    const metric = findResolvedBoardCombatMetric({
+      candidates: [pair?.current, pair?.last],
+      turnNumber: card.turnNumber,
+      totalText,
+      heading: card.heading,
+    });
     return {
       label: tone === 'damage' ? card.damageLabel : card.healingLabel,
       tone,

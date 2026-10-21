@@ -29,7 +29,7 @@ export function MobileTopNav({
 
   function navItemClass(isActive: boolean) {
     return cx(
-      'pt-[15px] pb-[12px] text-[14px] font-bold leading-none focus:outline-none',
+      'pt-[15px] pb-[10px] text-[14px] font-bold leading-none focus:outline-none',
       isActive ? 'text-white' : 'text-[var(--shapeships-grey-50)]'
     );
   }
