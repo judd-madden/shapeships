@@ -1,17 +1,13 @@
 /**
  * Left Rail
- * Fixed-width left sidebar with brand, dice, sister panel, phase indicator, and chat
+ * Fixed-width left sidebar with brand, sister panel, phase indicator, and chat
  * Presentation-first layout with small local UI timing for rail-only effects.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Dice } from '../../../components/ui/primitives';
 import { CloseIcon } from '../../../components/ui/primitives/icons/CloseIcon';
 import { OpenFullIcon } from '../../../components/ui/primitives/icons/OpenFullIcon';
-import { Cube } from '../../../graphics/ancient/Cube';
 import type { LeftRailViewModel, GameSessionActions, GameSessionViewModel, TurnPhasePresentationVm, TurnPhaseVm } from '../../client/useGameSession';
-import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
-import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
 import { BattleLogPanelContent } from '../shared/BattleLogPanelContent';
 import { ChatPanelContent } from '../shared/ChatPanelContent';
 import { TurnPhaseIndicator } from '../shared/TurnPhaseIndicator';
@@ -36,15 +32,10 @@ interface LeftRailProps {
   canResign: boolean;
   isFinished: boolean;
   isPlayerViewer: boolean;
-  firstTurnBuildHelperEligible?: boolean;
-  firstTurnBuildHelperDismissSignal?: number;
-  onFirstTurnBuildHelperDismiss?: () => void;
 }
 
 type SisterView = WinStreakSisterView;
 
-const FIRST_TURN_BUILD_HELPER_SHOW_DELAY_MS = 500;
-const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 const BATTLE_LOG_TRANSITION_MS = 160;
 const BATTLE_LOG_SESSION_PREFERENCE_KEY = 'shapeships.preferBattleLog.v1';
 const CHAT_MINIMIZED_STORAGE_KEY = 'shapeships.chatMinimized.v1';
@@ -110,25 +101,18 @@ export function LeftRail({
   canResign,
   isFinished,
   isPlayerViewer,
-  firstTurnBuildHelperEligible = false,
-  firstTurnBuildHelperDismissSignal = 0,
-  onFirstTurnBuildHelperDismiss,
 }: LeftRailProps) {
   const [selectedSisterView, setSelectedSisterView] = useState<SisterView>(readInitialSisterView);
   const [isBattleLogExpanded, setIsBattleLogExpanded] = useState(false);
   const [isChatMinimized, setIsChatMinimized] = useState(readInitialChatMinimized);
   const [collapsedBattleLogTop, setCollapsedBattleLogTop] = useState<number | null>(null);
   const [collapsedBattleLogBottom, setCollapsedBattleLogBottom] = useState<number | null>(null);
-  const [isFirstTurnBuildHelperMounted, setIsFirstTurnBuildHelperMounted] = useState(false);
-  const [isFirstTurnBuildHelperVisible, setIsFirstTurnBuildHelperVisible] = useState(false);
   const railRootRef = useRef<HTMLDivElement | null>(null);
   const battleLogSlotRef = useRef<HTMLDivElement | null>(null);
   const battleLogViewportRef = useRef<HTMLDivElement | null>(null);
   const pendingBattleLogScrollRestoreRef = useRef<{ scrollTop: number } | null>(null);
   const battleLogScrollRestoreFrameRef = useRef<number | null>(null);
   const battleLogScrollRestoreTimeoutRef = useRef<number | null>(null);
-  const firstTurnBuildHelperShowTimeoutRef = useRef<number | null>(null);
-  const firstTurnBuildHelperDismissTimeoutRef = useRef<number | null>(null);
   const previousIsFinishedRef = useRef(isFinished);
   const showWinStreak = shouldShowWinStreakContent(winStreak);
   const winStreakTabLayout = getWinStreakTabLayout(showWinStreak);
@@ -192,25 +176,9 @@ export function LeftRail({
     }, BATTLE_LOG_TRANSITION_MS + 80);
   }
 
-  function clearFirstTurnBuildHelperShowTimeout() {
-    if (firstTurnBuildHelperShowTimeoutRef.current !== null) {
-      window.clearTimeout(firstTurnBuildHelperShowTimeoutRef.current);
-      firstTurnBuildHelperShowTimeoutRef.current = null;
-    }
-  }
-
-  function clearFirstTurnBuildHelperDismissTimeout() {
-    if (firstTurnBuildHelperDismissTimeoutRef.current !== null) {
-      window.clearTimeout(firstTurnBuildHelperDismissTimeoutRef.current);
-      firstTurnBuildHelperDismissTimeoutRef.current = null;
-    }
-  }
-
   useEffect(() => {
     return () => {
       clearBattleLogScrollRestoreTimers();
-      clearFirstTurnBuildHelperShowTimeout();
-      clearFirstTurnBuildHelperDismissTimeout();
     };
   }, []);
 
@@ -276,127 +244,6 @@ export function LeftRail({
     previousIsFinishedRef.current = isFinished;
   }, [isFinished, isPlayerViewer, selectedSisterView]);
 
-  useEffect(() => {
-    if (firstTurnBuildHelperDismissSignal === 0) {
-      return;
-    }
-
-    setIsFirstTurnBuildHelperMounted(true);
-    clearFirstTurnBuildHelperShowTimeout();
-    clearFirstTurnBuildHelperDismissTimeout();
-    setIsFirstTurnBuildHelperVisible(false);
-
-    firstTurnBuildHelperDismissTimeoutRef.current = window.setTimeout(() => {
-      firstTurnBuildHelperDismissTimeoutRef.current = null;
-      setIsFirstTurnBuildHelperMounted(false);
-    }, FIRST_TURN_BUILD_HELPER_FADE_MS);
-  }, [firstTurnBuildHelperDismissSignal]);
-
-  useEffect(() => {
-    if (!firstTurnBuildHelperEligible) {
-      clearFirstTurnBuildHelperShowTimeout();
-      clearFirstTurnBuildHelperDismissTimeout();
-      setIsFirstTurnBuildHelperMounted(false);
-      setIsFirstTurnBuildHelperVisible(false);
-      return;
-    }
-
-    if (firstTurnBuildHelperDismissSignal > 0) {
-      clearFirstTurnBuildHelperShowTimeout();
-      return;
-    }
-
-    clearFirstTurnBuildHelperShowTimeout();
-    setIsFirstTurnBuildHelperMounted(true);
-    setIsFirstTurnBuildHelperVisible(false);
-
-    firstTurnBuildHelperShowTimeoutRef.current = window.setTimeout(() => {
-      firstTurnBuildHelperShowTimeoutRef.current = null;
-      setIsFirstTurnBuildHelperVisible(true);
-    }, FIRST_TURN_BUILD_HELPER_SHOW_DELAY_MS);
-
-    return () => {
-      clearFirstTurnBuildHelperShowTimeout();
-    };
-  }, [firstTurnBuildHelperEligible, firstTurnBuildHelperDismissSignal]);
-
-  function renderDiceManipulationSlot(side: 'left' | 'right') {
-    const slot = vm.diceManipulationSlots[side];
-    if (!slot) return null;
-
-    const ShipGraphic = (() => {
-      if (slot.sourceShipDefId === 'CUB') return null;
-
-      const def = getShipDefinitionUI(slot.sourceShipDefId);
-      if (!def) return null;
-      return resolveShipGraphic(def, { context: 'default' })?.component ?? null;
-    })();
-
-    const slotStyle =
-      side === 'left'
-        ? {
-            position: 'absolute' as const,
-            top: 110,
-            left: 0,
-            zIndex: 40,
-            display: 'flex',
-            flexDirection: 'column' as const,
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            width: 'max-content',
-            pointerEvents: 'none' as const,
-          }
-        : {
-            position: 'absolute' as const,
-            top: 110,
-            left: 230,
-            zIndex: 40,
-            display: 'flex',
-            flexDirection: 'column' as const,
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            width: 'max-content',
-            pointerEvents: 'none' as const,
-          };
-
-    const diceValues = Array.isArray(slot.diceValues) ? slot.diceValues : [];
-    const showDiceSpacer = slot.sourceShipDefId === 'KNO' && diceValues.length === 0;
-    const isAnimatedModifier =
-      slot.sourceShipDefId === 'CHR' || slot.sourceShipDefId === 'CUB';
-
-    return (
-      <div style={slotStyle}>
-        {diceValues.length > 0 ? (
-          <div className="flex flex-nowrap items-center gap-0" style={{ width: 'max-content' }}>
-            {diceValues.map((value, index) => (
-              <Dice
-                key={`${slot.sourceShipDefId}-${index}`}
-                value={value}
-                animateKey={isAnimatedModifier ? slot.animateKey : undefined}
-                className="w-[60px] h-[60px]"
-                enableRotate={false}
-              />
-            ))}
-          </div>
-        ) : showDiceSpacer ? (
-          <div className="w-[60px] h-[60px]" aria-hidden="true" />
-        ) : null}
-
-        {slot.sourceShipDefId === 'CUB' ? (
-          <div className="w-[52px] h-[52px]">
-            <Cube className="w-[52px] h-[52px]" highlighted={slot.highlighted === true} />
-          </div>
-        ) : ShipGraphic && (
-          <div className="w-[52px] h-[52px]">
-            <ShipGraphic className="w-[52px] h-[52px]" />
-          </div>
-        )}
-      </div>
-    );
-  }
-
   function handleBattleLogExpandToggle() {
     const viewport = battleLogViewportRef.current;
     if (viewport && viewport.scrollHeight > viewport.clientHeight) {
@@ -432,43 +279,6 @@ export function LeftRail({
       ref={railRootRef}
       className="relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0 hidden lg:flex [--battle-log-bottom-inset:25px] min-[768px]:max-[1599px]:gap-4 min-[768px]:max-[1599px]:pt-[16px] min-[768px]:max-[1599px]:pb-[16px] min-[768px]:max-[1599px]:[--battle-log-bottom-inset:16px]"
     >
-      {isFirstTurnBuildHelperMounted && (
-        <div
-          className="pointer-events-none absolute left-[250px] top-[100px] z-60"
-          style={{
-            opacity: isFirstTurnBuildHelperVisible ? 1 : 0,
-            transition: `opacity ${FIRST_TURN_BUILD_HELPER_FADE_MS}ms ease-out`,
-          }}
-        >
-          <div
-            className="pointer-events-auto relative flex w-max max-w-[290px] flex-col gap-[12px] rounded-[10px] bg-[var(--shapeships-pastel-green)] pb-[20px] pl-[24px] pr-[24px] pt-[16px] text-left text-[var(--shapeships-black)]"
-            onClick={onFirstTurnBuildHelperDismiss}
-          >
-            <div
-              aria-hidden="true"
-              className="absolute left-[-6px] top-[50px] size-[12px] rotate-45 bg-[var(--shapeships-pastel-green)]"
-            />
-            <p
-              className="text-[26px] font-black leading-[1.05]"
-            >
-              The dice gives lines to both players.
-            </p>
-            <div className="flex flex-col gap-[12px]">
-              <p
-                className="text-[18px] font-normal leading-[1.2]"
-              >
-                You start with <span className="font-bold">3 saved lines</span>.
-              </p>
-              <p
-                className="text-[18px] font-normal leading-[1.2]"
-              >
-                Spend lines to build ships. Unspent lines are saved.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Brand / Title */}
       <div className="shrink-0 flex items-center justify-between">
         <div className="flex-1">
@@ -477,18 +287,6 @@ export function LeftRail({
           </p>
         </div>
       </div>
-
-      {/* Dice Area */}
-      <div className="shrink-0 flex justify-center">
-        <Dice
-          value={vm.diceValue}
-          animateKey={vm.diceAnimateKey}
-          className="min-[768px]:max-[1599px]:!size-[140px]"
-        />
-      </div>
-
-      {renderDiceManipulationSlot('left')}
-      {renderDiceManipulationSlot('right')}
 
       {/* The sister-panel slot owns the rail's primary flexible height. */}
       <div ref={battleLogSlotRef} className="basis-0 flex-1 min-h-[120px]" aria-hidden="true" />

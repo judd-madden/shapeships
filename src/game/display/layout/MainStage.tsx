@@ -6,6 +6,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BoardStage } from './BoardStage';
+import type { DesktopDicePresentationProps } from './boardStage/DesktopDicePresentation';
 import { BottomActionRail } from './BottomActionRail';
 import { ActionPanelFrame } from '../actionPanel/ActionPanelFrame';
 import { resolveAncientSimulacrumSpecies } from '../actionPanel/panels/catalogue/ancient/resolveAncientSimulacrumSpecies';
@@ -29,6 +30,7 @@ import type {
 } from '../../client/useGameSession';
 
 interface MainStageProps {
+  desktopDicePresentation: DesktopDicePresentationProps;
   gameId: string;
   hudVm: HudViewModel;
   boardVm: BoardViewModel;
@@ -55,6 +57,7 @@ type PostgameSurface =
   | null;
 
 export function MainStage({ 
+  desktopDicePresentation,
   gameId,
   hudVm, 
   boardVm, 
@@ -324,6 +327,10 @@ export function MainStage({
       >
         {/* Board Stage */}
         <BoardStage
+          desktopDicePresentation={{
+            ...desktopDicePresentation,
+            guidanceSuppressed: isMissionInteractionLocked || missionOverlayMode !== null || isGameStatsOpen,
+          }}
           vm={boardVm}
           hudVm={hudVm}
           thisTurn={thisTurn}

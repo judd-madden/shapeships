@@ -17,10 +17,33 @@
 
 - Combined the affected presentation inventory with desktop board/header foundations. Header and fleet columns now share the existing 200/230px centre column and 8px gaps; clocks and headers remain mounted across setup transitions.
 - Initial header tiers: 768–1399px uses name/clock/status/species sizes 16/16/12/10px; 1400–1919px uses 24/20/14/12px; 1920px+ uses 36/28/18/15px. Pill heights are 36/42/50px. Header reservations are 68/78/90px. Stacking below 1200px with a 124px reservation is a proposed fallback pending visual review.
-- Desktop increment cues sit centred 2px below their clocks; lifecycle and mobile treatment are unchanged. Decorative 24px tracks share a blank 56px legend lane and shrink from at most 330px to zero before central scrolling is necessary.
-- Existing stats retain their typography, spacing, grouping, formatting and gates. The central scroll gutter accommodates existing horizontal row overhang, including Centaur/joining variants. Scrolling dismisses active health/stat/economy cards immediately, including retained exit content; fresh entry/focus captures a new anchor.
-- Dice/helpers remain in LeftRail. Stat regrouping and typography remain deferred to 20A.4; active health bars and mobile changes remain deferred to their respective passes.
-- Owner visual review is **pending** for L/M/S reference sizes, intermediate/narrow desktops, long names/statuses, increment cues, short-screen collapse/scrolling, setup/intros/missions, finished games and unchanged mobile presentation. No Vite/browser testing was performed by Codex.
+- Desktop increment cues sit centred 2px below their clocks; lifecycle and mobile treatment are unchanged. Decorative 24px tracks share a blank 56px legend lane and shrink from at most 330px to zero as available height decreases. The central board never scrolls.
+- Existing stats retain their typography, grouping, formatting and gates. The central container permits horizontal row overhang, including Centaur/joining variants, without clipping real content or creating a scroll container. In 20A.3, inter-row spacing can compress after decorative placeholders reach zero height.
+- Dice/helpers remained in LeftRail for this pass and are relocated in 20A.3 below. Stat regrouping and typography remain deferred to 20A.4; active health bars and mobile changes remain deferred to their respective passes.
+- Owner visual review is **pending** for L/M/S reference sizes, intermediate/narrow desktops, long names/statuses, increment cues, short-screen placeholder and spacing collapse without central scrolling, setup/intros/missions, finished games and unchanged mobile presentation. No Vite/browser testing was performed by Codex.
+
+### 2026-10-21 — 20A.3 desktop dice and helper relocation
+
+- **Pass type:** Client/UI. **Primary layer:** Display. Implemented desktop relocation; owner visual review is **pending**. No server, runtime, networking, shared Dice primitive, mobile or tooling changes.
+- Extracted `layout/boardStage/DesktopDicePresentation.tsx`; existing dice values, animation keys, selected helper slots and guidance signals flow from GameScreen through MainStage to BoardStage. Sound and first-Ready/session dismissal remain with their existing owners.
+- One desktop main die stays mounted in the shared BoardStageFrame through species selection and board/matchup transitions. Species selection hides the central slot without reserving space or adding a reveal timer. Existing intro, release/settle, modifier and reduced-motion lifecycles remain intact.
+- The main die stays on the central axis. Selected helpers are positioned relative to its box and cannot intercept fleet input; their count does not affect the main die or surrounding rows. Ordinary helpers stack die above source; KNO retains its empty die cell. CHR uses first/second dice across the top, source lower-left, and third die lower-right, preserving order and absent values. Cube highlighting and missing-source handling are retained.
+- Central sequence is placeholders, health/net delta, dice/helpers, saved lines, bonus lines, and the existing damage/healing groups. The centre never scrolls. Decorative placeholders yield first, followed by elastic gaps between unchanged metric rows; real metrics retain typography, horizontal overhang and inspection interactions. The grey-70 divider and headers are unchanged.
+- Desktop guidance keeps its existing copy, colours, typography, 500ms appearance delay and 150ms fade. It anchors beside the die, flips sides as needed and clamps within a 12px viewport inset. Mission/matchup priority is retained. LeftRail's flexible sister-panel slot receives the released space; chat, phases, streak tabs, preferences and log expansion/scroll restoration are unchanged.
+
+| Desktop geometry | Small: 768–1399px | Medium: 1400–1919px | Large: ≥1920px |
+| --- | ---: | ---: | ---: |
+| Main die | 64px | 120px | 148px |
+| Helper die/cell | 28px | 44px | 56px |
+| Source graphic | 24px | 40px | 52px |
+| Main-to-helper gap | 8px | 10px | 12px |
+| Internal helper gap | 4px | 4px | 4px |
+| Vertical spacing per side | 8px | 12px | 16px |
+
+- Dimensions are initial CSS targets from the approved pass, guided by `Game Screen L.png`, `Game Screen M.png` and `Game Screen S.png`; they remain subject to Judd's browser review. Sizing is local and explicitly overrides the primitive's default 164px box. Rotation/pulse layers can overflow without clipping, and the dice reservation is stable for all supported helper states.
+- **Validation:** `npm run typecheck`, `npm run build` and `npm run test:client` passed (37 test files, 333 tests). The build reports a non-blocking >500kB chunk-size warning. An additional automated render inspection passed 22 helper scenarios with stubbed Dice/graphics, covering CHR 0–3 rolls, KNO, LEV, Cube highlighting and a missing graphic; it does not establish browser animation or layout correctness. Source comparison confirms unchanged mobile wiring, guidance eligibility/Ready orchestration and sound ownership. Production CSS inspection confirms emitted responsive dimensions, important size overrides and CHR grid rules.
+- **Not run — browser/Vite testing handled by user.**
+- **Pending owner review:** L/M/S sizes and intermediate/short desktops; main-die centring; no central scrolling and placeholder/gap compression; all selected helper combinations; CHR 1–3 rolls; KNO spacing; Cube highlighting; animation clearance and fleet/control collisions; setup/intros/missions; guidance delay/fade, viewport clamping and dismissal; LeftRail expansion; unchanged mobile presentation.
 
 ---
 
@@ -325,7 +348,7 @@ The approved design may rearrange the helper group internally, for example wrapp
 
 ### 7.3 First-turn build helper
 
-LeftRail currently also hosts first-turn helper presentation. Inventory its anchor, timing, dismissal and intro dependencies when extracting the die. Preserve that guidance, adapting its anchor only where the move requires it and the pass plan specifies it.
+20A.3 moves desktop first-turn helper presentation and its local appearance/fade lifecycle alongside the central die. Eligibility, session dismissal, Ready orchestration and intro dependencies remain with their existing owners; mobile guidance is unchanged.
 
 ### 7.4 Mobile invariant
 
@@ -772,7 +795,7 @@ This register is part of the plan and should be updated as passes are approved.
 | D05 | Fleet Value | Proposed inclusion; exact placement, compact label, source and visibility must be reviewed. | 20A.4–20A.6 |
 | D06 | Shared mobile time tabs | Intended direction: one period selection controls both cards. Reset/rollover/endgame policy provisional. | 20A.6 |
 | D07 | Desktop last-turn inspection | Preserve access; exact interaction/anchor remains reviewable. | 20A.4 |
-| D08 | Helper placement | Relocation approved; existing selection preserved; exact cluster geometry subject to current designs. | 20A.3 |
+| D08 | Helper placement | 20A.3 implemented using the approved L/M/S CSS targets and compact CHR grid; existing selection preserved. Owner visual review pending. | 20A.3 |
 | D09 | Server extension | Conditional, not presumed necessary. | 20B.1 |
 | D10 | Positive-space clamp | Required concept; pixels/fraction per breakpoint and increased-cap behaviour need specification. | 20B.2 |
 | D11 | Negative compression | Required only when needed; threshold, tick steps and scale-break appearance provisional. | 20B.2–20B.3 |

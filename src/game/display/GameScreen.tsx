@@ -238,13 +238,18 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             canResign={vm.actionPanel.menu.canResign}
             isFinished={isFinished}
             isPlayerViewer={vm.viewer.isPlayerViewer}
-            firstTurnBuildHelperEligible={firstTurnBuildHelper.firstTurnBuildHelperEligible}
-            firstTurnBuildHelperDismissSignal={firstTurnBuildHelper.firstTurnBuildHelperDismissSignal}
-            onFirstTurnBuildHelperDismiss={firstTurnBuildHelper.dismissFirstTurnBuildHelper}
           />
 
           {/* Main Stage - fills remaining width */}
           <MainStage
+            desktopDicePresentation={{
+              diceValue: vm.leftRail.diceValue,
+              diceAnimateKey: vm.leftRail.diceAnimateKey,
+              diceManipulationSlots: vm.leftRail.diceManipulationSlots,
+              firstTurnBuildHelperEligible: firstTurnBuildHelper.firstTurnBuildHelperEligible,
+              firstTurnBuildHelperDismissSignal: firstTurnBuildHelper.firstTurnBuildHelperDismissSignal,
+              onFirstTurnBuildHelperDismiss: firstTurnBuildHelper.dismissFirstTurnBuildHelper,
+            }}
             gameId={gameId}
             hudVm={vm.hud}
             boardVm={vm.board}

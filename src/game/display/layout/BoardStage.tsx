@@ -12,6 +12,7 @@ import type {
   HudViewModel,
 } from '../../client/useGameSession';
 import { TopHud } from './TopHud';
+import { DesktopDicePresentation, type DesktopDicePresentationProps } from './boardStage/DesktopDicePresentation';
 import { ChooseSpeciesStage } from './boardModes/ChooseSpeciesStage';
 import { FleetArea, toSpeciesKey } from './boardStage/FleetArea';
 import { FleetShipHoverCard } from './boardStage/FleetShipHoverCard';
@@ -39,6 +40,7 @@ import {
 } from '../winStreak/winStreakPresentation';
 
 interface BoardStageProps {
+  desktopDicePresentation: DesktopDicePresentationProps;
   vm: BoardViewModel;
   hudVm: HudViewModel;
   thisTurn: GameSessionViewModel['thisTurn'];
@@ -55,13 +57,66 @@ function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');
 }
 
-function BoardStageFrame({ hudVm, children }: { hudVm: HudViewModel; children: ReactNode }) {
+interface BoardStageFrameProps {
+  hudVm: HudViewModel;
+  desktopDicePresentation: DesktopDicePresentationProps;
+  isChoosingSpecies?: boolean;
+  healthContent?: ReactNode;
+  statsContent?: ReactNode;
+  matchupIntro?: MatchupIntroViewModel | null;
+  children: ReactNode;
+}
+
+function BoardStageFrame({
+  hudVm,
+  desktopDicePresentation,
+  isChoosingSpecies = false,
+  healthContent,
+  statsContent,
+  matchupIntro,
+  children,
+}: BoardStageFrameProps) {
   return (
     <div
       className="relative grid w-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_var(--ss-board-center-width)_minmax(0,1fr)] grid-rows-[var(--ss-desktop-header-height)_minmax(0,1fr)] gap-x-[8px] [--ss-board-center-width:200px] min-[1600px]:[--ss-board-center-width:230px] [--ss-desktop-header-height:68px] max-[1199px]:[--ss-desktop-header-height:124px] min-[1400px]:[--ss-desktop-header-height:78px] min-[1920px]:[--ss-desktop-header-height:90px]"
       data-name="Board Stage"
     >
       <TopHud vm={hudVm} />
+      {/* This slot stays mounted across setup/board returns; only its layout visibility changes. */}
+      <div
+        className={isChoosingSpecies ? 'hidden' : 'relative col-start-2 row-span-2 row-start-1 min-h-0 min-w-0 cursor-default select-none'}
+        aria-hidden={isChoosingSpecies || undefined}
+        inert={isChoosingSpecies || undefined}
+        data-name="Health and Stats"
+      >
+        {/* Placeholders yield first; metric spacers can then compress without clipping real content. */}
+        <div className="absolute inset-0 flex flex-col items-center overflow-visible" data-name="Central Stats Content">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none flex w-full min-h-0 max-h-[330px] basis-0 grow items-stretch justify-center"
+            data-name="Inactive Health Bar Placeholders"
+          >
+            <div className="w-[24px] shrink-0 bg-[var(--shapeships-grey-90)]" />
+            <div className="w-[56px] shrink-0" />
+            <div className="w-[24px] shrink-0 bg-[var(--shapeships-grey-90)]" />
+          </div>
+          <div className="flex w-[var(--ss-board-center-width)] min-h-0 shrink flex-col items-center" data-name="Existing Board Stats">
+            {healthContent}
+            <DesktopDicePresentation
+              {...desktopDicePresentation}
+              guidanceSuppressed={isChoosingSpecies || Boolean(matchupIntro) || desktopDicePresentation.guidanceSuppressed}
+            />
+            {statsContent}
+          </div>
+        </div>
+        {matchupIntro ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[var(--ss-desktop-header-height)] z-20 flex items-center justify-center overflow-hidden select-none">
+            <div className="-translate-y-[29px]">
+              <MatchupIntroVersus matchupIntro={matchupIntro} variant="desktop" />
+            </div>
+          </div>
+        ) : null}
+      </div>
       {children}
     </div>
   );
@@ -462,6 +517,7 @@ function HealthTrigger({
 }
 
 export function BoardStage({
+  desktopDicePresentation,
   vm,
   hudVm,
   thisTurn,
@@ -491,7 +547,11 @@ export function BoardStage({
   // Choose species mode
   if (vm.mode === 'choose_species') {
     return (
-      <BoardStageFrame hudVm={hudVm}>
+      <BoardStageFrame
+        hudVm={hudVm}
+        desktopDicePresentation={desktopDicePresentation}
+        isChoosingSpecies
+      >
         <div className="col-span-3 row-start-2 min-h-0 min-w-0">
           <ChooseSpeciesStage
             vm={vm}
@@ -629,61 +689,11 @@ export function BoardStage({
 
   // Board mode
   return (
-    <BoardStageFrame hudVm={hudVm}>
-      <div className="col-start-1 row-start-2 flex min-h-0 min-w-0">
-      <FleetArea 
-        title="MY FLEET" 
-        ships={vm.myFleet} 
-        ancientSolarEntries={vm.myAncientSolarEntries}
-        isBattleReveal={isBattleReveal}
-        voidShips={vm.myVoidFleet}
-        order={vm.myFleetRenderOrder} 
-        species={mySpeciesKey}
-        animTokens={vm.fleetAnim.my}
-        flipEnabled={vm.mode === 'board'}
-        side="my"
-        activationIndexMap={vm.activationStaggerPlan?.myIndexByShipId}
-        healthDeltaFlash={vm.myFleetHealthDeltaFlash}
-        targetStatesByStackKey={vm.destroyTargeting?.targetStatesBySide.my}
-        previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdBySide.my}
-        onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
-        onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
-        onLiveFleetBackgroundMouseDown={actions.onBoardBackgroundMouseDown}
-        onFleetHoverEnter={fleetHover.onEnter}
-        onFleetHoverLeave={fleetHover.onLeave}
-        turnPulse={leftRevealPulse}
-        overlay={matchupIntro ? (
-          <MatchupIntroPlayerOverlay
-            matchupIntro={matchupIntro}
-            player={matchupIntro.localPlayer}
-            variant="desktop"
-            direction="from-right"
-          />
-        ) : null}
-      />
-      </div>
-
-      <div
-        className="relative col-start-2 row-span-2 row-start-1 min-h-0 min-w-0 cursor-default select-none"
-        data-name="Health and Stats"
-      >
-        {/* Preserve metric overhang, including Centaur/joining rows, without
-            creating a scroll container or clipping real content. */}
-        <div
-          className="absolute inset-0 flex flex-col items-center overflow-visible"
-          data-name="Central Stats Content"
-        >
-          <div
-            aria-hidden="true"
-            className="pointer-events-none flex w-full min-h-0 max-h-[330px] basis-[330px] shrink items-stretch justify-center"
-            data-name="Inactive Health Bar Placeholders"
-          >
-            <div className="w-[24px] shrink-0 bg-[var(--shapeships-grey-90)]" />
-            <div className="w-[56px] shrink-0" />
-            <div className="w-[24px] shrink-0 bg-[var(--shapeships-grey-90)]" />
-          </div>
-          <div className="flex w-[230px] grow shrink-0 flex-col items-center justify-between min-[768px]:max-[1599px]:w-[200px]" data-name="Existing Board Stats">
-        {/* Health */}
+    <BoardStageFrame
+      hudVm={hudVm}
+      desktopDicePresentation={desktopDicePresentation}
+      matchupIntro={matchupIntro}
+      healthContent={
         <div
           className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full"
           data-name="Health Wrapper"
@@ -757,11 +767,12 @@ export function BoardStage({
             />
           </div>
         </div>
-
-        {/* Stats */}
-        <div className="content-stretch flex flex-col gap-[20px] items-center relative shrink-0 w-full min-[768px]:max-[1599px]:gap-[12px]" data-name="Stats Wrapper">
+      }
+      statsContent={
+        <div className="content-stretch flex min-h-0 shrink flex-col items-center relative w-full" data-name="Stats Wrapper">
           {/* Saved Lines */}
           {vm.showTurnStartEconomyPresentation ? (
+          <>
           <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full" data-name="Saved Lines Group">
             {/* P1 */}
             <div className="content-stretch flex items-start justify-end relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]" data-name="P1 Saved Wrapper">
@@ -801,10 +812,13 @@ export function BoardStage({
               </div>
             </div>
           </div>
+          <div aria-hidden="true" className="min-h-0 basis-[20px] shrink min-[768px]:max-[1599px]:basis-[12px]" />
+          </>
           ) : null}
 
           {/* Bonus */}
           {vm.showTurnStartEconomyPresentation ? (
+          <>
           <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full" data-name="Bonus Group">
             <div className="content-stretch flex gap-[4px] items-center justify-end relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]" data-name="P1 Bonuses">
               <HoverAnchor
@@ -896,6 +910,8 @@ export function BoardStage({
               </HoverAnchor>
             </div>
           </div>
+          <div aria-hidden="true" className="min-h-0 basis-[20px] shrink min-[768px]:max-[1599px]:basis-[12px]" />
+          </>
           ) : null}
 
           <PairedStatGroup
@@ -915,6 +931,7 @@ export function BoardStage({
             onFocus={statHover.onFocus}
             onBlur={statHover.onBlur}
           />
+          <div aria-hidden="true" className="min-h-0 basis-[20px] shrink min-[768px]:max-[1599px]:basis-[12px]" />
           <PairedStatGroup
             leftCurrent={formatBoardStatMetric(myHealingPair?.current, 'current')}
             leftLast={formatBoardStatMetric(myHealingPair?.last, 'last')}
@@ -933,16 +950,39 @@ export function BoardStage({
             onBlur={statHover.onBlur}
           />
         </div>
-
-          </div>
-        </div>
-        {matchupIntro ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[var(--ss-desktop-header-height)] z-20 flex items-center justify-center overflow-hidden select-none">
-            <div className="-translate-y-[29px]">
-              <MatchupIntroVersus matchupIntro={matchupIntro} variant="desktop" />
-            </div>
-          </div>
+      }
+    >
+      <div className="col-start-1 row-start-2 flex min-h-0 min-w-0">
+      <FleetArea
+        title="MY FLEET"
+        ships={vm.myFleet}
+        ancientSolarEntries={vm.myAncientSolarEntries}
+        isBattleReveal={isBattleReveal}
+        voidShips={vm.myVoidFleet}
+        order={vm.myFleetRenderOrder}
+        species={mySpeciesKey}
+        animTokens={vm.fleetAnim.my}
+        flipEnabled={vm.mode === 'board'}
+        side="my"
+        activationIndexMap={vm.activationStaggerPlan?.myIndexByShipId}
+        healthDeltaFlash={vm.myFleetHealthDeltaFlash}
+        targetStatesByStackKey={vm.destroyTargeting?.targetStatesBySide.my}
+        previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdBySide.my}
+        onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
+        onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
+        onLiveFleetBackgroundMouseDown={actions.onBoardBackgroundMouseDown}
+        onFleetHoverEnter={fleetHover.onEnter}
+        onFleetHoverLeave={fleetHover.onLeave}
+        turnPulse={leftRevealPulse}
+        overlay={matchupIntro ? (
+          <MatchupIntroPlayerOverlay
+            matchupIntro={matchupIntro}
+            player={matchupIntro.localPlayer}
+            variant="desktop"
+            direction="from-right"
+          />
         ) : null}
+      />
       </div>
 
       <div className="col-start-3 row-start-2 flex min-h-0 min-w-0">
