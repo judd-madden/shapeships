@@ -18,6 +18,8 @@ export interface HealthBarScaleContext {
 }
 
 export interface HealthBarScaleGeometry {
+  /** Optional coordinated transition mapping; ordinary prepared geometry stays numeric. */
+  readonly mapValue?: (value: number) => number | null;
   readonly domainMin: number;
   readonly domainMax: number;
   readonly zeroPosition: number;
@@ -54,12 +56,23 @@ function sameIdentity(a: Readonly<ResolvedHealthIdentity>, b: Readonly<ResolvedH
  */
 export function mapHealthBarValue(scale: HealthBarScaleGeometry, value: number): number | null {
   if (!Number.isFinite(value) || value < scale.domainMin || value > scale.domainMax) return null;
+  if (scale.mapValue) return scale.mapValue(value);
   if (value === scale.domainMin) return 0;
   if (value === scale.domainMax) return 1;
   if (value === 0) return scale.zeroPosition;
   return value < 0
     ? scale.zeroPosition * (1 - value / scale.domainMin)
     : scale.zeroPosition + scale.positiveFraction * (value / scale.domainMax);
+}
+
+/** Inverse of a frozen prepared scale, used for screen-space endpoint movement. */
+export function unmapHealthBarValue(scale: HealthBarScaleGeometry, position: number): number {
+  if (position <= 0) return scale.domainMin;
+  if (position >= 1) return scale.domainMax;
+  if (position === scale.zeroPosition) return 0;
+  return position < scale.zeroPosition
+    ? scale.domainMin * (1 - position / scale.zeroPosition)
+    : scale.domainMax * ((position - scale.zeroPosition) / scale.positiveFraction);
 }
 
 /**

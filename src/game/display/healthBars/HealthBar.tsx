@@ -8,12 +8,15 @@ import {
   calculateHealthBarGeometry, healthBarAxisLength, healthBarValuePosition,
   type HealthBarPresentationState, type HealthBarSide,
 } from './healthBarPresentation';
+import type { HealthBarTransitionLabel } from './healthBarScaleTransition';
 
 interface HealthBarSharedProps {
   readonly scale: Readonly<PreparedHealthBarScale>;
   readonly orientation: HealthBarOrientation;
   /** Usable inner length; the track adds 2px padding at either end. */
   readonly axisLength: number;
+  /** Prepared transition ticks; static callers keep the existing automatic legend. */
+  readonly legendLabels?: readonly HealthBarTransitionLabel[];
 }
 
 export interface HealthBarProps extends HealthBarSharedProps {
@@ -66,19 +69,19 @@ export function HealthBar({ scale, side, state, orientation, axisLength, label }
   );
 }
 
-export function HealthBarLegend({ scale, orientation, axisLength }: HealthBarSharedProps) {
+export function HealthBarLegend({ scale, orientation, axisLength, legendLabels }: HealthBarSharedProps) {
   const desktop = orientation === 'desktop';
   const length = healthBarAxisLength(axisLength);
-  const labels = calculateHealthBarLegend(scale, { orientation, axisLength: length });
+  const labels = legendLabels ?? calculateHealthBarLegend(scale, { orientation, axisLength: length });
   return (
     <div aria-label="Shared health scale" data-health-legend={orientation}
       className="relative shrink-0 overflow-visible font-normal leading-none text-[var(--shapeships-grey-50)]"
       style={{ width: desktop ? 56 : length + 4, height: desktop ? length + 4 : 18, fontSize: desktop ? 12 : 10 }}>
       {labels.map((tick) => (
         <span key={tick.value} data-health-tick={tick.value} className="absolute whitespace-nowrap"
-          style={desktop
+          style={{ opacity: 'opacity' in tick && typeof tick.opacity === 'number' ? tick.opacity : 1, ...(desktop
             ? { top: healthBarValuePosition(scale, tick.value, orientation, length)!, left: '50%', transform: 'translate(-50%, -50%)' }
-            : { left: healthBarValuePosition(scale, tick.value, orientation, length)!, top: '50%', transform: 'translate(-50%, -50%)' }}>
+            : { left: healthBarValuePosition(scale, tick.value, orientation, length)!, top: '50%', transform: 'translate(-50%, -50%)' }) }}>
           {tick.label}
         </span>
       ))}
