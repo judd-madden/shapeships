@@ -75,7 +75,7 @@ describe('health-bar production geometry', () => {
         : { left: 2, top: 2, width: 3, height: 10 });
       const prepared = scale();
       const crossing = calculateHealthBarGeometry(prepared, 'left', {
-        health: 10, red: { from: -60, to: 25 }, green: { from: -60, to: 10 },
+        health: 10, red: { from: -60, to: 0 }, green: { from: -60, to: 10 },
       }, orientation, 256);
       expect((orientation === 'desktop' ? crossing.zero.top : crossing.zero.left) + 1.5)
         .toBeCloseTo(healthBarValuePosition(prepared, 0, orientation, 256)!);
@@ -102,7 +102,7 @@ describe('health-bar production geometry', () => {
 describe('health-bar rendered structure', () => {
   it('keeps independent red/green layers in order with the zero marker last', () => {
     const prepared = scale(-300);
-    const state: HealthBarPresentationState = { health: 12, red: { from: -60, to: 25 }, green: { from: -60, to: 12 } };
+    const state: HealthBarPresentationState = { health: 12, red: { from: -60, to: 0 }, green: { from: -60, to: 12 } };
     const props = { scale: prepared, side: 'left' as const, state, orientation: 'desktop' as const, axisLength: 320, label: 'Player A' };
     const tree = HealthBar(props);
     const nodes = elements(tree);
@@ -110,8 +110,8 @@ describe('health-bar rendered structure', () => {
     expect(ordered).toEqual(['white', 'red', 'green', 'cap', 'compression', 'zero']);
     const markup = renderToStaticMarkup(createElement(HealthBar, props));
     expect(markup).toContain('role="img"');
-    expect(markup).toContain('red interval -60 to 25; green interval -60 to 12');
-    const moved = elements(HealthBar({ ...props, state: { ...state, red: { from: -20, to: -10 } } }));
+    expect(markup).toContain('red interval -60 to 0; green interval -60 to 12');
+    const moved = elements(HealthBar({ ...props, state: { ...state, red: { from: -20, to: 0 } } }));
     expect(moved.find((node) => node.props['data-health-layer'] === 'green')!.props.style)
       .toEqual(nodes.find((node) => node.props['data-health-layer'] === 'green')!.props.style);
     const cleared = elements(HealthBar({ ...props, state: { health: 12, green: state.green } }));
@@ -120,6 +120,58 @@ describe('health-bar rendered structure', () => {
   });
 
   for (const orientation of ['desktop', 'mobile'] as const) {
+    it(`${orientation}: handoff renders zero-length intervals without visible minimums`, () => {
+      const prepared = scale(-60, 35, 50, orientation);
+      for (const health of [13, -60]) {
+        const state: HealthBarPresentationState = { health,
+          red: { from: health, to: health < 0 ? 0 : health }, green: { from: health, to: health } };
+        const geometry = calculateHealthBarGeometry(prepared, 'left', state, orientation, 256);
+        expect(geometry.green).toBeNull();
+        if (health >= 0) expect(geometry.red).toBeNull();
+        else expect(geometry.red).toEqual(healthBarIntervalRectangle(prepared, { from: -60, to: 0 }, orientation, 256));
+        const markup = renderToStaticMarkup(createElement(HealthBar, { scale: prepared, orientation,
+          axisLength: 256, side: 'left', state, label: 'A' }));
+        expect(markup).not.toContain('data-health-layer="green"');
+        expect(markup.includes('data-health-layer="red"')).toBe(health < 0);
+        expect(markup).toContain('data-health-marker="zero"');
+      }
+    });
+
+    it(`${orientation}: keeps the negative red rectangle behind green through zero crossing`, () => {
+      const prepared = scale(-60, 35, 50, orientation);
+      const red = healthBarIntervalRectangle(prepared, { from: -60, to: 0 }, orientation, 256);
+      for (const health of [-47.55, -18.5, 23]) {
+        const state = { health, red: { from: -60, to: 0 }, green: { from: -60, to: health } };
+        const geometry = calculateHealthBarGeometry(prepared, 'left', state, orientation, 256);
+        expect(geometry.red).toEqual(red);
+        const nodes = elements(HealthBar({ scale: prepared, orientation, axisLength: 256, side: 'left', state, label: 'A' }));
+        const order = nodes.map((node) => node.props['data-health-layer'] ?? node.props['data-health-marker']).filter(Boolean);
+        expect(order.indexOf('red')).toBeLessThan(order.indexOf('green'));
+        expect(order.at(-1)).toBe('zero');
+        if (health < 0) expect(geometry.white).toBeNull();
+      }
+    });
+
+    it(`${orientation}: negative settled red is explicit and maps final health to zero`, () => {
+      const prepared = scale(-60, 35, 50, orientation);
+      const state = { health: -13, red: { from: -13, to: 0 } };
+      const geometry = calculateHealthBarGeometry(prepared, 'left', state, orientation, 256);
+      expect(geometry.red).toEqual(healthBarIntervalRectangle(prepared, { from: -13, to: 0 }, orientation, 256));
+      expect(geometry.white).toBeNull();
+      expect(geometry.green).toBeNull();
+      const props = { scale: prepared, orientation, axisLength: 256, side: 'left' as const, label: 'A' };
+      const final = renderToStaticMarkup(createElement(HealthBar, { ...props, state }));
+      expect(final).toContain('data-health-layer="red"');
+      expect(final).not.toContain('data-health-layer="white"');
+      expect(final).not.toContain('data-health-layer="green"');
+      for (const health of [-13, 0]) {
+        const uncoloured = renderToStaticMarkup(createElement(HealthBar, { ...props, state: { health } }));
+        expect(uncoloured).not.toContain('data-health-layer="red"');
+        expect(uncoloured).not.toContain('data-health-layer="white"');
+        expect(uncoloured).toContain('data-health-marker="zero"');
+      }
+    });
+
     it(`${orientation}: pair shares scale, inner length and aligned legend positions`, () => {
       const prepared = scale(-300, 35, 50, orientation);
       const tree = HealthBarPair({ scale: prepared, orientation, axisLength: 256,
