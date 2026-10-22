@@ -7,13 +7,26 @@
 - **Prepared:** 2026-10-21
 - **Audited source:** supplied `1020.zip`
 - **Phase 20A:** Game UI Updates — implementation and automated validation complete through 20A.7; final owner visual acceptance pending
-- **Phase 20B:** 20B.1 presentation-data preparation and 20B.2 pure shared scale/legend calculations implemented; rendering, animation and live integration remain for separate owner-reviewed passes
+- **Phase 20B:** 20B.1 presentation-data preparation, 20B.2 pure shared scale/legend calculations and 20B.3 static rendering implemented; owner visual review pending. Animation and live integration remain for separate owner-reviewed passes
 - **Architecture:** server-authoritative gameplay; client-owned presentation
 - **Suggested repository location:** `\src\documentation\plans\Phase 20 Game UI and Health Bars.md`
 
 > This is the main planning baseline, not permission to implement every pass in one operation. Judd will supply designs and review individual pass plans and implementations. At Judd's discretion, an approved individual pass plan may change the scope, sequence, measurements or behaviour proposed here. Further responsive requirements are expected. Preserve all existing behaviour unless a change is explicitly part of the approved pass.
 
 Implementation notes below are historical pass records. For the current Phase A contract, the 20A.4 refinements supersede the original bar-height cap, spacing and wide combat cards; 20A.6 supersedes interim mobile inspection; 20A.7 supersedes earlier desktop numeric typography and selector-based positioning notes. Earlier validation counts describe those passes only.
+
+### 2026-10-22 — 20B.3 health-bar and legend rendering
+
+- **Pass type:** Client/UI plus this planning update. **Primary layer:** display. Added reusable `HealthBar`, `HealthBarLegend` and `HealthBarPair` in `display/healthBars/HealthBar.tsx`, with presentation types and pure rectangle geometry in `healthBarPresentation.ts`. The existing `healthBarScale.ts` remains unchanged. Live BoardStage/MobileStatusRail placeholders, current health presentation, public estimates, desktop dice helpers, networking, server, Stats graphs and tooling remain unchanged.
+- **Inputs and ownership:** a bar consumes one prepared shared scale, player side, orientation, caller-supplied **inner** axis length, accessible label and readonly explicit `{ health, red?: { from, to }, green?: { from, to } }` state. Cap metadata comes from the prepared scale. The pair gives the same scale/axis to both bars and the shared legend. Red and green are independently movable/clearable and can coexist. Renderers do not infer stages, outcomes or eligibility, and contain no timers, automatic playback, transitions or server interaction.
+- **Geometry:** every value position uses `mapHealthBarValue`; rectangles derive from mapped endpoints before orientation. Desktop increases upward with **24px inner width**, **2px padding** on every side and **28px outer width**; mobile increases rightward with **10px inner height**, **2px padding** and **14px outer height**. Outer axis length is inner length plus 4px. White fills only positive health from zero, bounded by a known player cap; unknown caps remain unknown. Empty/unmappable contribution intervals produce no rectangle, without invented minimum lengths or silent domain clipping.
+- **Palette/backgrounds:** desktop is exactly `linear-gradient(to bottom, var(--shapeships-grey-90) 0%, #101010 80%, #101010 100%)`, with full opacity at both stops and #101010 retained through the bottom. Mobile is flat `var(--shapeships-grey-90)`. Contribution layers use `var(--shapeships-red)` and `var(--shapeships-green)`; health and zero use white. Square ends, no shadows or decorative effects; static Tailwind utilities plus local numeric inline geometry follow existing conventions.
+- **Layering and markers:** background → white positive fill → red → green → auxiliary markers → white zero. Zero is always present, **3px along the axis**, across the full 24px/10px interior. Only the marker rectangle shifts inward at an edge to keep it visible; scale/legend anchors remain exact. A restrained grey-50 cap tick appears outside the coloured interior only for known caps below the shared positive top. A small grey-50 double-slash cue appears outside the negative region near zero only when `negativeCompression` is active. Cap/compression-marker appearance remains **provisional for owner review**.
+- **Legend:** uses `calculateHealthBarLegend` with the actual inner axis and accepted priority/spacing rules. Labels share the bar's 2px padded coordinate system and remain anchored at exact mapped positions, with endpoint overflow allowed. Desktop pairs use the **56px central legend lane**; mobile uses upper bar/shared horizontal legend/lower bar. Initial typography is **12px desktop / 10px mobile**, regular weight, line-height 1, all grey-50; sizes remain subject to owner visual review.
+- **Development examples:** open **development launcher → Graphics Test → Health Bars**. `HealthBarExamples.tsx` uses production components and `healthBarExampleFixtures.ts` contains eight coherent paired scenarios: ordinary damage/healing, small damage/healing, below-zero recovery, negative final result, full-health overheal, damage plus excess healing, unequal/increased caps and extreme negative compression. Manual scenario/stage selectors show both orientations simultaneously; scenario changes reset stage selection. **320px desktop / 256px mobile inner axes are gallery example dimensions only**, with local horizontal overflow available on narrow gallery widths. Existing Graphics Test sections remain intact.
+- **Fixture retention/surplus:** each orientation prepares its scale once from the complete paired resolution, never from selected intermediate poses. Static poses cover damage reveal/movement/clearance, healing reveal/movement/clearance, red/green handoff, settled starts/finals and bounded surplus sweeps/clearance. Surplus white remains capped and explicit green intervals stay within the capped positive interior; gross unused healing never expands the domain. These are inspectable examples, not approved motion/timing or an animation controller.
+- **Validation:** `npm run typecheck`, `npm run test:client` (**45 files, 497 tests**, including **23** focused rendering/example tests) and `npm run build` passed. Focused tests exercise mapped/reversed/zero-crossing bounds, small intervals, positive/capped white fill, independent simultaneous layers, edge zero placement/layer order, unequal/unknown caps, compression eligibility, legend alignment and every fixture stage retaining its prepared scale. Production CSS inspection confirmed the required red/green/grey-50 utilities, regular weight and line-height utilities. The existing non-blocking >500kB chunk-size warning remains.
+- **Not run — browser/Vite testing handled by user.** Rendering is implemented with **owner visual review pending**: inspect both orientations, small contributions, persistent zero, unequal-cap ticks, compressed-negative cues, endpoint labels and surplus poses. Preserve documented 20B.1 cap/history provenance limitations. 20B.4–20B.7 controller, live adoption/retention, counters, timing, outcomes and preferences remain incomplete.
 
 ### 2026-10-22 — 20B.2 shared scale and legend calculations
 
@@ -660,7 +673,7 @@ On missing historical contributions or mismatched identities, show the authorita
 ### 11.1 Shared mapping
 
 - Both players use the same mapping for a displayed resolution.
-- Implemented pure API: `prepareHealthBarScale`, `mapHealthBarValue`, `calculateHealthBarLegend` and `retainPreparedHealthBarScale` in `display/healthBars/healthBarScale.ts`. Prepared geometry is immutable; normalized 0 is the exact domain minimum and 1 the exact maximum. Live rendering remains deferred.
+- Implemented pure API: `prepareHealthBarScale`, `mapHealthBarValue`, `calculateHealthBarLegend` and `retainPreparedHealthBarScale` in `display/healthBars/healthBarScale.ts`. Prepared geometry is immutable; normalized 0 is the exact domain minimum and 1 the exact maximum. 20B.3 renders explicit static states; live adoption remains deferred.
 - Desktop uses a vertical mapping; mobile uses the corresponding horizontal mapping.
 - Mobile's default non-negative domain places zero on the left and positive health toward the right. When negatives are included, retain a visible zero reference within the shared mapping.
 - Both orientations use the same logical damage, clearance, healing, surplus and settle stages, presentation/controller and scale rules; do not create a separate mobile animation engine.
@@ -836,7 +849,7 @@ Renaming Health Flash to Battle Effects, tying bar motion to it or adding a sepa
 
 **Acceptance:** mapping is monotonic, consistent for both players and exact at zero/caps; −300 does not squash positive health beyond its approved minimum; labels do not dictate geometry. Focused numerical tests cover threshold/extreme cases.
 
-**Implemented 2026-10-22:** pure shared scale/legend preparation, conditional piecewise-linear compression, independent label density and identity-based retention guard; see the implementation record above for API, policy and validation. 20B.3–20B.7 remain incomplete.
+**Implemented 2026-10-22:** pure shared scale/legend preparation, conditional piecewise-linear compression, independent label density and identity-based retention guard; see the implementation record above for API, policy and validation. 20B.3 static rendering is subsequently implemented; 20B.4–20B.7 remain incomplete.
 
 ### 20B.3 — Atomic bars and legend rendering
 
@@ -844,11 +857,13 @@ Renaming Health Flash to Battle Effects, tying bar motion to it or adding a sepa
 
 **Goal:** Render vertical/horizontal bars from explicit presentation state, without owning resolution scheduling.
 
-**Expected scope:** new local bar/segment/legend components and approved existing styling locations; placeholder replacement seams only.
+**Implemented scope:** reusable bar/legend/pair components and pure presentation geometry under `display/healthBars/`, focused display tests, static Graphics Test examples and this planning update. Existing live placeholders are unchanged.
 
 **Work:** tracks, fill, red/green overlays, zero/cap markers, differing maximums, compressed negative cue and surplus-healing visual treatment. Support inspection of named states in the existing suitable development surface if agreed; do not build a new framework.
 
 **Acceptance:** individual supplied animation-sheet states are representable at intended dimensions; values are not clipped or misleading; no timers/networking/rule calculations inside the atomic renderer.
+
+**Implemented 2026-10-22:** explicit independent red/green intervals, capped positive white fill, exact track/background geometry, persistent zero, shared legend, provisional cap/compression markers and eight manually selected paired Graphics Test scenarios. Automated validation passed; owner visual review remains pending. See the 20B.3 implementation record above. Animation/controller and live integration remain deferred.
 
 ### 20B.4 — Dedicated multi-stage animation controller
 
@@ -942,17 +957,17 @@ This register is part of the plan and should be updated as passes are approved.
 | D08 | Helper placement | 20A.3 implemented using the approved L/M/S CSS targets and compact CHR grid; existing selection preserved. Owner visual review pending. | 20A.3 |
 | D09 | Server extension | No server change in 20B.1. Supported boundaries use explicit finalized caps/matching live-finalized history; known next-turn fleet work settles because current history derives caps from post-advance state. Exact coverage needs a separate aggregate-time cap capture through existing finalize/history/projection seams. Older cap provenance also remains unavailable. | 20B.1 audit; separate Server Pass for broader coverage |
 | D10 | Positive-space clamp | 20B.2 calculations implemented: independently configurable desktop/mobile minimum positive fraction, both initially 0.35; shared positive domain accommodates caps and positive starts/finals above baseline 35. | 20B.2 complete; live adoption later |
-| D11 | Negative compression | 20B.2 calculations implemented: single linear scale until natural positive share falls below minimum, then continuous piecewise-linear negative compression. Readable bounded tick candidates and independent thinning; scale-break appearance remains provisional. | 20B.2 complete; cue in 20B.3 |
+| D11 | Negative compression | 20B.2 calculations implemented: single linear scale until natural positive share falls below minimum, then continuous piecewise-linear negative compression. 20B.3 adds an external grey-50 double-slash cue; appearance remains provisional pending owner review. | Calculations/rendering implemented; visual review pending |
 | D12 | Scale retention | Confirmed and expressed by pure preparation/identity guard: freeze through all resolution stages, retain through build/selection, recalculate and allow contraction at next resolution. Terminal finals remain represented; reset/recovery invalidates prior context. Live wiring deferred. | 20B.2 complete; controller/integration later |
 | D13 | Counter behaviour | Open: main number follows intermediate values or transitions to final separately. | Before 20B.5 |
-| D14 | Overheal | Cap white fill; do not expand positive range for surplus. Exact green sweep/clearance provisional. | 20B.3–20B.4 |
+| D14 | Overheal | 20B.3 caps white fill and represents explicit green sweep/clearance intervals within the capped positive interior, without expanding the domain for surplus. Static examples implemented; exact motion/timing remains provisional. | Visual review pending; controller in 20B.4 |
 | D15 | Animation timings | Confirmed: one clearly named, manually editable configuration with named stages; contribution easing cubic-bezier(0.7, 0, 0.3, 1). Durations and bounded sequence/lifecycle coordination remain open. | 20B.4 |
 | D16 | Preferences | Open: Health Flash, Battle Effects name, bar-motion switch, reduced-motion and existing sound coordination. | 20B.4–20B.7 |
-| D17 | Outcome markers | Preserve canonical outcomes; exact loss/draw/narrow-victory styling provisional. | 20B.3/20B.7 |
+| D17 | Outcome markers | Preserve canonical outcomes; exact loss/draw/narrow-victory styling provisional. 20B.3 represents negative final geometry only, without outcome inference or lettering. | 20B.7 |
 | D18 | Placeholder treatment | Implemented neutral tracks/blank lanes: desktop 24px tracks and 56px lane; mobile 12px tracks/lane. No active fills, scale or legend in Phase A. Owner visual acceptance pending. | 20A.2/20A.5/20A.7 |
 | D19 | Desktop numeric typography and refs | Exact 20A.7 tiers/line-height 1 and explicit board/bar refs implemented and automated checks passed; final owner visual acceptance pending. | 20A.7 |
-| D20 | Active bar geometry | Confirmed: desktop vertical, inner width 24px / padding 2px per side / outer width 28px; mobile horizontal, inner height 10px / padding 2px per side / outer height 14px. Documentation only in 20B.1. | 20B.3/20B.5/20B.6 |
-| D21 | Mapping and zero reference | 20B.2 pure mapping implemented: normalized min 0 / max 1, shared before motion, mobile non-negative zero left / positive right; 35% conditional protection. Rendering remains deferred: zero always above contributions, white 3px desktop marker across 24px interior, orientation-aware mobile equivalent; legend grey-50. | 20B.2 complete; rendering in 20B.3 |
+| D20 | Active bar geometry | 20B.3 renderer implemented: desktop vertical, inner width 24px / padding 2px per side / outer width 28px; mobile horizontal, inner height 10px / padding 2px per side / outer height 14px. Axis length is supplied by parent. Desktop full-opacity gradient: grey-90 at 0%, #101010 at 80% through 100%; mobile flat grey-90. Live placeholders unchanged. | Visual review pending; integration in 20B.5/20B.6 |
+| D21 | Mapping and zero reference | 20B.2 mapping and 20B.3 rendering implemented: shared mapping, persistent white 3px zero above colours across the full interior, padding-aligned grey-50 legend at 12px desktop / 10px mobile, regular weight and line-height 1. Edge marker rectangle shifts inward without changing the scale. | Visual review pending; live integration later |
 | D22 | Snapshot lifetime and provenance | Implemented: retain N through existing publication/release; N+1 DTO arrival is not cancellation. Frozen accepted facts; live completion corroborates matching finalized history; no numeric rejection of cap 35. History/bootstrap/recovery alone cannot start a sequence. | 20B.1 |
 
 Additional discovered requirements should be added here with their affected pass. A later approved pass plan may supersede an entry at Judd's discretion.
@@ -1072,7 +1087,8 @@ Unimplemented entries remain proposals, not claimed pixel-perfect readings. The 
 | Element | Initial proposal | Class | Review |
 | --- | --- | --- | --- |
 | Desktop bar track | Vertical; inner width 24px, dark-grey padding 2px per side, outer width 28px; white fill, red/green transient layers | A geometry / P remaining treatment | 20B.3; use existing palette tokens. |
-| Desktop legend text | Start at 11–12 CSS px; fit labels by density, not blanket scaling | P | 20A.2/20B.2. |
+| Desktop legend text | 12 CSS px, regular weight, line-height 1, grey-50; fit labels by density | P | 20B.3 implemented; owner visual review pending. |
+| Mobile legend text | 10 CSS px, regular weight, line-height 1, grey-50 | P | 20B.3 implemented; owner visual review pending. |
 | Desktop current contribution | 20/24/28px at small/medium/large tiers, bold | A | 20A.7; retained matching implementation. |
 | Desktop last contribution | 14/16/20px, opacity 0.66 | A | 20A.7; centred against health number, excluding delta. |
 | Desktop economy | Saved/Bonus 20/24/28px; labels remain 11/12/12px | A | 20A.7; includes ordinary/joining/Centaur categories. |

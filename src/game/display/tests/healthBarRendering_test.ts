@@ -1,0 +1,149 @@
+import { Children, createElement, isValidElement, type ReactElement, type ReactNode } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it } from 'vitest';
+import type { ResolvedHealthPresentation } from '../../client/gameSession/types';
+import { HealthBar, HealthBarLegend, HealthBarPair } from '../healthBars/HealthBar';
+import {
+  calculateHealthBarGeometry, healthBarIntervalRectangle, healthBarValuePosition,
+  type HealthBarPresentationState,
+} from '../healthBars/healthBarPresentation';
+import {
+  calculateHealthBarLegend, mapHealthBarValue, prepareHealthBarScale,
+  type HealthBarOrientation,
+} from '../healthBars/healthBarScale';
+
+const identity = { gameId: 'g', viewerId: 'a', viewerRole: 'player' as const, leftPlayerId: 'a', rightPlayerId: 'b' };
+function scale(min = -60, leftCap: number | null = 35, rightCap: number | null = 50, orientation: HealthBarOrientation = 'desktop') {
+  const presentation: ResolvedHealthPresentation = { mode: 'settled', identity,
+    left: { playerId: 'a', health: min, maxHealth: leftCap },
+    right: { playerId: 'b', health: 25, maxHealth: rightCap },
+    outcome: { isTerminal: false, winnerPlayerId: null, resultReason: null } };
+  const result = prepareHealthBarScale(presentation, { identity, continuityKey: 'test' }, { orientation });
+  if (!result) throw new Error('Expected scale');
+  return result;
+}
+
+type Element = ReactElement<Record<string, any>>;
+function elements(node: ReactNode): Element[] {
+  return Children.toArray(node).flatMap((child) => {
+    if (!isValidElement(child)) return [];
+    const element = child as Element;
+    return [element, ...elements(element.props.children)];
+  });
+}
+
+describe('health-bar production geometry', () => {
+  for (const orientation of ['desktop', 'mobile'] as const) {
+    it(`${orientation}: maps both endpoints before orienting crossing and reversed intervals`, () => {
+      const prepared = scale(-300, 35, 50, orientation);
+      for (const [from, to] of [[-200, 25], [25, -200], [-150, -50], [0, 35]]) {
+        const bounds = healthBarIntervalRectangle(prepared, { from, to }, orientation, 320)!;
+        const positions = [from, to].map((value) => mapHealthBarValue(prepared, value)!);
+        const lower = Math.min(...positions);
+        const upper = Math.max(...positions);
+        expect(orientation === 'desktop' ? bounds.height : bounds.width).toBeCloseTo((upper - lower) * 320);
+        expect(orientation === 'desktop' ? bounds.top : bounds.left).toBeCloseTo(2 + (orientation === 'desktop' ? 1 - upper : lower) * 320);
+        expect(orientation === 'desktop' ? [bounds.left, bounds.width] : [bounds.top, bounds.height]).toEqual(orientation === 'desktop' ? [2, 24] : [2, 10]);
+      }
+    });
+
+    it(`${orientation}: positive white fill stops at the player's cap`, () => {
+      const prepared = scale(-60, 35, 50, orientation);
+      const geometry = calculateHealthBarGeometry(prepared, 'left', { health: 48 }, orientation, 256);
+      expect(geometry.white).toEqual(healthBarIntervalRectangle(prepared, { from: 0, to: 35 }, orientation, 256));
+      expect(calculateHealthBarGeometry(prepared, 'right', { health: 48 }, orientation, 256).white)
+        .toEqual(healthBarIntervalRectangle(prepared, { from: 0, to: 48 }, orientation, 256));
+      for (const health of [-60, -1, 0]) {
+        expect(calculateHealthBarGeometry(prepared, 'left', { health }, orientation, 256).white).toBeNull();
+      }
+      expect([geometry.width, geometry.height]).toEqual(orientation === 'desktop' ? [28, 260] : [260, 14]);
+    });
+
+    it(`${orientation}: preserves exact small intervals, omits invalid and empty intervals`, () => {
+      const prepared = scale();
+      const tiny = healthBarIntervalRectangle(prepared, { from: 10, to: 10.001 }, orientation, 100)!;
+      expect(orientation === 'desktop' ? tiny.height : tiny.width).toBeLessThan(0.01);
+      for (const interval of [{ from: 5, to: 5 }, { from: -61, to: 0 }, { from: 0, to: 51 }, { from: NaN, to: 0 }, { from: 0, to: Infinity }]) {
+        expect(healthBarIntervalRectangle(prepared, interval, orientation, 100)).toBeNull();
+      }
+    });
+
+    it(`${orientation}: keeps a complete zero marker at the edge and over zero-crossing fills`, () => {
+      const edge = calculateHealthBarGeometry(scale(0, 35, 35), 'left', { health: 25 }, orientation, 100);
+      expect(edge.zero).toEqual(orientation === 'desktop'
+        ? { left: 2, top: 99, width: 24, height: 3 }
+        : { left: 2, top: 2, width: 3, height: 10 });
+      const prepared = scale();
+      const crossing = calculateHealthBarGeometry(prepared, 'left', {
+        health: 10, red: { from: -60, to: 25 }, green: { from: -60, to: 10 },
+      }, orientation, 256);
+      expect((orientation === 'desktop' ? crossing.zero.top : crossing.zero.left) + 1.5)
+        .toBeCloseTo(healthBarValuePosition(prepared, 0, orientation, 256)!);
+      expect(crossing.red).not.toBeNull();
+      expect(crossing.green).not.toBeNull();
+    });
+
+    it(`${orientation}: unknown caps remain unknown and compression alone enables the cue`, () => {
+      const unknown = scale(-60, null, null, orientation);
+      const geometry = calculateHealthBarGeometry(unknown, 'left', { health: 30 }, orientation, 256);
+      expect(geometry.capPosition).toBeNull();
+      expect(geometry.white).toEqual(healthBarIntervalRectangle(unknown, { from: 0, to: 30 }, orientation, 256));
+      expect(geometry.compressionPosition).toBeNull();
+      const compressed = scale(-300, 35, 50, orientation);
+      const marked = calculateHealthBarGeometry(compressed, 'left', { health: -25 }, orientation, 256);
+      expect(marked.compressionPosition).not.toBeNull();
+      expect(orientation === 'desktop' ? marked.compressionPosition! > marked.zeroPosition : marked.compressionPosition! < marked.zeroPosition).toBe(true);
+      expect(marked.capPosition).toBe(healthBarValuePosition(compressed, 35, orientation, 256));
+      expect(calculateHealthBarGeometry(compressed, 'right', { health: 25 }, orientation, 256).capPosition).toBeNull();
+    });
+  }
+});
+
+describe('health-bar rendered structure', () => {
+  it('keeps independent red/green layers in order with the zero marker last', () => {
+    const prepared = scale(-300);
+    const state: HealthBarPresentationState = { health: 12, red: { from: -60, to: 25 }, green: { from: -60, to: 12 } };
+    const props = { scale: prepared, side: 'left' as const, state, orientation: 'desktop' as const, axisLength: 320, label: 'Player A' };
+    const tree = HealthBar(props);
+    const nodes = elements(tree);
+    const ordered = nodes.map((node) => node.props['data-health-layer'] ?? node.props['data-health-marker']).filter(Boolean);
+    expect(ordered).toEqual(['white', 'red', 'green', 'cap', 'compression', 'zero']);
+    const markup = renderToStaticMarkup(createElement(HealthBar, props));
+    expect(markup).toContain('role="img"');
+    expect(markup).toContain('red interval -60 to 25; green interval -60 to 12');
+    const moved = elements(HealthBar({ ...props, state: { ...state, red: { from: -20, to: -10 } } }));
+    expect(moved.find((node) => node.props['data-health-layer'] === 'green')!.props.style)
+      .toEqual(nodes.find((node) => node.props['data-health-layer'] === 'green')!.props.style);
+    const cleared = elements(HealthBar({ ...props, state: { health: 12, green: state.green } }));
+    expect(cleared.some((node) => node.props['data-health-layer'] === 'red')).toBe(false);
+    expect(cleared.some((node) => node.props['data-health-layer'] === 'green')).toBe(true);
+  });
+
+  for (const orientation of ['desktop', 'mobile'] as const) {
+    it(`${orientation}: pair shares scale, inner length and aligned legend positions`, () => {
+      const prepared = scale(-300, 35, 50, orientation);
+      const tree = HealthBarPair({ scale: prepared, orientation, axisLength: 256,
+        left: { health: 25 }, right: { health: 30 }, leftLabel: 'A', rightLabel: 'B' });
+      const children = Children.toArray(tree.props.children) as Element[];
+      expect(children.map((child) => child.type)).toEqual([HealthBar, HealthBarLegend, HealthBar]);
+      for (const child of children) {
+        expect(child.props.scale).toBe(prepared);
+        expect(child.props.axisLength).toBe(256);
+      }
+      const legend = HealthBarLegend({ scale: prepared, orientation, axisLength: 256 });
+      expect(legend.props.style.width).toBe(orientation === 'desktop' ? 56 : 260);
+      const labels = elements(legend).filter((node) => node.props['data-health-tick'] !== undefined);
+      expect(labels.map((node) => node.props['data-health-tick'])).toEqual(calculateHealthBarLegend(prepared, { axisLength: 256, orientation }).map((tick) => tick.value));
+      for (const node of labels) {
+        expect(orientation === 'desktop' ? node.props.style.top : node.props.style.left)
+          .toBe(healthBarValuePosition(prepared, node.props['data-health-tick'], orientation, 256));
+      }
+      const unknown = renderToStaticMarkup(createElement(HealthBar, { scale: scale(0, null, null), side: 'left', state: { health: -1 }, orientation, axisLength: 256, label: 'A' }));
+      expect(unknown).toContain('maximum unknown');
+      expect(unknown).not.toContain('data-health-marker="cap"');
+      expect(unknown).not.toContain('data-health-marker="compression"');
+      expect(unknown).not.toContain('data-health-layer="white"');
+      expect(unknown).toContain('data-health-marker="zero"');
+    });
+  }
+});

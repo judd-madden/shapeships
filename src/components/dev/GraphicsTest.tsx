@@ -1,4 +1,5 @@
 import React from 'react';
+import { HealthBarExamples } from './HealthBarExamples';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { DefenderShip, BattlecruiserShip, CarrierShip6, CarrierShip5, CarrierShip4, CarrierShip3, CarrierShip2, CarrierShip1, CarrierShip0, CommanderShip, DreadnoughtShip, EarthShip, FighterShip, FrigateShip, GuardianShip2, GuardianShip1, GuardianShip0, InterceptorShip1, InterceptorShip0, LeviathanShip, OrbitalShip, ScienceVesselShip, StarshipShip, TacticalCruiserShip } from '../../graphics/human/assets';
@@ -147,6 +148,7 @@ export default function GraphicsTest({ onBack }) {
       </div>
 
       <div className="space-y-6">
+        <HealthBarExamples />
         <Card className="border-blue-300 bg-blue-50">
           <CardHeader>
             <CardTitle className="text-blue-900">🎨 Graphics System - Embedded SVG Components</CardTitle>
