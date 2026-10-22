@@ -109,8 +109,15 @@ export function prepareHealthBarScale(
   if (![...represented, ...liveNumbers].every(Number.isFinite) ||
       caps.some((cap) => cap !== null && (!Number.isFinite(cap) || cap <= 0))) return null;
 
-  const domainMin = Math.min(0, ...represented) || 0;
-  const domainMax = Math.max(35, ...represented, ...caps.filter((cap): cap is number => cap !== null));
+  const requiredMin = Math.min(0, ...represented);
+  const requiredMax = Math.max(35, ...represented, ...caps.filter((cap): cap is number => cap !== null));
+  const roundExtentOutward = (extent: number): number => {
+    // Keep subnormal negatives represented, and never shrink/overflow finite extreme bounds.
+    const rounded = Math.ceil(Math.max(5, extent) / 5) * 5;
+    return Number.isFinite(rounded) ? Math.max(extent, rounded) : extent;
+  };
+  const domainMin = requiredMin < 0 ? -roundExtentOutward(-requiredMin) : 0;
+  const domainMax = roundExtentOutward(requiredMax);
   // Normalize BEFORE summing: domainMax + abs(domainMin) can overflow for finite endpoints.
   const magnitude = Math.max(domainMax, -domainMin);
   const positiveUnits = domainMax / magnitude;

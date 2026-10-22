@@ -58,6 +58,83 @@ Deno.test('health scale: default domain has exact zero and endpoints with no neg
   near(mapHealthBarValue(scale, 17.5), 0.5);
 });
 
+for (const orientation of ['desktop', 'mobile'] as const) {
+  for (const mode of ['live', 'settled'] as const) {
+    Deno.test(`health scale: ${orientation} ${mode} rounds either player's negative bounds outward`, () => {
+      for (const [minimum, expectedMin] of [
+        [0, 0], [-0, 0], [-1, -5], [-2, -5], [-5, -5], [-6, -10], [-7, -10], [-11, -15],
+        [-Number.MIN_VALUE, -5],
+      ]) {
+        const presentations = mode === 'live'
+          ? [live(side('p1', minimum)), live(side('p1'), side('p2', minimum))]
+          : [settled(minimum), settled(25, null, minimum)];
+        for (const presentation of presentations) {
+          const scale = prepare(presentation, orientation);
+          equal([scale.domainMin, scale.domainMax], [expectedMin, 35]);
+          assert(!Object.is(scale.domainMin, -0));
+          equal(mapHealthBarValue(scale, scale.domainMin), 0);
+          near(mapHealthBarValue(scale, minimum), (minimum - expectedMin) / (35 - expectedMin));
+        }
+      }
+    });
+
+    Deno.test(`health scale: ${orientation} ${mode} rounds health- and cap-driven positive bounds outward`, () => {
+      for (const [maximum, expectedMax] of [[25, 35], [35, 35], [36, 40], [43, 45], [45, 45]]) {
+        const presentations = mode === 'live'
+          ? [live(side('p1', maximum)), live(side('p1'), side('p2', maximum)),
+            live(side('p1', 25, 0, 0, maximum)), live(side('p1'), side('p2', 25, 0, 0, maximum))]
+          : [settled(maximum, 35), settled(25, 35, maximum),
+            settled(25, maximum), settled(25, null, 25, maximum)];
+        for (const presentation of presentations) {
+          const scale = prepare(presentation, orientation);
+          equal([scale.domainMin, scale.domainMax], [0, expectedMax]);
+          near(mapHealthBarValue(scale, maximum), maximum / expectedMax);
+          equal(mapHealthBarValue(scale, expectedMax), 1);
+          const source = presentation.mode === 'live' ? presentation.snapshot : presentation;
+          equal([scale.leftCap.value, scale.rightCap.value], [source.left.maxHealth, source.right.maxHealth]);
+          for (const cap of [scale.leftCap, scale.rightCap]) {
+            if (cap.value !== null) near(cap.position, cap.value / expectedMax);
+          }
+        }
+      }
+    });
+
+    Deno.test(`health scale: ${orientation} ${mode} rounded legend labels share exact value mappings`, () => {
+      for (const minimum of [-2, -7, -11, -300]) {
+        const presentation = mode === 'live'
+          ? live(side('p1', minimum), side('p2', 25, 0, 0, 43))
+          : settled(minimum, null, 25, 43);
+        const scale = prepare(presentation, orientation);
+        const before = JSON.stringify(scale);
+        for (const axisLength of [0, 120, 400, 1600]) {
+          for (const minimumLabelSpacing of [undefined, 10, 80]) {
+            const labels = calculateHealthBarLegend(scale, { axisLength, minimumLabelSpacing });
+            assert(labels.some((label) => label.value === 0));
+            assert(labels.some((label) => label.value === 45));
+            if (axisLength === 1600) assert(labels.some((label) => label.value === scale.domainMin));
+            for (const label of labels) {
+              assert(label.value % 5 === 0 && Number(label.label) % 5 === 0);
+              equal(label.position, mapHealthBarValue(scale, label.value));
+            }
+          }
+        }
+        equal(JSON.stringify(scale), before);
+      }
+    });
+  }
+
+  Deno.test(`health scale: ${orientation} preserves exact health, contribution endpoints and cap 43`, () => {
+    const presentation = live(side('p1', 43, 50, 8, 43));
+    const before = JSON.stringify(presentation);
+    const scale = prepare(presentation, orientation);
+    equal([scale.domainMin, scale.domainMax, scale.leftCap.value], [-10, 45, 43]);
+    near(scale.leftCap.position, 53 / 55);
+    for (const value of [43, -7, 1]) near(mapHealthBarValue(scale, value), (value + 10) / 55);
+    equal(JSON.stringify(presentation), before);
+    assert(retainPreparedHealthBarScale(scale, context) === scale);
+  });
+}
+
 Deno.test('health scale: unequal increased caps and non-tick caps have separate exact positions', () => {
   const scale = prepare(live(side('p1', 25, 0, 0, 43), side('p2', 25, 0, 0, 70)));
   equal([scale.domainMax, scale.leftCap.value, scale.rightCap.value], [70, 43, 70]);
@@ -85,7 +162,7 @@ for (const [name, start, damage, healing, expectedMin] of [
   ['already full overheal', 35, 0, 1000, 0],
   ['extreme damage plus unused healing', 35, 200, 299, -165],
   ['negative damage stage then positive recovery', 25, 85, 83, -60],
-  ['negative final', 12, 30, 5, -18],
+  ['negative final', 12, 30, 5, -20],
   ['negative starting health', -25, 0, 40, -25],
 ] as const) {
   Deno.test(`health scale: ${name}`, () => {
@@ -116,20 +193,27 @@ Deno.test('health scale: -60 to 35 remains linear with equal units above and bel
   near(mapHealthBarValue(scale, 0)! - mapHealthBarValue(scale, -10)!, 10 / 95);
 });
 
-Deno.test('health scale: threshold is continuous on both sides and exact at the threshold', () => {
-  const threshold = 35 * (1 - 0.35) / 0.35;
-  const below = prepare(settled(-threshold + 1e-7));
-  const at = prepare(settled(-threshold));
-  const above = prepare(settled(-threshold - 1e-7));
-  equal(below.negativeCompression, false);
-  equal(at.negativeCompression, false);
-  equal(above.negativeCompression, true);
-  near(at.positiveFraction, 0.35);
-  near(below.zeroPosition, above.zeroPosition, 1e-8);
-  for (const scale of [below, at, above]) {
-    near(mapHealthBarValue(scale, -1e-8), scale.zeroPosition, 1e-8);
-    near(mapHealthBarValue(scale, 1e-8), scale.zeroPosition, 1e-8);
-    equal(mapHealthBarValue(scale, 0), scale.zeroPosition);
+Deno.test('health scale: compression uses rounded bounds and mapping stays continuous around zero', () => {
+  for (const orientation of ['desktop', 'mobile'] as const) {
+    const linear = prepare(settled(-64), orientation);
+    const compressed = prepare(settled(-66), orientation);
+    equal([linear.domainMin, linear.negativeCompression], [-65, false]);
+    near(linear.positiveFraction, 35 / 100);
+    equal([compressed.domainMin, compressed.negativeCompression], [-70, true]);
+    near(compressed.positiveFraction, 0.35);
+
+    const below = prepare(settled(-35 + 1e-7), orientation, 0.5);
+    const at = prepare(settled(-35), orientation, 0.5);
+    const above = prepare(settled(-35 - 1e-7), orientation, 0.5);
+    equal([below.domainMin, at.domainMin, above.domainMin], [-35, -35, -40]);
+    equal([below.negativeCompression, at.negativeCompression, above.negativeCompression], [false, false, true]);
+    near(at.positiveFraction, 0.5);
+    near(below.zeroPosition, above.zeroPosition);
+    for (const scale of [linear, compressed, below, at, above]) {
+      near(mapHealthBarValue(scale, -1e-8), scale.zeroPosition, 1e-8);
+      near(mapHealthBarValue(scale, 1e-8), scale.zeroPosition, 1e-8);
+      equal(mapHealthBarValue(scale, 0), scale.zeroPosition);
+    }
   }
 });
 
@@ -172,10 +256,12 @@ Deno.test('health scale: finite endpoints whose sum overflows still have correct
   near(mapHealthBarValue(scale, -Number.MAX_VALUE / 2), 0.25);
 });
 
-Deno.test('health scale: very small negative ranges keep their zero reference where representable', () => {
+Deno.test('health scale: very small negative values remain exact within the rounded negative range', () => {
   const scale = prepare(settled(-1e-14));
-  assert(scale.zeroPosition > 0);
-  near(mapHealthBarValue(scale, -5e-15), scale.zeroPosition / 2, 1e-30);
+  equal(scale.domainMin, -5);
+  near(scale.zeroPosition, 5 / 40);
+  near(mapHealthBarValue(scale, -1e-14), (5 - 1e-14) / 40);
+  near(mapHealthBarValue(scale, -5e-15), (5 - 5e-15) / 40);
 });
 
 Deno.test('health scale: mapping rejects invalid or out-of-domain values without clipping', () => {
@@ -232,7 +318,7 @@ for (const axisLength of [0, 1, -10, NaN, Infinity, Number.MIN_VALUE]) {
 Deno.test('health scale: optional labels respect mapped spacing and negative context has priority', () => {
   const scale = prepare(settled(-63));
   const labels = calculateHealthBarLegend(scale, { axisLength: 350, minimumLabelSpacing: 24 });
-  equal(labels[0].value, -63);
+  equal(labels[0].value, -65);
   for (let index = 1; index < labels.length; index += 1) {
     assert((labels[index].position - labels[index - 1].position) * 350 >= 24);
   }
@@ -302,7 +388,7 @@ Deno.test('health scale: settled recovery uses current health and preserves unkn
   const scale = prepareHealthBarScale(settled(-13, null, 45, 50), recoveryContext, { orientation: 'mobile' });
   assert(scale);
   equal([scale.domainMin, scale.domainMax, scale.sourceMode, scale.presentationKey, scale.resolvedTurnNumber],
-    [-13, 50, 'settled', null, null]);
+    [-15, 50, 'settled', null, null]);
   equal(scale.leftCap, { playerId: 'p1', value: null, position: null });
   equal(scale.rightCap, { playerId: 'p2', value: 50, position: 1 });
   const unknown = prepare(settled());
@@ -327,8 +413,8 @@ Deno.test('health scale: accepts production 20B.1 live and settled preparation o
   const snapshot = captureResolvedHealthSnapshot({ state, ...context, resolvedTurnNumber: 4, source: 'poll' });
   assert(snapshot);
   const scale = prepare({ mode: 'live', snapshot });
-  equal([scale.domainMin, scale.domainMax], [-60, 43]);
+  equal([scale.domainMin, scale.domainMax], [-60, 45]);
   const current = buildSettledHealthPresentation(state, identity);
   assert(current);
-  equal([prepare(current).domainMin, prepare(current).domainMax], [0, 43]);
+  equal([prepare(current).domainMin, prepare(current).domainMax], [0, 45]);
 });
