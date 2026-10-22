@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { ResolvedHealthPresentation } from '../../client/gameSession/types';
 import { HealthBar, HealthBarLegend, HealthBarPair } from '../healthBars/HealthBar';
+import { prepareHealthBarOutcome } from '../healthBars/healthBarOutcomePresentation';
 import {
   calculateHealthBarGeometry, healthBarIntervalRectangle, healthBarValuePosition,
   type HealthBarPresentationState,
@@ -100,6 +101,58 @@ describe('health-bar production geometry', () => {
 });
 
 describe('health-bar rendered structure', () => {
+  for (const orientation of ['desktop', 'mobile'] as const) {
+    it(`${orientation}: anchors outcomes to mapped zero across resize and health endpoints, with clipped fill contrast`, () => {
+      const prepared = scale(-60, 35, 50, orientation);
+      const pair = prepareHealthBarOutcome(identity, { isTerminal: true, winnerPlayerId: 'a', resultReason: 'narrow' })!;
+      let offset: number | undefined;
+      for (const axisLength of [100, 320]) {
+        for (const health of [-5, 0, 0.25, 25]) {
+          const state = { health };
+          const tree = HealthBar({ scale: prepared, orientation, axisLength, side: 'left', state,
+            label: 'A', outcome: pair.left, outcomeOpacity: 0.5 });
+          const nodes = elements(tree);
+          const overlay = nodes.find((node) => node.props['data-health-outcome'] === 'NV')!;
+          const glyph = nodes.find((node) => node.props['data-health-outcome-contrast'] === 'track')!;
+          const geometry = calculateHealthBarGeometry(prepared, 'left', state, orientation, axisLength);
+          const position = orientation === 'desktop' ? glyph.props.style.top : glyph.props.style.left;
+          const gap = orientation === 'desktop' ? geometry.zeroPosition - position : position - geometry.zeroPosition;
+          expect(gap).toBeGreaterThan(0);
+          if (offset === undefined) offset = gap;
+          expect(gap).toBeCloseTo(offset);
+          expect(orientation === 'desktop' ? glyph.props.style.left : glyph.props.style.top)
+            .toBe((orientation === 'desktop' ? geometry.width : geometry.height) / 2);
+          expect(overlay.props.style.opacity).toBe(0.5);
+          expect(overlay.props['aria-hidden']).toBe('true');
+          const clip = nodes.find((node) => node.props['data-health-outcome-clip'] === 'white');
+          expect(!!clip).toBe(!!geometry.white);
+          if (geometry.white) {
+            const white = geometry.white;
+            expect(clip!.props.style.clipPath).toBe(`inset(${white.top}px ${geometry.width - white.left - white.width}px ${
+              geometry.height - white.top - white.height}px ${white.left}px)`);
+            const dark = nodes.find((node) => node.props['data-health-outcome-contrast'] === 'fill')!;
+            expect(dark.props.style).toEqual(glyph.props.style);
+          }
+          expect(nodes.indexOf(overlay)).toBeLessThan(nodes.findIndex((node) => node.props['data-health-marker'] === 'zero'));
+          expect(tree.props['aria-label']).toContain('Narrow victory');
+          const opaque = HealthBar({ scale: prepared, orientation, axisLength, side: 'left', state,
+            label: 'A', outcome: pair.left, outcomeOpacity: 1 });
+          expect(opaque.props['aria-label']).toBe(tree.props['aria-label']);
+          expect(nodes.some((node) => node.props['aria-live'])).toBe(false);
+        }
+      }
+    });
+  }
+
+  it('passes paired letters and shared opacity to the correct desktop tracks', () => {
+    const pair = prepareHealthBarOutcome(identity, { isTerminal: true, winnerPlayerId: 'b', resultReason: 'narrow' })!;
+    const tree = HealthBarPair({ scale: scale(), orientation: 'desktop', axisLength: 256,
+      left: { health: -5 }, right: { health: 0 }, leftLabel: 'A', rightLabel: 'B', outcome: { ...pair, opacity: 0.5 } });
+    const bars = elements(tree).filter((node) => node.type === HealthBar);
+    expect(bars.map((bar) => bar.props.outcome.letters)).toEqual(['NL', 'NV']);
+    expect(bars.map((bar) => bar.props.outcomeOpacity)).toEqual([0.5, 0.5]);
+  });
+
   for (const orientation of ['desktop', 'mobile'] as const) {
     for (const compactMobile of [false, true]) {
       it(`${orientation}: preserves legend styling with compactMobile=${compactMobile}`, () => {

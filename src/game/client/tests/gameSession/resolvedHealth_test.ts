@@ -5,6 +5,7 @@ import {
   getIntentResolvedHealthTurn, getResolvedHealthIdentityKey,
   observeHealthResolution, prepareResolvedHealthCapture, transitionResolvedHealth,
   isTerminalHealthBarPresentationPending,
+  readResolvedHealthOutcome,
   type HealthResolutionObservation,
 } from '../../gameSession/resolvedHealth';
 import type { BattleLogHistoryResponse, ResolvedHealthIdentity } from '../../gameSession/types';
@@ -19,6 +20,33 @@ const identity: ResolvedHealthIdentity = {
   gameId: 'g', viewerId: 'p1', viewerRole: 'player', leftPlayerId: 'p1', rightPlayerId: 'p2',
 };
 const continuityKey = 'g/player/p1/foreground/0';
+
+Deno.test('optional explicit result survives immutable live and settled projection without inventing envelope values', () => {
+  const input = { ...state(30, 40), status: 'finished', result: 'win',
+    winnerPlayerId: 'p2', resultReason: 'decisive' };
+  const owned = pending(input);
+  input.result = 'draw';
+  equal(owned.state.result, 'win');
+  equal(complete(owned, null)?.outcome.result, 'win');
+  equal(buildSettledHealthPresentation(input, identity)?.outcome.result, 'draw');
+  for (const value of [null, 'unknown', false]) {
+    equal(readResolvedHealthOutcome({ ...input, result: value }).result, null);
+  }
+  const envelope = readResolvedHealthOutcome({ ...input,
+    result: { winnerPlayerId: 'p2', resultReason: 'decisive' } });
+  assert(!Object.prototype.hasOwnProperty.call(envelope, 'result'));
+  assert(!Object.prototype.hasOwnProperty.call(readResolvedHealthOutcome({ ...input, result: undefined }), 'result'));
+});
+
+Deno.test('optional result omission preserves boundary cap capture while explicit conflicts cannot borrow caps', () => {
+  const input = { ...state(), turnNumber: 5, phaseKey: 'build.drawing', result: 'draw' };
+  const boundary = state();
+  const args = { state: input, boundaryState: boundary, identity, continuityKey,
+    resolvedTurnNumber: 4, source: 'poll' as const };
+  equal(captureResolvedHealthSnapshot(args)?.outcome.result, 'draw');
+  boundary.result = 'win';
+  equal(captureResolvedHealthSnapshot(args), null);
+});
 
 function state(start = 30, damage = 10, healing = 0, cap = 35): any {
   const final = Math.min(start - damage + healing, cap);

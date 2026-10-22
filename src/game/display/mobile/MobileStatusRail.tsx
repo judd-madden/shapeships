@@ -183,10 +183,12 @@ export function MobileStatusRail({
       {healthBarPresentation ? (
         <>
           <HealthBar scale={healthBarPresentation.scale} orientation="mobile" axisLength={axisLength}
+            outcome={healthBarPresentation.outcome?.right} outcomeOpacity={healthBarPresentation.outcome?.opacity}
             side="right" state={healthBarPresentation.right} label={`${opponentStatus.name} health`} mobileMarkerEdge="top" />
           <HealthBarLegend scale={healthBarPresentation.scale} orientation="mobile" axisLength={axisLength}
             legendLabels={legendLabels} compactMobile />
           <HealthBar scale={healthBarPresentation.scale} orientation="mobile" axisLength={axisLength}
+            outcome={healthBarPresentation.outcome?.left} outcomeOpacity={healthBarPresentation.outcome?.opacity}
             side="left" state={healthBarPresentation.left} label={`${currentPlayerStatus.name} health`} mobileMarkerEdge="bottom" />
         </>
       ) : (

@@ -11,6 +11,7 @@ import { HealthBarPair } from '../healthBars/HealthBar';
 import { HEALTH_BAR_EXAMPLES } from '../../../components/dev/healthBarExampleFixtures';
 import { calculateHealthBarGeometry } from '../healthBars/healthBarPresentation';
 import { HEALTH_BAR_ANIMATION_CONFIG } from '../healthBars/healthBarAnimationConfig';
+import { prepareHealthBarOutcome } from '../healthBars/healthBarOutcomePresentation';
 import type { HealthBarOrientation } from '../healthBars/healthBarScale';
 import { prepareHealthBarLegendTransition, sampleHealthBarLegendTransition } from '../healthBars/healthBarScaleTransition';
 import {
@@ -40,6 +41,62 @@ function facts(turn = 3): ResolvedHealthSnapshot {
       grossHealingReceived: 6, finalHealth: 24, actualNetDelta: 4, maxHealth: 50 },
   };
 }
+
+describe('canonical health-bar outcome mapping', () => {
+  const identity = facts().identity;
+  for (const reason of ['decisive', 'narrow', 'resignation', 'timeout']) {
+    for (const viewerRole of ['player', 'spectator'] as const) {
+      for (const winnerPlayerId of [identity.leftPlayerId, identity.rightPlayerId]) {
+        it(`${reason}: maps ${winnerPlayerId} for ${viewerRole} using player IDs`, () => {
+          for (const reversed of [false, true]) {
+            const seats = { ...identity, viewerRole, viewerId: viewerRole === 'spectator' ? 'spectator' : identity.viewerId,
+              leftPlayerId: reversed ? identity.rightPlayerId : identity.leftPlayerId,
+              rightPlayerId: reversed ? identity.leftPlayerId : identity.rightPlayerId };
+            const pair = prepareHealthBarOutcome(seats, { isTerminal: true, result: 'win', winnerPlayerId, resultReason: reason })!;
+            const winner = winnerPlayerId === seats.leftPlayerId ? pair.left : pair.right;
+            const loser = winnerPlayerId === seats.leftPlayerId ? pair.right : pair.left;
+            expect(winner.letters).toBe(reason === 'narrow' ? 'NV' : 'V');
+            expect(loser.letters).toBe(reason === 'narrow' ? 'NL' : 'L');
+            expect(winner.description).toMatch(/victory/i);
+            expect(loser.description).toMatch(/loss/i);
+          }
+        });
+      }
+    }
+  }
+  it.each(['mutual_destruction', 'agreement', 'timeout_draw'])('%s is a canonical paired draw', (resultReason) => {
+    const pair = prepareHealthBarOutcome(identity, { isTerminal: true, result: 'draw', winnerPlayerId: null, resultReason })!;
+    expect([pair.left.letters, pair.right.letters]).toEqual(['D', 'D']);
+    expect(pair.left.description).toMatch(/draw/i);
+  });
+  it('suppresses active, restart, unknown, missing and contradictory identities/results', () => {
+    const valid = { isTerminal: true, winnerPlayerId: identity.leftPlayerId, resultReason: 'decisive' };
+    for (const outcome of [
+      { ...valid, isTerminal: false }, { ...valid, resultReason: 'restart' }, { ...valid, resultReason: 'technical_restart' },
+      { ...valid, resultReason: null }, { ...valid, resultReason: 'unknown' },
+      { ...valid, winnerPlayerId: null }, { ...valid, winnerPlayerId: 'stranger' },
+      { ...valid, result: 'draw' as const }, { ...valid, result: null },
+      { ...valid, resultReason: 'agreement' }, { ...valid, resultReason: 'agreement', winnerPlayerId: null, result: 'win' as const },
+    ]) expect(prepareHealthBarOutcome(identity, outcome)).toBeNull();
+    for (const seats of [{ ...identity, leftPlayerId: identity.rightPlayerId },
+      { ...identity, leftPlayerId: '' }, { ...identity, gameId: '' }, { ...identity, viewerId: '' }]) {
+      expect(prepareHealthBarOutcome(seats, valid)).toBeNull();
+    }
+  });
+  it.each([
+    ['decisive', 1, 0, 'p2', ['V', 'L']], ['narrow', 0, -5, 'p2', ['NV', 'NL']],
+    ['narrow', -2, -5, 'p2', ['NV', 'NL']], ['narrow', -5, -2, 'p1', ['NL', 'NV']],
+    ['mutual_destruction', -5, -5, null, ['D', 'D']], ['mutual_destruction', 0, 0, null, ['D', 'D']],
+  ] as const)('%s at %s/%s preserves the canonical result', (resultReason, left, right, winnerPlayerId, expected) => {
+    const snapshot = facts();
+    const outcome = { isTerminal: true, winnerPlayerId, resultReason };
+    const context = session({ ...snapshot, outcome,
+      left: { ...snapshot.left, finalHealth: left }, right: { ...snapshot.right, finalHealth: right } });
+    const pair = prepareHealthBarOutcome(context.identity, context.settled!.outcome)!;
+    expect([pair.left.letters, pair.right.letters]).toEqual(expected);
+    expect(prepareHealthBarOutcome(context.identity, { ...outcome, isTerminal: false })).toBeNull();
+  });
+});
 function session(snapshot = facts()): ResolvedHealthSessionPresentation {
   return { identity: snapshot.identity, continuityKey: snapshot.continuityKey,
     observedResolvedTurnNumber: snapshot.resolvedTurnNumber,

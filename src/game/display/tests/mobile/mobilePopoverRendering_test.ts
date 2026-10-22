@@ -15,6 +15,7 @@ import { HealthBar, HealthBarLegend } from '../../healthBars/HealthBar';
 import { createHealthBarAnimationController } from '../../healthBars/healthBarAnimationController';
 import { HEALTH_BAR_ANIMATION_CONFIG } from '../../healthBars/healthBarAnimationConfig';
 import { selectSessionHealthBarPresentation, syncSessionHealthBarController } from '../../healthBars/useSessionHealthBarPresentation';
+import { prepareHealthBarOutcome } from '../../healthBars/healthBarOutcomePresentation';
 import type { WinStreakGameViewModel } from '../../../client/winStreak/types';
 
 // Existing direct-element tests remain stateless; opt into lifecycle cells for mobile integration.
@@ -191,6 +192,12 @@ describe('mobile live health ownership', () => {
     expect(legend.props.scale.domainMin).toBe(-15); expect(legend.props.scale.domainMax).toBe(50);
     expect(playback.snapshot.identity.leftPlayerId).toBe(leftId);
     expect(playback.snapshot.left.playerId).toBe(leftId);
+    const outcome = { ...prepareHealthBarOutcome(playback.snapshot.identity,
+      { isTerminal: true, winnerPlayerId: rightId, resultReason: 'narrow' })!, opacity: 0.5 };
+    const finishedRail = render(() => MobileStatusRail({ ...input, healthBarPresentation: { ...playback.view(), outcome } }));
+    const finishedBars = elements(finishedRail.props.healthBars).filter((node) => node.type === HealthBar);
+    expect(finishedBars.map((bar) => bar.props.outcome.letters)).toEqual(['NV', 'NL']);
+    expect(finishedBars.map((bar) => bar.props.outcomeOpacity)).toEqual([0.5, 0.5]);
     expect(rail.props.healthBars.props.className).toContain('pointer-events-none');
     const frame = MobileStatusRailFrame(rail.props);
     const rows = elements(frame).filter((node) => node.props.position === 'top' || node.props.position === 'bottom');

@@ -9,6 +9,11 @@ import {
   type HealthBarPresentationState, type HealthBarSide,
 } from './healthBarPresentation';
 import type { HealthBarTransitionLabel } from './healthBarScaleTransition';
+import type { HealthBarOutcomeLabel, HealthBarOutcomePresentation } from './healthBarOutcomePresentation';
+
+/** Gap from mapped zero toward positive health; owner-tunable, independent of health endpoints. */
+const HEALTH_BAR_OUTCOME_DESKTOP_ZERO_OFFSET_PX = 4;
+const HEALTH_BAR_OUTCOME_MOBILE_ZERO_OFFSET_PX = 4;
 
 interface HealthBarSharedProps {
   readonly scale: Readonly<PreparedHealthBarScale>;
@@ -27,9 +32,12 @@ export interface HealthBarProps extends HealthBarSharedProps {
   readonly label: string;
   /** Physical mobile edge, independent of the logical side used to select the cap. */
   readonly mobileMarkerEdge?: 'top' | 'bottom';
+  readonly outcome?: HealthBarOutcomeLabel | null;
+  readonly outcomeOpacity?: number;
 }
 
-export function HealthBar({ scale, side, state, orientation, axisLength, label, mobileMarkerEdge }: HealthBarProps) {
+export function HealthBar({ scale, side, state, orientation, axisLength, label, mobileMarkerEdge,
+  outcome, outcomeOpacity = 1 }: HealthBarProps) {
   const geometry = calculateHealthBarGeometry(scale, side, state, orientation, axisLength);
   const desktop = orientation === 'desktop';
   const cap = side === 'left' ? scale.leftCap : scale.rightCap;
@@ -38,7 +46,16 @@ export function HealthBar({ scale, side, state, orientation, axisLength, label, 
     cap.value === null ? 'maximum unknown' : `maximum ${cap.value}`,
     state.red ? `red interval ${state.red.from} to ${state.red.to}` : null,
     state.green ? `green interval ${state.green.from} to ${state.green.to}` : null,
+    outcome?.description,
   ].filter(Boolean).join('; ');
+  const outcomeStyle: CSSProperties = desktop
+    ? { left: geometry.width / 2, top: geometry.zeroPosition - HEALTH_BAR_OUTCOME_DESKTOP_ZERO_OFFSET_PX,
+      transform: 'translate(-50%, -100%)', fontSize: 12 }
+    : { left: geometry.zeroPosition + HEALTH_BAR_OUTCOME_MOBILE_ZERO_OFFSET_PX, top: geometry.height / 2,
+      transform: 'translateY(-50%)', fontSize: 9 };
+  const white = geometry.white;
+  const whiteClip = white ? `inset(${white.top}px ${geometry.width - white.left - white.width}px ${
+    geometry.height - white.top - white.height}px ${white.left}px)` : undefined;
   const markerStyle = (position: number, size: number): CSSProperties => desktop
     ? { left: side === 'left' ? 30 : -2 - size, top: position - size / 2, width: size, height: size }
     : { left: position - size / 2, top: (mobileMarkerEdge ?? (side === 'left' ? 'top' : 'bottom')) === 'top'
@@ -68,6 +85,17 @@ export function HealthBar({ scale, side, state, orientation, axisLength, label, 
             <path d="M0 4L2 0M3 6L5 2" stroke="currentColor" />
           </svg>
         </span>
+      )}
+      {outcome && (
+        <div aria-hidden="true" data-health-outcome={outcome.letters}
+          className="pointer-events-none absolute inset-0 select-none" style={{ opacity: outcomeOpacity }}>
+          <span data-health-outcome-contrast="track" className="absolute whitespace-nowrap font-bold leading-none text-white"
+            style={outcomeStyle}>{outcome.letters}</span>
+          {white && <div data-health-outcome-clip="white" className="absolute inset-0" style={{ clipPath: whiteClip }}>
+            <span data-health-outcome-contrast="fill" className="absolute whitespace-nowrap font-bold leading-none text-[#101010]"
+              style={outcomeStyle}>{outcome.letters}</span>
+          </div>}
+        </div>
       )}
       <div aria-hidden="true" data-health-marker="zero" className="absolute bg-white" style={{ ...geometry.zero }} />
     </div>
@@ -110,15 +138,18 @@ export interface HealthBarPairProps extends HealthBarSharedProps {
   readonly right: HealthBarPresentationState;
   readonly leftLabel: string;
   readonly rightLabel: string;
+  readonly outcome?: HealthBarOutcomePresentation | null;
 }
 
-export function HealthBarPair({ left, right, leftLabel, rightLabel, ...shared }: HealthBarPairProps) {
+export function HealthBarPair({ left, right, leftLabel, rightLabel, outcome, ...shared }: HealthBarPairProps) {
   return (
     <div data-health-pair={shared.orientation}
       className={shared.orientation === 'desktop' ? 'flex items-start' : 'flex flex-col items-start'}>
-      <HealthBar {...shared} side="left" state={left} label={leftLabel} />
+      <HealthBar {...shared} side="left" state={left} label={leftLabel}
+        outcome={outcome?.left} outcomeOpacity={outcome?.opacity} />
       <HealthBarLegend {...shared} />
-      <HealthBar {...shared} side="right" state={right} label={rightLabel} />
+      <HealthBar {...shared} side="right" state={right} label={rightLabel}
+        outcome={outcome?.right} outcomeOpacity={outcome?.opacity} />
     </div>
   );
 }

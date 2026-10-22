@@ -468,6 +468,8 @@ export interface ResolvedHealthOutcome {
   readonly isTerminal: boolean;
   readonly winnerPlayerId: string | null;
   readonly resultReason: string | null;
+  /** Full-state envelopes can omit this scalar; null preserves an explicitly invalid value. */
+  readonly result?: 'win' | 'draw' | null;
 }
 
 export interface ResolvedHealthSnapshot {

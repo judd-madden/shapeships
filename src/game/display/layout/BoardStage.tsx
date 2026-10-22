@@ -572,6 +572,7 @@ export function BoardStage({
         <HealthBarPair orientation="desktop" axisLength={axisLength} scale={desktopHealthPresentation.scale}
           left={desktopHealthPresentation.left} right={desktopHealthPresentation.right}
           legendLabels={legendLabels}
+            outcome={desktopHealthPresentation.outcome}
           leftLabel={viewer.isSpectator ? viewer.p1Name : 'Your health'}
           rightLabel={viewer.isSpectator ? viewer.p2Name : 'Opponent health'} />
       ) : null}

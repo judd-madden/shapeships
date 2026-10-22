@@ -5,7 +5,7 @@ import type {
 import { getResolvedHealthIdentityKey } from '../../client/gameSession/resolvedHealth';
 import {
   createHealthBarAnimationController, type HealthBarAnimationController,
-  type HealthBarAnimationScheduler, type HealthBarPlaybackState,
+  browserHealthBarScheduler, type HealthBarAnimationScheduler, type HealthBarPlaybackState,
 } from './healthBarAnimationController';
 import { prepareHealthBarScale, type HealthBarOrientation, type PreparedHealthBarScale } from './healthBarScale';
 import { settledHealthBarState } from './healthBarSequence';
@@ -15,6 +15,10 @@ import {
   type HealthBarScales,
 } from './healthBarScaleTransition';
 import { useHealthBarAnimation } from './useHealthBarAnimation';
+import { HEALTH_BAR_ANIMATION_CONFIG } from './healthBarAnimationConfig';
+import {
+  prepareHealthBarOutcome, type HealthBarOutcomePair, type HealthBarOutcomePresentation,
+} from './healthBarOutcomePresentation';
 
 export interface SessionHealthBarPresentation {
   readonly scale: Readonly<PreparedHealthBarScale>;
@@ -24,6 +28,7 @@ export interface SessionHealthBarPresentation {
   readonly scaleProgress: number;
   readonly numbers: Readonly<{ left: number; right: number }>;
   readonly presentationComplete: boolean;
+  readonly outcome: HealthBarOutcomePresentation | null;
   readonly delta: { readonly left: number; readonly right: number; readonly visible: boolean; readonly key: string } | null;
 }
 
@@ -93,7 +98,7 @@ export function selectSessionHealthBarPresentation(
     return {
       scale: playback.frame.scales[orientation], left: playback.frame.left, right: playback.frame.right,
       sequence: playback.sequence, scaleProgress: playback.frame.scaleProgress,
-      delta, numbers: playback.numbers!, presentationComplete: playback.presentationCompletion !== null,
+      delta, numbers: playback.numbers!, presentationComplete: playback.presentationCompletion !== null, outcome: null,
     };
   }
   const settled = session.settled;
@@ -101,7 +106,7 @@ export function selectSessionHealthBarPresentation(
   return settled && scale ? {
     scale, left: settledHealthBarState(settled.left.health), right: settledHealthBarState(settled.right.health),
     sequence: null, scaleProgress: 1, delta,
-    numbers: { left: settled.left.health, right: settled.right.health }, presentationComplete: true,
+    numbers: { left: settled.left.health, right: settled.right.health }, presentationComplete: true, outcome: null,
   } : null;
 }
 
@@ -159,13 +164,15 @@ export function useSessionHealthBarPresentation(input: {
   scheduler?: HealthBarAnimationScheduler;
   orientation?: HealthBarOrientation;
 }) {
+  const [scheduler] = useState(() => input.scheduler ?? browserHealthBarScheduler);
   const [controller] = useState(() => createHealthBarAnimationController({
-    scheduler: input.scheduler, animateSettledNumbers: true,
+    scheduler, animateSettledNumbers: true,
   }));
   const lease = useRef(0);
   const retention = useRef<SessionHealthBarScaleRetention>({ gameId: null, negativeFloor: 0 });
   const playback = useHealthBarAnimation(controller);
   const [, commitCapture] = useState(0);
+  const motionEnabled = useRef(true);
   const onComplete = useRef(input.onComplete);
   onComplete.current = input.onComplete;
 
@@ -173,7 +180,14 @@ export function useSessionHealthBarPresentation(input: {
     const release = attachSessionHealthBarController(controller, lease);
     const media = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
       ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
-    const update = () => controller.setMotionEnabled(!media?.matches);
+    const update = () => {
+      const enabled = !media?.matches;
+      if (motionEnabled.current !== enabled) {
+        motionEnabled.current = enabled;
+        commitCapture((revision) => revision + 1);
+      }
+      controller.setMotionEnabled(enabled);
+    };
     update();
     media?.addEventListener?.('change', update);
     return () => { media?.removeEventListener?.('change', update); release(); };
@@ -194,7 +208,119 @@ export function useSessionHealthBarPresentation(input: {
   }, [controller, playback.presentationCompletion, input.session]);
 
   const floor = retention.current.gameId === input.session?.identity.gameId ? retention.current.negativeFloor : 0;
-  return selectSessionHealthBarPresentation(playback, input.presentation, input.session, input.orientation, floor);
+  const selected = selectSessionHealthBarPresentation(playback, input.presentation, input.session, input.orientation, floor);
+  const outcome = useSessionHealthBarOutcome({ selected, session: input.session, scheduler, motionEnabled,
+    selectCurrent: () => selectSessionHealthBarPresentation(controller.getSnapshot(), input.presentation, input.session,
+      input.orientation, retention.current.gameId === input.session?.identity.gameId ? retention.current.negativeFloor : 0),
+  });
+  return selected ? { ...selected, outcome } : null;
+}
+
+function selectedOutcome(selected: SessionHealthBarPresentation | null, session: ResolvedHealthSessionPresentation | null | undefined) {
+  if (!selected || !session) return null;
+  const snapshot = selected.sequence?.snapshot;
+  const settled = session.settled;
+  if (settled && getResolvedHealthIdentityKey(settled.identity) !== getResolvedHealthIdentityKey(session.identity)) return null;
+  // A captured terminal intent can precede its settled DTO and outlive source release.
+  const outcome = snapshot?.outcome.isTerminal &&
+    (!settled?.outcome.isTerminal || session.settledIncludesLiveResolution === false)
+    ? snapshot.outcome : settled?.outcome;
+  return outcome ? prepareHealthBarOutcome(session.identity, outcome) : null;
+}
+
+const outcomeKey = (identity: string | null, pair: HealthBarOutcomePair | null) =>
+  pair ? JSON.stringify([identity, pair.left, pair.right]) : null;
+
+/** Visual-only reveal owned above layout branches; never delays the completion receipt. */
+function useSessionHealthBarOutcome(input: {
+  selected: SessionHealthBarPresentation | null;
+  selectCurrent: () => SessionHealthBarPresentation | null;
+  session: ResolvedHealthSessionPresentation | null | undefined;
+  scheduler: HealthBarAnimationScheduler;
+  motionEnabled: { current: boolean };
+}): HealthBarOutcomePresentation | null {
+  const [, publish] = useState(0);
+  const reveal = useRef({
+    identity: null as string | null, continuity: null as string | null, observedActive: false,
+    key: null as string | null, pair: null as HealthBarOutcomePair | null, animate: false,
+    startedAt: null as number | null, handle: null as number | null, generation: 0, mounted: false,
+    view: null as HealthBarOutcomePresentation | null,
+  });
+  const scheduler = input.scheduler;
+  useLayoutEffect(() => {
+    const state = reveal.current;
+    state.mounted = true;
+    return () => {
+      state.mounted = false;
+      state.generation += 1;
+      if (state.handle !== null) scheduler.cancel(state.handle);
+      state.handle = null;
+    };
+  }, [scheduler]);
+
+  // Read the controller after capture's layout effect, before painting any settled fallback.
+  useLayoutEffect(() => {
+    const state = reveal.current;
+    const previousView = state.view;
+    const selected = input.selectCurrent();
+    const identity = input.session ? getResolvedHealthIdentityKey(input.session.identity) : null;
+    const continuity = input.session?.continuityKey ?? null;
+    const recovered = identity === state.identity && state.continuity !== null && continuity !== state.continuity;
+    const cancel = () => {
+      state.generation += 1;
+      if (state.handle !== null) scheduler.cancel(state.handle);
+      state.handle = null;
+    };
+    if (identity !== state.identity) {
+      cancel(); state.identity = identity; state.observedActive = false; state.key = null; state.view = null;
+    }
+    state.continuity = continuity;
+    const pair = selectedOutcome(selected, input.session);
+    const key = outcomeKey(identity, pair);
+    if (!pair || !selected) {
+      cancel(); state.key = null; state.pair = null; state.view = null; state.startedAt = null;
+      if (selected && (selected.sequence?.snapshot.outcome ?? input.session?.settled?.outcome)?.isTerminal === false) {
+        state.observedActive = true;
+      }
+    } else {
+      if (key !== state.key) {
+        cancel(); state.key = key; state.pair = pair; state.startedAt = null; state.view = null;
+        state.animate = state.observedActive || !!selected.sequence;
+      }
+      if (recovered) { cancel(); state.animate = false; state.startedAt = null; }
+      if (!selected.presentationComplete) {
+        cancel(); state.view = null; state.startedAt = null;
+        state.animate = true;
+      } else if (!input.motionEnabled.current || !state.animate) {
+        cancel();
+        state.animate = false;
+        if (state.view?.opacity !== 1) state.view = { ...state.pair!, opacity: 1 };
+      } else {
+        if (state.startedAt === null) {
+          state.startedAt = scheduler.now(); state.view = { ...state.pair!, opacity: 0 };
+        }
+        if (state.view!.opacity < 1 && state.handle === null) {
+          const generation = state.generation;
+          const frame = () => {
+            if (!state.mounted || generation !== state.generation || state.key !== key || state.identity !== identity) return;
+            state.handle = null;
+            const opacity = Math.min(1, Math.max(0,
+              (scheduler.now() - state.startedAt!) / HEALTH_BAR_ANIMATION_CONFIG.outcomeLetterFadeMs));
+            state.view = { ...state.pair!, opacity };
+            if (opacity < 1) state.handle = scheduler.request(frame);
+            publish((revision) => revision + 1);
+          };
+          state.handle = scheduler.request(frame);
+        }
+      }
+    }
+    if (previousView !== state.view) publish((revision) => revision + 1);
+  });
+
+  const identity = input.session ? getResolvedHealthIdentityKey(input.session.identity) : null;
+  return input.selected?.presentationComplete &&
+    outcomeKey(identity, selectedOutcome(input.selected, input.session)) === reveal.current.key
+    ? reveal.current.view : null;
 }
 
 function useHealthBarAxisLength(regionRef: RefObject<HTMLDivElement | null>, orientation: HealthBarOrientation) {

@@ -5,6 +5,8 @@ import { useBoardStatHover } from '../../layout/boardStage/useBoardStatHover';
 import { DesktopDicePresentation, type DesktopDicePresentationProps } from '../../layout/boardStage/DesktopDicePresentation';
 import { BoardStage } from '../../layout/BoardStage';
 import { MainStage } from '../../layout/MainStage';
+import { HealthBarPair } from '../../healthBars/HealthBar';
+import { prepareHealthBarOutcome } from '../../healthBars/healthBarOutcomePresentation';
 
 // Run the real callbacks/effect lifecycles with element doubles, without a browser dependency.
 const hooks = vi.hoisted(() => {
@@ -146,6 +148,17 @@ describe('desktop lower-row reservations', () => {
   } as unknown as Props)) as ReactElement<any>;
   const rows = (tree: ReactElement<any>) => elements(tree.props.statsContent).filter((element) =>
     ['Saved Lines Group', 'Bonus Group', 'Fleet Value Group'].includes(element.props['data-name']));
+
+  it('forwards the session-owned outcome to the desktop pair without a layout-owned fade', () => {
+    const pair = prepareHealthBarOutcome({ gameId: 'g', viewerId: 'a', viewerRole: 'player', leftPlayerId: 'a', rightPlayerId: 'b' },
+      { isTerminal: true, winnerPlayerId: 'b', resultReason: 'narrow' })!;
+    const outcome = { ...pair, opacity: 0.5 };
+    const tree = read({}, { numbers: { left: -5, right: 0 }, left: { health: -5 }, right: { health: 0 },
+      scale: { leftCap: { value: 35 }, rightCap: { value: 35 } }, sequence: null, outcome,
+    } as unknown as Props['desktopHealthPresentation']);
+    const bars = elements(tree.props.healthBars).find((node) => node.type === HealthBarPair)!;
+    expect(bars.props.outcome).toBe(outcome);
+  });
 
   it('renders separate rounded health numbers and accessibility text while rectangles are below zero', () => {
     const tree = read({}, { numbers: { left: 21.6, right: 24 }, left: { health: -10 }, right: { health: 18 },

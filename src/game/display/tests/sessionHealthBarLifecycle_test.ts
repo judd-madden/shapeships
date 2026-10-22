@@ -1,6 +1,6 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GameSessionViewModel } from '../../client/gameSession/types';
+import type { GameSessionViewModel, ResolvedHealthOutcome } from '../../client/gameSession/types';
 import { captureResolvedHealthSnapshot, prepareResolvedHealthCapture, isTerminalHealthBarPresentationPending } from '../../client/gameSession/resolvedHealth';
 import { useEndOfTurnPresentation } from '../../client/gameSession/clienteffects/useEndOfTurnPresentation';
 import GameScreen from '../GameScreen';
@@ -106,6 +106,179 @@ beforeEach(() => {
 });
 afterEach(async () => { hooks.unmount(); await Promise.resolve(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
+function terminalHealthInput() {
+  const input = runtime.vm!;
+  if (input.resolvedHealth?.mode !== 'live') throw new Error('Expected live facts');
+  const snapshot = input.resolvedHealth.snapshot;
+  const outcome: ResolvedHealthOutcome = { isTerminal: true, winnerPlayerId: 'p2', resultReason: 'narrow', result: 'win' };
+  input.resolvedHealth = { mode: 'live', snapshot: { ...snapshot, outcome,
+    left: { ...snapshot.left, damageTaken: 35, damageStageHealth: -5, finalHealth: -5, actualNetDelta: -35 },
+    right: { ...snapshot.right, damageTaken: 30, damageStageHealth: 0, finalHealth: 0, actualNetDelta: -30 } } };
+  input.resolvedHealthSession = { ...input.resolvedHealthSession!, settled: { ...input.resolvedHealthSession!.settled!, outcome,
+    left: { ...input.resolvedHealthSession!.settled!.left, health: -5 },
+    right: { ...input.resolvedHealthSession!.settled!.right, health: 0 } } };
+  return input;
+}
+
+describe('session-owned terminal outcome reveal', () => {
+  it('waits for bars and numbers, then fades together without delaying the receipt or replaying on layout/source changes', () => {
+    const input = terminalHealthInput();
+    let orientation: 'desktop' | 'mobile' = 'desktop';
+    const complete = vi.fn();
+    const read = () => render(() => useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
+      session: input.resolvedHealthSession, canAccept: true, orientation, onComplete: complete }))!;
+    read(); let view = read();
+    const sequence = view.sequence!;
+    expect(view.outcome).toBeNull();
+    advance(sequence.durationMs - 1); expect(read().outcome).toBeNull();
+    advance(1); view = read();
+    expect(view.delta?.visible).toBe(true); expect(view.presentationComplete).toBe(false);
+    expect(view.outcome).toBeNull(); expect(complete).not.toHaveBeenCalled();
+    advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 2);
+    expect(read().outcome).toBeNull();
+    input.resolvedHealth = input.resolvedHealthSession!.settled;
+    orientation = 'mobile'; expect(read().outcome).toBeNull();
+    advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 2); read(); view = read();
+    expect(view.outcome).toMatchObject({ left: { letters: 'NL' }, right: { letters: 'NV' }, opacity: 0 });
+    expect(complete).toHaveBeenCalledOnce();
+    advance(200); view = read(); expect(view.outcome?.opacity).toBeCloseTo(0.5);
+    const settled = input.resolvedHealthSession!.settled!;
+    input.resolvedHealthSession = { ...input.resolvedHealthSession!, settled: { ...settled,
+      outcome: { isTerminal: true, resultReason: 'narrow', winnerPlayerId: 'p2' } } };
+    input.resolvedHealth = input.resolvedHealthSession.settled;
+    orientation = 'desktop'; expect(read().outcome?.opacity).toBeCloseTo(0.5);
+    advance(200); expect(read().outcome?.opacity).toBe(1);
+    expect(HEALTH_BAR_ANIMATION_CONFIG.outcomeLetterFadeMs).toBe(400);
+    expect(frames.size).toBe(0);
+    orientation = 'mobile'; expect(read().outcome?.opacity).toBe(1);
+    expect(complete.mock.calls.every(([receipt]) => receipt === complete.mock.calls[0][0])).toBe(true);
+  });
+
+  it.each(['decisive', 'narrow', 'mutual_destruction', 'agreement', 'timeout_draw', 'resignation', 'timeout'])(
+    'loads an already-finished %s game immediately without replay', (resultReason) => {
+      const input = terminalHealthInput();
+      const draw = ['mutual_destruction', 'agreement', 'timeout_draw'].includes(resultReason);
+      const settled = { ...input.resolvedHealthSession!.settled!, outcome: {
+        isTerminal: true, resultReason, winnerPlayerId: draw ? null : 'p2' } };
+      input.resolvedHealth = settled;
+      input.resolvedHealthSession = { ...input.resolvedHealthSession!, settled };
+      const complete = vi.fn();
+      const read = () => render(() => useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
+        session: input.resolvedHealthSession, canAccept: true, onComplete: complete }))!;
+      read(); const view = read();
+      expect(view.outcome?.opacity).toBe(1); expect(view.sequence).toBeNull();
+      expect(frames.size).toBe(0); expect(complete).not.toHaveBeenCalled();
+    });
+
+  it('waits for an existing active sequence before fading a newly observed non-health finish', () => {
+    const input = runtime.vm!;
+    const complete = vi.fn();
+    const read = () => render(() => useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
+      session: input.resolvedHealthSession, canAccept: true, onComplete: complete }))!;
+    read(); const sequence = read().sequence!;
+    const settled = { ...input.resolvedHealthSession!.settled!, outcome: {
+      isTerminal: true, resultReason: 'resignation', winnerPlayerId: 'p1' } };
+    input.resolvedHealthSession = { ...input.resolvedHealthSession!, settled };
+    input.resolvedHealth = settled;
+    expect(read().outcome).toBeNull();
+    advance(sequence.durationMs + HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs); read();
+    const view = read();
+    expect(view.sequence).toBe(sequence);
+    expect(view.outcome).toMatchObject({ left: { letters: 'V' }, right: { letters: 'L' }, opacity: 0 });
+    advance(400); expect(read().outcome?.opacity).toBe(1);
+  });
+
+  it('fades a non-health finish observed after an active settled game without a contribution sequence', () => {
+    const input = runtime.vm!;
+    input.resolvedHealth = input.resolvedHealthSession!.settled;
+    const read = () => render(() => useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
+      session: input.resolvedHealthSession, canAccept: true, onComplete: () => {} }))!;
+    read(); expect(read().outcome).toBeNull();
+    const settled = { ...input.resolvedHealthSession!.settled!, outcome: {
+      isTerminal: true, winnerPlayerId: 'p2', resultReason: 'timeout' } };
+    input.resolvedHealthSession = { ...input.resolvedHealthSession!, settled };
+    input.resolvedHealth = settled;
+    read(); expect(read().outcome?.opacity).toBe(0);
+    expect(read().sequence).toBeNull();
+    advance(400); expect(read().outcome?.opacity).toBe(1);
+  });
+
+  it.each(['identity', 'recovery', 'outcome', 'unmount'] as const)('cancels stale fade callbacks on %s changes', async (change) => {
+    const input = terminalHealthInput();
+    const read = () => render(() => useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
+      session: input.resolvedHealthSession, canAccept: true, onComplete: () => {} }))!;
+    read(); const sequence = read().sequence!;
+    advance(sequence.durationMs + HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs); read(); read();
+    advance(100); expect(read().outcome?.opacity).toBeCloseTo(0.25);
+    const stale = [...frames.values()];
+    const previous = input.resolvedHealthSession!;
+    if (change === 'unmount') {
+      hooks.unmount(); await Promise.resolve();
+    } else {
+      const identity = change === 'identity' ? { ...previous.identity, gameId: 'other' } : previous.identity;
+      const outcome = change === 'identity' ? { isTerminal: false, resultReason: null, winnerPlayerId: null }
+        : change === 'outcome' ? { isTerminal: true, resultReason: 'restart', winnerPlayerId: null }
+        : previous.settled!.outcome;
+      const settled = { ...previous.settled!, identity, outcome };
+      input.resolvedHealthSession = { ...previous, identity, settled,
+        continuityKey: change === 'recovery' ? 'recovered' : previous.continuityKey };
+      input.resolvedHealth = settled;
+      read();
+      expect(read().outcome?.opacity ?? null).toBe(change === 'recovery' ? 1 : null);
+    }
+    stale.forEach((callback) => callback());
+    expect(frames.size).toBe(0);
+    if (change !== 'unmount') expect(read().outcome?.opacity ?? null).toBe(change === 'recovery' ? 1 : null);
+  });
+
+  it('settles reduced motion during contributions or a fade and retains progress through effect reattachment', async () => {
+    const input = terminalHealthInput();
+    const read = () => render(() => useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
+      session: input.resolvedHealthSession, canAccept: true, onComplete: () => {} }))!;
+    read(); const sequence = read().sequence!;
+    advance(sequence.durationMs + HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs); read(); read();
+    advance(100); expect(read().outcome?.opacity).toBeCloseTo(0.25);
+    hooks.reattach(); await Promise.resolve();
+    advance(100); expect(read().outcome?.opacity).toBeCloseTo(0.5);
+    media.matches = true; media.addEventListener.mock.calls[0][1](); read();
+    expect(read().outcome?.opacity).toBe(1); expect(frames.size).toBe(0);
+    media.matches = false; media.addEventListener.mock.calls[0][1]();
+    expect(read().outcome?.opacity).toBe(1); expect(frames.size).toBe(0);
+  });
+
+  it('shows reduced-motion terminal letters immediately even when motion is disabled on initial capture', () => {
+    const input = terminalHealthInput(); media.matches = true;
+    const read = () => render(() => useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
+      session: input.resolvedHealthSession, canAccept: true, onComplete: () => {} }))!;
+    read(); expect(read().outcome?.opacity).toBe(1); expect(frames.size).toBe(0);
+    media.matches = false; media.addEventListener.mock.calls[0][1]();
+    expect(read().outcome?.opacity).toBe(1); expect(frames.size).toBe(0);
+  });
+
+  it('settles unsupported live playback without waiting for a contribution sequence', () => {
+    const input = terminalHealthInput();
+    const read = () => render(() => useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
+      session: input.resolvedHealthSession, canAccept: false, onComplete: () => {} }))!;
+    read(); const view = read();
+    expect(view.outcome?.opacity).toBe(1); expect(view.sequence).toBeNull(); expect(frames.size).toBe(0);
+  });
+
+  it('recovers during bar motion directly to settled letters without a stale receipt or historical replay', () => {
+    const input = terminalHealthInput();
+    const complete = vi.fn();
+    const read = () => render(() => useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
+      session: input.resolvedHealthSession, canAccept: true, onComplete: complete }))!;
+    read(); read(); advance(100); expect(read().outcome).toBeNull();
+    const stale = [...frames.values()];
+    input.resolvedHealthSession = { ...input.resolvedHealthSession!, continuityKey: 'recovered' };
+    input.resolvedHealth = input.resolvedHealthSession.settled;
+    read(); const view = read();
+    expect(view.outcome?.opacity).toBe(1); expect(view.sequence).toBeNull();
+    stale.forEach((callback) => callback());
+    expect(complete).not.toHaveBeenCalled(); expect(frames.size).toBe(0);
+  });
+});
+
 describe('session health presentation hooks and entry wiring', () => {
   it('owns the game floor above layout changes and retains it through settled recovery without stale completion', () => {
     const input = runtime.vm!;
@@ -201,6 +374,10 @@ describe('session health presentation hooks and entry wiring', () => {
     expect(completed).toHaveBeenCalledOnce();
     expect(isTerminalHealthBarPresentationPending({ enabled: true, continuityKey: snapshot.continuityKey,
       snapshot, completion: completed.mock.calls[0][0] })).toBe(false);
+    expect(read()!.outcome?.opacity).toBe(0);
+    expect(frames.size).toBe(1);
+    advance(HEALTH_BAR_ANIMATION_CONFIG.outcomeLetterFadeMs);
+    expect(read()!.outcome?.opacity).toBe(1);
     expect(frames.size).toBe(0);
   });
 
@@ -317,6 +494,13 @@ describe('session health presentation hooks and entry wiring', () => {
     expect(isTerminalHealthBarPresentationPending({ enabled: runtime.options.healthBarsEnabled,
       continuityKey: sequence.snapshot.continuityKey, snapshot: sequence.snapshot,
       completion: runtime.options.healthBarCompletion })).toBe(false);
+    expect(mobile().props.healthBarPresentation.outcome.opacity).toBe(0);
+    advance(200); tree = screen();
+    expect(mobile().props.healthBarPresentation.outcome.opacity).toBeCloseTo(0.5);
+    runtime.mobile = false; tree = screen();
+    expect(desktop().props.desktopHealthPresentation.outcome.opacity).toBeCloseTo(0.5);
+    advance(200); tree = screen();
+    expect(desktop().props.desktopHealthPresentation.outcome.opacity).toBe(1);
     expect(frames.size).toBe(0);
   });
 

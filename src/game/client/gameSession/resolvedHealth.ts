@@ -67,11 +67,22 @@ function matchesIdentity(state: any, identity: ResolvedHealthIdentity): boolean 
 export function readResolvedHealthOutcome(state: any): Readonly<ResolvedHealthOutcome> {
   const winner = getWinnerPlayerId(state);
   const reason = getResultReason(state);
+  // Full-state responses use an object envelope without a win/draw scalar.
+  // Direct canonical states can carry the scalar; never derive it from health.
+  const hasResult = Object.prototype.hasOwnProperty.call(state ?? {}, 'result') &&
+    state.result !== undefined && (state.result === null || typeof state.result !== 'object');
   return Object.freeze({
     isTerminal: isGameFinished(state),
     winnerPlayerId: typeof winner === 'string' ? winner : null,
     resultReason: typeof reason === 'string' ? reason : null,
+    ...(hasResult ? { result: state.result === 'win' || state.result === 'draw' ? state.result : null } : {}),
   });
+}
+
+function compatibleHealthOutcomes(left: ResolvedHealthOutcome, right: ResolvedHealthOutcome) {
+  return left.isTerminal === right.isTerminal && left.winnerPlayerId === right.winnerPlayerId &&
+    left.resultReason === right.resultReason &&
+    (left.result === undefined || right.result === undefined || left.result === right.result);
 }
 
 function ownNumber(map: any, playerId: string): number | undefined {
@@ -160,6 +171,7 @@ export function prepareResolvedHealthCapture(args: PendingResolvedHealthCapture)
     turnNumber: getTurnNumber(state), phaseKey: getPhaseKey(state),
     status: outcome.isTerminal ? 'finished' : 'active',
     winnerPlayerId: outcome.winnerPlayerId, resultReason: outcome.resultReason,
+    ...(outcome.result !== undefined ? { result: outcome.result } : {}),
     gameData: Object.freeze({ lastTurnDamageByPlayerId: ownMap(maps[0]),
       lastTurnHealByPlayerId: ownMap(maps[1]), lastTurnNetByPlayerId: ownMap(maps[2]),
       ...(metadata ? { lastTurnHealthResolution: metadata } : {}),
@@ -202,7 +214,7 @@ export function captureResolvedHealthSnapshot(args: {
   if (facts.healthResolution !== undefined && !metadata) return null;
   const boundaryMatches = boundaryState && matchesIdentity(boundaryState, identity) &&
     isResolvedHealthBoundary(boundaryState, resolvedTurnNumber) &&
-    JSON.stringify(readResolvedHealthOutcome(boundaryState)) === JSON.stringify(outcome) &&
+    compatibleHealthOutcomes(readResolvedHealthOutcome(boundaryState), outcome) &&
     ids.every((id) => findPlayerByIdentity(boundaryState, id)?.health === findPlayerByIdentity(state, id)?.health &&
       ownNumber(getLastTurnNetByPlayerId(boundaryState), id) === ownNumber(getLastTurnNetByPlayerId(state), id) &&
       ownNumber(getLastTurnDamageByPlayerId(boundaryState), id) === ownNumber(getLastTurnDamageByPlayerId(state), id) &&
