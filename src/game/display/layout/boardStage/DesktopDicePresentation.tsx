@@ -20,10 +20,8 @@ const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 const VIEWPORT_INSET = 12;
 
 function DesktopDiceHelper({ slot }: {
-  slot: LeftRailViewModel['diceManipulationSlots']['left'];
+  slot: LeftRailViewModel['diceManipulationSlots']['left'][number];
 }) {
-  if (!slot) return null;
-
   const definition = slot.sourceShipDefId === 'CUB'
     ? null
     : getShipDefinitionUI(slot.sourceShipDefId);
@@ -214,10 +212,18 @@ export function DesktopDicePresentation({
       <div ref={mainDieRef} className="relative size-[var(--ss-main-die-size)] shrink-0 overflow-visible">
         <Dice value={diceValue} animateKey={diceAnimateKey} className="!size-[var(--ss-main-die-size)]" />
         <div className="pointer-events-none absolute right-[calc(100%+var(--ss-dice-helper-gap))] top-1/2 w-max -translate-y-1/2">
-          <DesktopDiceHelper slot={diceManipulationSlots.left} />
+          <div className="flex flex-nowrap items-center gap-[var(--ss-dice-helper-gap)]">
+            {diceManipulationSlots.left.map((slot) => (
+              <DesktopDiceHelper key={slot.sourceShipDefId} slot={slot} />
+            ))}
+          </div>
         </div>
         <div className="pointer-events-none absolute left-[calc(100%+var(--ss-dice-helper-gap))] top-1/2 w-max -translate-y-1/2">
-          <DesktopDiceHelper slot={diceManipulationSlots.right} />
+          <div className="flex flex-nowrap items-center gap-[var(--ss-dice-helper-gap)]">
+            {diceManipulationSlots.right.map((slot) => (
+              <DesktopDiceHelper key={slot.sourceShipDefId} slot={slot} />
+            ))}
+          </div>
         </div>
         {isHelperMounted ? (
           <div

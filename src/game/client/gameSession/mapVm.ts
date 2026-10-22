@@ -436,12 +436,9 @@ export function mapGameSessionVm(args: {
       };
     };
 
-    const cubeDiceSlotsInDisplayOrder = [
-      getCubeDiceSlotForPlayerId(displayLeftPlayerId),
-      getCubeDiceSlotForPlayerId(displayRightPlayerId),
-    ].filter(
-      (slot): slot is LeftRailDiceManipulationSlotViewModel => slot !== null
-    );
+    // Populate the mobile animation-key map regardless of desktop fleet eligibility.
+    const leftCubeDiceSlot = getCubeDiceSlotForPlayerId(displayLeftPlayerId);
+    const rightCubeDiceSlot = getCubeDiceSlotForPlayerId(displayRightPlayerId);
 
     // Use the same derivation as vm.gameCode (mapVm does not have `gameId`)
     const gameCode = effectiveGameId
@@ -1453,24 +1450,11 @@ export function mapGameSessionVm(args: {
           gameData?.gameData?.ships ??
           {};
 
-        const liveShips = Object.values(authoritativeShipsByPlayerId).flatMap((ships) =>
-          Array.isArray(ships) ? ships : []
-        );
-
         function isDiceModifierDisplayEligibleForCurrentTurn(ship: any): boolean {
           const createdTurn = ship?.createdTurn;
           if (!Number.isInteger(createdTurn)) return true;
           return createdTurn < turnNumber;
         }
-
-        const presentShipDefIds = new Set(
-          liveShips
-            .filter(isDiceModifierDisplayEligibleForCurrentTurn)
-            .map((ship) => String(ship?.shipDefId ?? ''))
-            .filter((shipDefId): shipDefId is 'LEV' | 'KNO' | 'CHR' =>
-              shipDefId === 'LEV' || shipDefId === 'KNO' || shipDefId === 'CHR'
-            )
-        );
 
         const chronoswarmRolls = Array.isArray(presentedChronoswarmRolls)
           ? presentedChronoswarmRolls.filter(
@@ -1479,42 +1463,41 @@ export function mapGameSessionVm(args: {
             )
           : [];
 
-        const levSlot = presentShipDefIds.has('LEV')
-          ? {
-              sourceShipDefId: 'LEV' as const,
-              diceValues: [6 as const],
-            }
-          : null;
+        function getHelpersForPlayer(
+          playerId: string | null,
+          cubeSlot: LeftRailDiceManipulationSlotViewModel | null
+        ): LeftRailDiceManipulationSlotViewModel[] {
+          const ships = playerId ? authoritativeShipsByPlayerId[playerId] : [];
+          const presentShipDefIds = new Set(
+            (Array.isArray(ships) ? ships : [])
+              .filter(isDiceModifierDisplayEligibleForCurrentTurn)
+              .map((ship: any) => String(ship?.shipDefId ?? ''))
+          );
+          const helpers: LeftRailDiceManipulationSlotViewModel[] = [];
 
-        const knoSlot = presentShipDefIds.has('KNO')
-          ? {
-              sourceShipDefId: 'KNO' as const,
-            }
-          : null;
-
-        const chrSlot = presentShipDefIds.has('CHR')
-          ? {
-              sourceShipDefId: 'CHR' as const,
+          if (presentShipDefIds.has('KNO')) {
+            helpers.push({ sourceShipDefId: 'KNO' });
+          }
+          if (presentShipDefIds.has('LEV')) {
+            helpers.push({ sourceShipDefId: 'LEV', diceValues: [6] });
+          }
+          if (presentShipDefIds.has('CUB') && cubeSlot) {
+            helpers.push(cubeSlot);
+          }
+          if (presentShipDefIds.has('CHR')) {
+            helpers.push({
+              sourceShipDefId: 'CHR',
               diceValues: chronoswarmRolls,
               animateKey: leftRailChronoswarmAnimateKey,
-            }
-          : null;
+            });
+          }
 
-        const nonChrCandidates: LeftRailDiceManipulationSlotViewModel[] = [];
-        if (knoSlot) nonChrCandidates.push(knoSlot);
-        if (levSlot) nonChrCandidates.push(levSlot);
-        nonChrCandidates.push(...cubeDiceSlotsInDisplayOrder);
-
-        if (chrSlot) {
-          return {
-            left: nonChrCandidates[0] ?? null,
-            right: chrSlot,
-          };
+          return helpers;
         }
 
         return {
-          left: nonChrCandidates[0] ?? null,
-          right: nonChrCandidates[1] ?? null,
+          left: getHelpersForPlayer(displayLeftPlayerId, leftCubeDiceSlot),
+          right: getHelpersForPlayer(displayRightPlayerId, rightCubeDiceSlot),
         };
       })(),
       turn: turnNumber,

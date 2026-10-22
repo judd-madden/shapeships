@@ -549,8 +549,8 @@ export interface LeftRailViewModel {
   diceValue: 1 | 2 | 3 | 4 | 5 | 6;
   diceAnimateKey: number; // increments on each DICE_ROLLED event (drives animation)
   diceManipulationSlots: {
-    left: LeftRailDiceManipulationSlotViewModel | null;
-    right: LeftRailDiceManipulationSlotViewModel | null;
+    left: LeftRailDiceManipulationSlotViewModel[];
+    right: LeftRailDiceManipulationSlotViewModel[];
   };
   
   // Phase card

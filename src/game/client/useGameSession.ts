@@ -8266,8 +8266,8 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         diceValue: 1,
         diceAnimateKey: 0,
         diceManipulationSlots: {
-          left: null,
-          right: null,
+          left: [],
+          right: [],
         },
         turn: 1,
         phase: 'UNKNOWN PHASE',

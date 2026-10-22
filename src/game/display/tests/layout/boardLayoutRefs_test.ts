@@ -180,7 +180,7 @@ describe('explicit desktop guidance layout refs', () => {
   const card = new ElementDouble();
   const props = (overrides: Partial<DesktopDicePresentationProps> = {}) => ({
     boardRootRef, barRegionRef, diceValue: 3 as const, diceAnimateKey: 1,
-    diceManipulationSlots: { left: null, right: null }, firstTurnBuildHelperEligible: true,
+    diceManipulationSlots: { left: [], right: [] }, firstTurnBuildHelperEligible: true,
     ...overrides,
   });
   const renderDice = (overrides: Partial<DesktopDicePresentationProps> = {}) => render(
