@@ -100,6 +100,34 @@ describe('health-bar production geometry', () => {
 });
 
 describe('health-bar rendered structure', () => {
+  for (const orientation of ['desktop', 'mobile'] as const) {
+    for (const compactMobile of [false, true]) {
+      it(`${orientation}: preserves legend styling with compactMobile=${compactMobile}`, () => {
+        const prepared = scale(0, 35, 35, orientation);
+        const legend = HealthBarLegend({ scale: prepared, orientation, axisLength: 256, compactMobile });
+        const desktop = orientation === 'desktop';
+        const classes = legend.props.className.split(/\s+/);
+        expect(classes).toContain('leading-none');
+        expect(classes).toContain(desktop ? 'font-normal' : 'font-medium');
+        expect(classes).not.toContain(desktop ? 'font-medium' : 'font-normal');
+        expect(classes).toContain(desktop ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]');
+        expect(classes).not.toContain(desktop ? 'text-[var(--shapeships-grey-20)]' : 'text-[var(--shapeships-grey-50)]');
+        expect(legend.props.style).toMatchObject({ fontSize: desktop ? 12 : 10,
+          height: desktop ? 260 : compactMobile ? 10 : 18 });
+        const ticks = elements(legend).filter((node) => node.props['data-health-tick'] !== undefined);
+        if (!desktop) expect(ticks.map((tick) => tick.props['data-health-tick'])).toEqual([0, 5, 10, 15, 20, 25, 30, 35]);
+        for (const tick of ticks) {
+          const tickClasses = tick.props.className.split(/\s+/);
+          expect(tickClasses.some((className: string) => className.startsWith('bg-'))).toBe(desktop);
+          if (desktop) expect(tickClasses).toContain('bg-black');
+          expect(tickClasses.includes('py-[2px]')).toBe(desktop || !compactMobile);
+          expect(tick.props.style.background).toBeUndefined();
+          expect(tick.props.style.backgroundColor).toBeUndefined();
+        }
+      });
+    }
+  }
+
   it('fits the live mobile pair in 38px while keeping logical caps and outward markers', () => {
     const prepared = scale(-300, 35, 45, 'mobile');
     const upper = HealthBar({ scale: prepared, orientation: 'mobile', axisLength: 256,

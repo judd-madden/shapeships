@@ -222,7 +222,7 @@ describe('mobile live health ownership', () => {
     const input = { healthBarPresentation: null, hudVm: {}, boardVm: { ...board, myHealth: 25, opponentHealth: 25 },
       leftRailVm: {}, thisTurn: null, mobileDiceModifierSlots: { top: null, bottom: null } } as unknown as Parameters<typeof MobileStatusRail>[0];
     const rail = MobileStatusRail(input);
-    expect(rail.props.healthBars.props.className).toContain('h-[38px]');
+    expect(rail.props.healthBars.props.className).toContain('h-[46px]');
     expect(elements(rail.props.healthBars).some((node) => node.type === HealthBar)).toBe(false);
     const species = MobileStatusRailFrame({ topRow: { name: 'A' }, bottomRow: { name: 'B' },
       topClock: '1:00', bottomClock: '1:00', diceValue: 1, diceAnimateKey: 0 } as Parameters<typeof MobileStatusRailFrame>[0]);

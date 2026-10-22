@@ -8,7 +8,7 @@ export type HealthBarOrientation = 'desktop' | 'mobile';
 /** Presentation settings only; these never establish an authoritative player cap. */
 export const HEALTH_BAR_SCALE_CONFIG = Object.freeze({
   desktop: Object.freeze({ minimumPositiveFraction: 0.35, minimumLabelSpacing: 24 }),
-  mobile: Object.freeze({ minimumPositiveFraction: 0.35, minimumLabelSpacing: 48 }),
+  mobile: Object.freeze({ minimumPositiveFraction: 0.35, minimumLabelSpacing: 24 }),
 });
 
 export interface HealthBarScaleContext {
@@ -164,6 +164,7 @@ export interface HealthBarLegendLabel {
 }
 
 const MAX_REGION_CANDIDATES = 128;
+const MOBILE_LABEL_BUDGET = 9;
 
 /** Smallest readable step >= requested; null when the next sensible step overflows. */
 function readableStep(requested: number): number | null {
@@ -179,6 +180,7 @@ function readableStep(requested: number): number | null {
 /**
  * Labels only: resize/spacing never changes prepared geometry or replays contributions.
  * Zero and exact positive top are mandatory even when they overlap on tiny axes.
+ * Mobile keeps readable regional increments and negative context within nine labels.
  * Spacing is a configurable center-to-center estimate; real text measurement is deferred.
  */
 export function calculateHealthBarLegend(
@@ -189,19 +191,59 @@ export function calculateHealthBarLegend(
     readonly minimumLabelSpacing?: number;
   },
 ): readonly Readonly<HealthBarLegendLabel>[] {
-  const config = HEALTH_BAR_SCALE_CONFIG[options.orientation ?? scale.orientation];
+  const orientation = options.orientation ?? scale.orientation;
+  const mobile = orientation === 'mobile';
+  const config = HEALTH_BAR_SCALE_CONFIG[orientation];
   const axisLength = Number.isFinite(options.axisLength) ? Math.max(0, options.axisLength) : 0;
   const requestedSpacing = options.minimumLabelSpacing ?? config.minimumLabelSpacing;
   const spacing = Number.isFinite(requestedSpacing) && requestedSpacing > 0
     ? requestedSpacing : config.minimumLabelSpacing;
   const labels: Readonly<HealthBarLegendLabel>[] = [];
   const add = (candidate: number, mandatory = false) => {
+    if (mobile && labels.length >= MOBILE_LABEL_BUDGET) return;
     const value = candidate === 0 ? 0 : candidate;
     const position = mapHealthBarValue(scale, value);
     if (position === null || labels.some((label) => label.value === value)) return;
     if (!mandatory && labels.some((label) => Math.abs(label.position - position) * axisLength < spacing)) return;
     labels.push(Object.freeze({ value, position, label: String(value) }));
   };
+  if (mobile) {
+    const stepFor = (extent: number, fraction: number) => {
+      const slots = Math.min(MOBILE_LABEL_BUDGET - 1, Math.floor(axisLength * fraction / spacing));
+      return slots > 0 && extent > 0 ? readableStep(extent / slots) : null;
+    };
+    const ticksFor = (extent: number, sign: 1 | -1, step: number | null): number[] => {
+      const ticks: number[] = [];
+      if (step !== null) {
+        for (let index = 1; index <= MOBILE_LABEL_BUDGET - 1; index += 1) {
+          const value = index * step;
+          if (!Number.isFinite(value) || value > extent || (sign === 1 && value === extent)) break;
+          ticks.push(sign * value);
+        }
+      }
+      // Even tiny axes retain negative context; a -5 domain therefore always labels -5.
+      return sign === -1 && extent > 0 && ticks.length === 0 ? [-extent] : ticks;
+    };
+    let positiveStep = stepFor(scale.domainMax, scale.positiveFraction);
+    let negativeStep = stepFor(-scale.domainMin, scale.zeroPosition);
+    let positiveTicks = ticksFor(scale.domainMax, 1, positiveStep);
+    let negativeTicks = ticksFor(-scale.domainMin, -1, negativeStep);
+    // Coarsen complete regions rather than letting insertion order consume the budget.
+    while (positiveTicks.length + negativeTicks.length + 2 > MOBILE_LABEL_BUDGET) {
+      if (negativeTicks.length > positiveTicks.length) {
+        negativeStep = negativeStep === null ? null : readableStep(negativeStep * 2);
+        negativeTicks = ticksFor(-scale.domainMin, -1, negativeStep);
+      } else {
+        positiveStep = positiveStep === null ? null : readableStep(positiveStep * 2);
+        positiveTicks = ticksFor(scale.domainMax, 1, positiveStep);
+      }
+    }
+    add(0, true);
+    add(scale.domainMax, true);
+    // Regional steps provide spacing; the exact top may sit closer to the final tick.
+    for (const value of [...negativeTicks, ...positiveTicks]) add(value, true);
+    return Object.freeze(labels.sort((a, b) => a.position - b.position));
+  }
   add(0, true);
   add(scale.domainMax, true);
   if (scale.domainMin < 0) add(scale.domainMin);

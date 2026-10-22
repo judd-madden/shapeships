@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { HEALTH_BAR_EXAMPLES } from '../../../components/dev/healthBarExampleFixtures';
 import { HealthBarPair } from '../healthBars/HealthBar';
 import { calculateHealthBarGeometry, healthBarValuePosition } from '../healthBars/healthBarPresentation';
-import { mapHealthBarValue, prepareHealthBarScale } from '../healthBars/healthBarScale';
+import { calculateHealthBarLegend, mapHealthBarValue, prepareHealthBarScale } from '../healthBars/healthBarScale';
 import { prepareHealthBarSequence, sampleHealthBarSequence } from '../healthBars/healthBarSequence';
 import { interpolateHealthBarScale, prepareHealthBarLegendTransition, sampleHealthBarLegendTransition } from '../healthBars/healthBarScaleTransition';
 
@@ -77,6 +77,51 @@ describe('coordinated health-bar scale and legend transitions', () => {
     }
     for (const elapsed of [350, 1000, sequence.durationMs, sequence.durationMs + 5000]) {
       expect(sampleHealthBarSequence(sequence, elapsed).scales).toBe(sequence.scales);
+    }
+  });
+
+  it('uses shared mobile density and mandatory ticks for each prepared transition endpoint', () => {
+    const { narrow, wide, snapshot } = scales();
+    const defaultScale = prepareHealthBarScale({ mode: 'settled', identity: snapshot.identity, outcome: snapshot.outcome,
+      left: { playerId: 'a', health: 25, maxHealth: 35 }, right: { playerId: 'b', health: 30, maxHealth: 35 } },
+    snapshot, { orientation: 'mobile' })!;
+    expect(prepareHealthBarLegendTransition(defaultScale, wide, 'mobile', 256).from.map((tick) => tick.value))
+      .toEqual([0, 5, 10, 15, 20, 25, 30, 35]);
+    for (const [health, expected] of [
+      [-2, [-5, 0, 5, 10, 15, 20, 25, 30, 35]],
+      [-40, [-40, -30, -20, -10, 0, 10, 20, 30, 35]],
+    ] as const) {
+      const negativeScale = prepareHealthBarScale({ mode: 'settled', identity: snapshot.identity, outcome: snapshot.outcome,
+        left: { playerId: 'a', health, maxHealth: 35 }, right: { playerId: 'b', health: 30, maxHealth: 35 } },
+      snapshot, { orientation: 'mobile' })!;
+      const expansion = prepareHealthBarLegendTransition(defaultScale, negativeScale, 'mobile', 256);
+      const contraction = prepareHealthBarLegendTransition(negativeScale, defaultScale, 'mobile', 256);
+      expect(expansion.to.map((tick) => tick.value)).toEqual(expected);
+      expect(contraction.from).toEqual(expansion.to);
+    }
+    for (const [from, to] of [[defaultScale, wide], [wide, defaultScale], [wide, narrow]]) {
+      for (const axisLength of [0, 120, 256, 1600]) {
+        const prepared = prepareHealthBarLegendTransition(from, to, 'mobile', axisLength);
+        for (const [scale, ticks] of [[from, prepared.from], [to, prepared.to]] as const) {
+          expect(ticks).toEqual(calculateHealthBarLegend(scale, { orientation: 'mobile', axisLength }));
+          expect(ticks.length).toBeLessThanOrEqual(9);
+          expect(ticks.map((tick) => tick.value)).toEqual(expect.arrayContaining([0, scale.domainMax]));
+          if (scale.domainMin < 0) expect(ticks.some((tick) => tick.value < 0)).toBe(true);
+        }
+        const expectedValues = new Set([...prepared.from, ...prepared.to].map((tick) => tick.value));
+        for (const progress of [0, 0.5, 1]) {
+          const scale = interpolateHealthBarScale(from, to, progress);
+          const labels = sampleHealthBarLegendTransition(prepared, scale, progress);
+          expect(new Set(labels.map((tick) => tick.value))).toEqual(expectedValues);
+          for (const tick of labels) {
+            expect(tick.position).toBe(mapHealthBarValue(scale, tick.value) ??
+              [...prepared.to, ...prepared.from].find((label) => label.value === tick.value)!.position);
+            const old = prepared.from.some((label) => label.value === tick.value);
+            const incoming = prepared.to.some((label) => label.value === tick.value);
+            expect(tick.opacity).toBe(old ? incoming ? 1 : 1 - progress : progress);
+          }
+        }
+      }
     }
   });
 

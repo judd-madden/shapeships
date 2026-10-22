@@ -306,6 +306,96 @@ Deno.test('health scale: ordinary labels use readable dynamic intervals', () => 
   assert(large.some((label) => label.value === 200));
 });
 
+Deno.test('health scale: mobile default labels stay unchanged on normal and wider axes', () => {
+  const scale = prepare(live(), 'mobile');
+  for (const axisLength of [196, 256, 400, 1600]) {
+    equal(calculateHealthBarLegend(scale, { axisLength }).map((label) => label.value),
+      [0, 5, 10, 15, 20, 25, 30, 35]);
+  }
+  equal(calculateHealthBarLegend(scale, { axisLength: 120 }).map((label) => label.value), [0, 10, 20, 30, 35]);
+  equal(calculateHealthBarLegend(prepare(settled(25, 100), 'mobile'), { axisLength: 256 })
+    .map((label) => label.value), [0, 20, 40, 60, 80, 100]);
+});
+
+Deno.test('health scale: mobile retains useful negative context across ranges and widths', () => {
+  for (const minimum of [-Number.MIN_VALUE, -2, -5, -7, -11, -60, -300, -1000, -Number.MAX_VALUE]) {
+    const scale = prepare(settled(minimum), 'mobile');
+    const before = JSON.stringify(scale);
+    for (const axisLength of [0, 1, -10, NaN, Infinity, Number.MIN_VALUE, 120, 256, 1600, Number.MAX_VALUE]) {
+      for (const minimumLabelSpacing of [undefined, 0, -1, NaN, Infinity, Number.MIN_VALUE, 10, 80]) {
+        const labels = calculateHealthBarLegend(scale, { axisLength, minimumLabelSpacing });
+        assert(labels.length >= 3 && labels.length <= 9);
+        for (const value of [0, 35]) assert(labels.some((label) => label.value === value));
+        assert(labels.some((label) => label.value < 0));
+        if (scale.domainMin === -5) assert(labels.some((label) => label.value === -5));
+        equal(new Set(labels.map((label) => label.value)).size, labels.length);
+        for (const label of labels) {
+          // Extreme finite bounds retain their existing floating-point representation.
+          if (Number.isSafeInteger(label.value)) assert(label.value % 5 === 0);
+          assert(Number.isFinite(label.value) && Number.isFinite(label.position));
+          equal(label.position, mapHealthBarValue(scale, label.value));
+        }
+      }
+    }
+    equal(JSON.stringify(scale), before);
+    equal(calculateHealthBarLegend(scale, { axisLength: 0 }).map((label) => label.value).sort((a, b) => a - b),
+      [scale.domainMin, 0, 35]);
+  }
+});
+
+Deno.test('health scale: mobile uses nine balanced labels with consistent negative increments', () => {
+  const scale = prepare(settled(-40), 'mobile');
+  for (const axisLength of [256, 1600]) {
+    equal(calculateHealthBarLegend(scale, { axisLength }).map((label) => label.value),
+      [-40, -30, -20, -10, 0, 10, 20, 30, 35]);
+  }
+  const shallow = calculateHealthBarLegend(prepare(settled(-2), 'mobile'), { axisLength: 256 });
+  equal(shallow.map((label) => label.value), [-5, 0, 5, 10, 15, 20, 25, 30, 35]);
+  for (const minimum of [-40, -45, -60]) {
+    const negatives = calculateHealthBarLegend(prepare(settled(minimum), 'mobile'), { axisLength: 256 })
+      .filter((label) => label.value < 0).map((label) => label.value);
+    assert(negatives.includes(-10) && !negatives.includes(-5));
+    assert(negatives.every((value) => value % 10 === 0));
+    for (let index = 1; index < negatives.length; index += 1) equal(negatives[index] - negatives[index - 1], 10);
+  }
+  const narrow = calculateHealthBarLegend(scale, { axisLength: 120 });
+  assert(narrow.length < 9 && narrow.some((label) => label.value < 0));
+});
+
+Deno.test('health scale: mobile optional ticks retain negative context and respect mapped spacing', () => {
+  const scale = prepare(settled(-300), 'mobile');
+  const labels = calculateHealthBarLegend(scale, { axisLength: 256 });
+  assert(labels.some((label) => label.value === -300));
+  assert(labels.some((label) => label.value < -5 && label.value > -300));
+  for (const label of labels.filter((label) => label.value !== 35)) {
+    for (const other of labels.filter((other) => other !== label && other.value !== 35)) {
+      assert(Math.abs(label.position - other.position) * 256 >= 24);
+    }
+  }
+});
+
+Deno.test('health scale: mobile budget includes expanded endpoints and applies with orientation overrides', () => {
+  for (const presentation of [settled(25, 1000), settled(-1000, 1000), settled(-300, 43)]) {
+    const scale = prepare(presentation);
+    const before = JSON.stringify(scale);
+    for (const axisLength of [120, 256, 1600, Number.MAX_VALUE]) {
+      for (const minimumLabelSpacing of [undefined, Number.MIN_VALUE, 10, 80]) {
+        const labels = calculateHealthBarLegend(scale, { orientation: 'mobile', axisLength, minimumLabelSpacing });
+        assert(labels.length <= 9);
+        for (const value of [0, scale.domainMax]) assert(labels.some((label) => label.value === value));
+        if (scale.domainMin < 0) assert(labels.some((label) => label.value < 0));
+        for (const label of labels) {
+          assert(label.value % 5 === 0);
+          equal(label.position, mapHealthBarValue(scale, label.value));
+        }
+      }
+    }
+    equal(JSON.stringify(scale), before);
+  }
+  const desktop = calculateHealthBarLegend(prepare(settled(-300)), { axisLength: 1600 });
+  assert(desktop.length > 9);
+});
+
 for (const axisLength of [0, 1, -10, NaN, Infinity, Number.MIN_VALUE]) {
   Deno.test(`health scale: mandatory labels survive degenerate axis ${String(axisLength)}`, () => {
     const scale = prepare(settled(-300));

@@ -179,7 +179,7 @@ export function MobileStatusRail({
     (boardVm.turnNumber > 1 || boardVm.healthDeltaPresentationKey != null);
   // Keep logical player/cap ownership intact; only the visual row order is reversed.
   const healthBars = (
-    <div data-health-pair="mobile" className="pointer-events-none flex h-[42px] gap-[2px] w-full shrink-0 flex-col items-start overflow-visible">
+    <div data-health-pair="mobile" className="pointer-events-none flex h-[46px] gap-[3px] py-[1px] w-full shrink-0 flex-col items-start overflow-visible">
       {healthBarPresentation ? (
         <>
           <HealthBar scale={healthBarPresentation.scale} orientation="mobile" axisLength={axisLength}
