@@ -60,6 +60,7 @@ function captureScales(scales: HealthBarScales): HealthBarScales {
 
 export function prepareHealthBarSequence(
   input: Readonly<ResolvedHealthSnapshot>, inputScales: HealthBarScales, previous?: HealthBarScales | null,
+  retainedNegativeFloor = 0,
 ): Readonly<HealthBarSequence> {
   const snapshot = Object.freeze({
     ...input, identity: Object.freeze({ ...input.identity }), outcome: Object.freeze({ ...input.outcome }),
@@ -85,9 +86,13 @@ export function prepareHealthBarSequence(
     left: { playerId: snapshot.left.playerId, health: snapshot.left.startHealth, maxHealth: snapshot.left.maxHealth },
     right: { playerId: snapshot.right.playerId, health: snapshot.right.startHealth, maxHealth: snapshot.right.maxHealth },
   };
-  const previousFor = (orientation: 'desktop' | 'mobile') =>
-    retainPreparedHealthBarScale(previous?.[orientation] ?? null, context) ??
-    prepareHealthBarScale(startPresentation, context, { orientation })!;
+  const previousFor = (orientation: 'desktop' | 'mobile') => {
+    const retained = retainPreparedHealthBarScale(previous?.[orientation] ?? null, context);
+    // Settled reconciliation may have deepened the floor since the last sequence.
+    // Recovery can also discard playback while retaining this per-game bound.
+    return retained && retained.domainMin <= retainedNegativeFloor ? retained :
+      prepareHealthBarScale(startPresentation, context, { orientation, retainedNegativeFloor })!;
+  };
   const previousScales = captureScales({ desktop: previousFor('desktop'), mobile: previousFor('mobile') });
   const stages: HealthBarSequenceStage[] = [];
   let durationMs = 0;

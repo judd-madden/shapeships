@@ -107,6 +107,69 @@ beforeEach(() => {
 afterEach(async () => { hooks.unmount(); await Promise.resolve(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('session health presentation hooks and entry wiring', () => {
+  it('owns the game floor above layout changes and retains it through settled recovery without stale completion', () => {
+    const input = runtime.vm!;
+    if (input.resolvedHealth?.mode !== 'live') throw new Error('Expected live facts');
+    const original = input.resolvedHealth.snapshot;
+    input.resolvedHealth = { mode: 'live', snapshot: { ...original, left: { ...original.left,
+      damageTaken: 67, damageStageHealth: -37, grossHealingReceived: 57 } } };
+    let orientation: 'desktop' | 'mobile' = 'desktop';
+    let axisLength = 600;
+    const completed = vi.fn();
+    const read = () => render(() => {
+      const view = useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
+        session: input.resolvedHealthSession, canAccept: true, orientation, onComplete: completed });
+      return { view, labels: useHealthBarLegend(view, axisLength, orientation) };
+    });
+    read(); let current = read();
+    const sequence = current.view!.sequence!;
+    advance(200);
+    input.resolvedHealth = input.resolvedHealthSession!.settled;
+    for (const [axis, length] of [['mobile', 120], ['desktop', 320], ['mobile', 1600]] as const) {
+      orientation = axis; axisLength = length; current = read();
+      expect(current.view!.sequence).toBe(sequence);
+      expect(current.view!.scale.domainMin).toBe(-40);
+      expect(current.labels!.length).toBeLessThanOrEqual(axis === 'mobile' ? 9 : 10);
+    }
+    advance(100000); read(); read();
+    expect(completed).toHaveBeenCalledOnce();
+    const previous = input.resolvedHealthSession!;
+    input.resolvedHealthSession = { ...previous, settled: { ...previous.settled!,
+      left: { ...previous.settled!.left, health: 25, maxHealth: 80 } } };
+    current = read();
+    expect(current.view!.sequence).toBeNull();
+    expect(current.view!.scale.domainMin).toBe(-40);
+    expect(current.view!.scale.domainMax).toBe(80);
+    input.resolvedHealthSession = { ...input.resolvedHealthSession, continuityKey: 'recovered',
+      settled: { ...input.resolvedHealthSession.settled!,
+        left: { ...input.resolvedHealthSession.settled!.left, maxHealth: 35 } } };
+    input.resolvedHealth = input.resolvedHealthSession.settled;
+    completed.mockClear(); read(); current = read();
+    expect(current.view!.sequence).toBeNull();
+    expect(current.view!.delta).toBeNull();
+    expect(current.view!.scale.domainMin).toBe(-40);
+    expect(current.view!.scale.domainMax).toBe(35);
+    expect(completed).not.toHaveBeenCalled();
+    expect(frames.size).toBe(0);
+    const recovered = input.resolvedHealthSession;
+    input.resolvedHealth = { mode: 'live', snapshot: { ...original, continuityKey: recovered.continuityKey,
+      resolvedTurnNumber: 4, presentationKey: 'g::health::4' } };
+    input.resolvedHealthSession = { ...recovered, observedResolvedTurnNumber: 4 };
+    read(); current = read();
+    for (const axis of ['desktop', 'mobile'] as const) {
+      expect(current.view!.sequence!.previousScales[axis].domainMin).toBe(-40);
+      expect(current.view!.sequence!.scales[axis].domainMin).toBe(-40);
+    }
+    const identity = { ...recovered.identity, gameId: 'next-game' };
+    input.resolvedHealthSession = { ...recovered, identity, settled: { ...recovered.settled!, identity } };
+    input.resolvedHealth = input.resolvedHealthSession.settled;
+    read(); current = read();
+    expect(current.view!.scale.domainMin).toBe(0);
+    expect(current.view!.sequence).toBeNull();
+    expect(current.view!.delta).toBeNull();
+    expect(completed).not.toHaveBeenCalled();
+  });
+
   it('reports terminal completion only after the number tail, independent of delta reveal and layout remounts', () => {
     const input = runtime.vm!;
     if (input.resolvedHealth?.mode !== 'live') throw new Error('Expected live facts');

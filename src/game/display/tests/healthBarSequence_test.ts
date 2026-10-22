@@ -3,7 +3,7 @@ import { HEALTH_BAR_EXAMPLES, createHealthBarExample } from '../../../components
 import { healthBarEasing, healthBarMovementDuration } from '../healthBars/healthBarAnimationConfig';
 import { prepareHealthBarSequence, sampleHealthBarSequence, type HealthBarSequence, type HealthBarAnimationStage } from '../healthBars/healthBarSequence';
 import { calculateHealthBarGeometry } from '../healthBars/healthBarPresentation';
-import { mapHealthBarValue } from '../healthBars/healthBarScale';
+import { mapHealthBarValue, prepareHealthBarScale } from '../healthBars/healthBarScale';
 
 function sequence(id: string): HealthBarSequence {
   const example = HEALTH_BAR_EXAMPLES.find((item) => item.id === id)!;
@@ -17,6 +17,31 @@ function sample(sequence: HealthBarSequence, name: HealthBarAnimationStage, frac
 }
 
 describe('health-bar sequence preparation and elapsed sampling', () => {
+  it('carries the retained floor through missing or shallower outgoing scales without affecting standalone scenarios', () => {
+    const source = sequence('ordinary');
+    const presentation = { mode: 'live' as const, snapshot: source.snapshot };
+    const scales = {
+      desktop: prepareHealthBarScale(presentation, source.snapshot, { orientation: 'desktop', retainedNegativeFloor: -40 })!,
+      mobile: prepareHealthBarScale(presentation, source.snapshot, { orientation: 'mobile', retainedNegativeFloor: -40 })!,
+    };
+    for (const previous of [null, source.scales]) {
+      const retained = prepareHealthBarSequence(source.snapshot, scales, previous, -40);
+      for (const orientation of ['desktop', 'mobile'] as const) {
+        expect(retained.previousScales[orientation].domainMin).toBe(-40);
+        expect(retained.scales[orientation].domainMin).toBe(-40);
+        expect(Object.isFrozen(retained.scales[orientation])).toBe(true);
+      }
+      for (const stage of retained.stages) {
+        const frame = sampleHealthBarSequence(retained, stage.startMs + stage.durationMs / 2);
+        if (stage.name !== 'scale') expect(frame.scales).toBe(retained.scales);
+        expect(frame.scales.desktop.domainMin).toBe(-40);
+        expect(frame.scales.mobile.domainMin).toBe(-40);
+      }
+    }
+    expect(sequence('ordinary').scales.desktop.domainMin).toBe(0);
+    expect(sequence('ordinary').previousScales.mobile.domainMin).toBe(0);
+  });
+
   it('uses bounded mapped travel and evaluates cubic-bezier time rather than its parameter', () => {
     expect([0, 0.25, 0.5, 0.75, 1, 100].map(healthBarMovementDuration)).toEqual([700, 700, 700, 1050, 1400, 1400]);
     expect(healthBarEasing(0)).toBe(0);

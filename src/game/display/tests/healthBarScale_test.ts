@@ -5,7 +5,7 @@ import type {
 } from '../../client/gameSession/types';
 import { buildSettledHealthPresentation, captureResolvedHealthSnapshot } from '../../client/gameSession/resolvedHealth';
 import {
-  HEALTH_BAR_SCALE_CONFIG, calculateHealthBarLegend, mapHealthBarValue,
+  HEALTH_BAR_SCALE_CONFIG, HEALTH_BAR_LEGEND_LABEL_LIMITS, calculateHealthBarLegend, mapHealthBarValue,
   prepareHealthBarScale, retainPreparedHealthBarScale,
   type HealthBarOrientation, type PreparedHealthBarScale,
 } from '../healthBars/healthBarScale';
@@ -289,7 +289,8 @@ Deno.test('health scale: label thinning and orientation spacing do not change ge
   const sparse = calculateHealthBarLegend(scale, { axisLength: 600, minimumLabelSpacing: 80 });
   const desktop = calculateHealthBarLegend(scale, { axisLength: 600 });
   const mobile = calculateHealthBarLegend(scale, { axisLength: 600, orientation: 'mobile' });
-  assert(dense.length > sparse.length && desktop.length > mobile.length);
+  assert(dense.length > sparse.length);
+  assert(desktop.length <= 10 && mobile.length <= 9);
   equal(JSON.stringify(scale), before);
   for (const labels of [dense, sparse, desktop, mobile]) {
     for (const label of labels) equal(label.position, mapHealthBarValue(scale, label.value));
@@ -393,22 +394,22 @@ Deno.test('health scale: mobile budget includes expanded endpoints and applies w
     equal(JSON.stringify(scale), before);
   }
   const desktop = calculateHealthBarLegend(prepare(settled(-300)), { axisLength: 1600 });
-  assert(desktop.length > 9);
+  assert(desktop.length <= 10);
 });
 
 for (const axisLength of [0, 1, -10, NaN, Infinity, Number.MIN_VALUE]) {
   Deno.test(`health scale: mandatory labels survive degenerate axis ${String(axisLength)}`, () => {
     const scale = prepare(settled(-300));
     const labels = calculateHealthBarLegend(scale, { axisLength });
-    equal(labels.map((label) => label.value), [0, 35]);
-    equal(labels.map((label) => label.position), [scale.zeroPosition, 1]);
+    equal(labels.map((label) => label.value), [-300, 0, 35]);
+    equal(labels.map((label) => label.position), [0, scale.zeroPosition, 1]);
   });
 }
 
 Deno.test('health scale: optional labels respect mapped spacing and negative context has priority', () => {
   const scale = prepare(settled(-63));
   const labels = calculateHealthBarLegend(scale, { axisLength: 350, minimumLabelSpacing: 24 });
-  equal(labels[0].value, -65);
+  equal(labels[0].value, -60);
   for (let index = 1; index < labels.length; index += 1) {
     assert((labels[index].position - labels[index - 1].position) * 350 >= 24);
   }
@@ -420,7 +421,7 @@ Deno.test('health scale: extreme ranges and axis sizes have bounded, valid and u
     for (const axisLength of [0, 100, 1e308, Number.MAX_VALUE]) {
       for (const minimumLabelSpacing of [0, -1, NaN, Infinity, Number.MIN_VALUE, 24]) {
         const labels = calculateHealthBarLegend(scale, { axisLength, minimumLabelSpacing });
-        assert(labels.length >= 2 && labels.length <= 259);
+        assert(labels.length >= 2 && labels.length <= 10);
         equal(new Set(labels.map((label) => label.value)).size, labels.length);
         for (const label of labels) {
           assert(Number.isFinite(label.value) && Number.isFinite(label.position));
@@ -444,7 +445,7 @@ Deno.test('health scale: prepared scalar data and cap metadata are detached and 
   equal([scale.domainMin, scale.domainMax, scale.leftCap.value], [0, 70, 43]);
 });
 
-Deno.test('health scale: retain expanded geometry through release/build and explicitly contract next resolution', () => {
+Deno.test('health scale: standalone preparation has no implicit per-game memory', () => {
   const expanded = prepare(live(side('p1', 25, 325, 310)));
   for (const phase of ['damage', 'clearance', 'healing', 'surplus', 'settling', 'build', 'selection']) {
     assert(retainPreparedHealthBarScale(expanded, context) === expanded, phase);
@@ -456,6 +457,59 @@ Deno.test('health scale: retain expanded geometry through release/build and expl
   const next = prepare(live(side('p1'), side('p2'), 5));
   equal([next.domainMin, next.domainMax, next.resolvedTurnNumber], [0, 35, 5]);
   equal([expanded.domainMin, expanded.resolvedTurnNumber], [-300, 4]);
+});
+
+Deno.test('health scale: retained negative floor rounds outward without retaining positive maxima or mutating inputs', () => {
+  for (const orientation of ['desktop', 'mobile'] as const) {
+    let floor = 0;
+    for (const [requirement, expected] of [[-2, -5], [-37, -40], [-5, -40], [25, -40], [-47, -50]]) {
+      const presentation = live(side('p1'), side('p2', 25, 25 - requirement, 60));
+      const before = JSON.stringify(presentation);
+      const scale = prepareHealthBarScale(presentation, context, { orientation, retainedNegativeFloor: floor });
+      assert(scale);
+      equal(scale.domainMin, expected);
+      equal(scale.domainMax, 35);
+      assert(Object.isFrozen(scale));
+      for (const value of [requirement, 0, 25, 35]) assert(mapHealthBarValue(scale, value) !== null);
+      equal(JSON.stringify(presentation), before);
+      floor = scale.domainMin;
+    }
+    const expanded = prepareHealthBarScale(settled(-2, 100), context, { orientation, retainedNegativeFloor: floor });
+    const next = prepareHealthBarScale(settled(25, 35), context, { orientation, retainedNegativeFloor: floor });
+    assert(expanded && next);
+    equal([expanded.domainMin, expanded.domainMax, next.domainMin, next.domainMax], [-50, 100, -50, 35]);
+    const rounded = prepareHealthBarScale(settled(), context, { orientation, retainedNegativeFloor: -37 });
+    equal(rounded?.domainMin, -40);
+    for (const retainedNegativeFloor of [1, NaN, Infinity, -Infinity]) {
+      equal(prepareHealthBarScale(settled(), context, { orientation, retainedNegativeFloor }), null);
+    }
+  }
+});
+
+Deno.test('health scale: both orientations bound labels over ranges, dimensions and spacing overrides', () => {
+  for (const orientation of ['desktop', 'mobile'] as const) {
+    for (const minimum of [0, -2, -5, -40, -45, -65, -300, -1000, -Number.MAX_VALUE]) {
+      for (const maximum of [35, 43, 100, 1000, Number.MAX_VALUE]) {
+        const scale = prepare(settled(minimum, maximum), orientation);
+        for (const axisLength of [0, 1, 120, 256, 600, 1600, Number.MAX_VALUE]) {
+          for (const minimumLabelSpacing of [undefined, 10, 80, Number.MIN_VALUE]) {
+            const labels = calculateHealthBarLegend(scale, { orientation, axisLength, minimumLabelSpacing });
+            assert(labels.length <= HEALTH_BAR_LEGEND_LABEL_LIMITS[orientation]);
+            assert(labels.some((label) => label.value === 0));
+            assert(labels.some((label) => label.value === scale.domainMax));
+            if (minimum < 0) assert(labels.some((label) => label.value < 0));
+            if (scale.domainMin === -5) assert(labels.some((label) => label.value === -5));
+            equal(new Set(labels.map((label) => label.value)).size, labels.length);
+            for (const label of labels) {
+              assert(Number.isFinite(label.position) && Number.isFinite(label.value));
+              if (Number.isSafeInteger(label.value)) assert(label.value % 5 === 0);
+              equal(label.position, mapHealthBarValue(scale, label.value));
+            }
+          }
+        }
+      }
+    }
+  }
 });
 
 Deno.test('health scale: game/viewer/order/session/recovery changes invalidate retained geometry', () => {

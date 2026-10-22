@@ -130,14 +130,15 @@ export function createHealthBarAnimationController(options: {
       motionEnabled = enabled;
       if (!enabled) finish('motion-disabled');
     },
-    accept(candidate: Readonly<ResolvedHealthSnapshot> | null | undefined, scales?: HealthBarScales): boolean {
+    accept(candidate: Readonly<ResolvedHealthSnapshot> | null | undefined, scales?: HealthBarScales,
+      retainedNegativeFloor = 0): boolean {
       if (disposed || !candidate || !scales) return false;
       const incomingContext = contextKey(candidate);
       if (activeContext === null) activeContext = incomingContext;
       if (incomingContext !== activeContext || candidate.resolvedTurnNumber <= latestTurn ||
         candidate.presentationKey === latestKey) return false;
       // Prepare before replacing anything so a rejected candidate cannot cancel accepted work.
-      const sequence = prepareHealthBarSequence(candidate, scales, retainedScales);
+      const sequence = prepareHealthBarSequence(candidate, scales, retainedScales, retainedNegativeFloor);
       cancel();
       // The old sequence is superseded at its captured final state; no obsolete completion is emitted.
       retainedScales = sequence.scales;

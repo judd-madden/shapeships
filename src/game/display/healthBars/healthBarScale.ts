@@ -5,6 +5,8 @@ import type {
 
 export type HealthBarOrientation = 'desktop' | 'mobile';
 
+export const HEALTH_BAR_LEGEND_LABEL_LIMITS = Object.freeze({ mobile: 9, desktop: 10 });
+
 /** Presentation settings only; these never establish an authoritative player cap. */
 export const HEALTH_BAR_SCALE_CONFIG = Object.freeze({
   desktop: Object.freeze({ minimumPositiveFraction: 0.35, minimumLabelSpacing: 24 }),
@@ -79,18 +81,24 @@ export function unmapHealthBarValue(scale: HealthBarScaleGeometry, position: num
  * Prepare once from BOTH players' complete incoming authoritative presentation.
  * Adopt together before motion; freeze through damage/clearance/healing/surplus/
  * settling and retain through build/selection. Explicitly prepare again at the
- * next resolution (contraction is allowed), never from animated intermediate values.
- * Numeric parameters are retained for a later coordinated scale-transition controller.
+ * next resolution with the caller's per-game negative floor. Positive bounds may
+ * contract; never derive either bound from animated intermediate values.
  */
 export function prepareHealthBarScale(
   presentation: ResolvedHealthPresentation,
   context: HealthBarScaleContext,
-  options: { readonly orientation: HealthBarOrientation; readonly minimumPositiveFraction?: number },
+  options: {
+    readonly orientation: HealthBarOrientation;
+    readonly minimumPositiveFraction?: number;
+    readonly retainedNegativeFloor?: number;
+  },
 ): Readonly<PreparedHealthBarScale> | null {
   const config = HEALTH_BAR_SCALE_CONFIG[options.orientation];
   if (!config) return null;
   const minimumPositiveFraction = options.minimumPositiveFraction ?? config.minimumPositiveFraction;
+  const retainedNegativeFloor = options.retainedNegativeFloor ?? 0;
   if (!Number.isFinite(minimumPositiveFraction) || minimumPositiveFraction <= 0 || minimumPositiveFraction >= 1 ||
+      !Number.isFinite(retainedNegativeFloor) || retainedNegativeFloor > 0 ||
       !context.continuityKey) return null;
   const source = presentation.mode === 'live' ? presentation.snapshot : presentation;
   if (!sameIdentity(source.identity, context.identity) ||
@@ -109,7 +117,7 @@ export function prepareHealthBarScale(
   if (![...represented, ...liveNumbers].every(Number.isFinite) ||
       caps.some((cap) => cap !== null && (!Number.isFinite(cap) || cap <= 0))) return null;
 
-  const requiredMin = Math.min(0, ...represented);
+  const requiredMin = Math.min(0, retainedNegativeFloor, ...represented);
   const requiredMax = Math.max(35, ...represented, ...caps.filter((cap): cap is number => cap !== null));
   const roundExtentOutward = (extent: number): number => {
     // Keep subnormal negatives represented, and never shrink/overflow finite extreme bounds.
@@ -163,9 +171,6 @@ export interface HealthBarLegendLabel {
   readonly label: string;
 }
 
-const MAX_REGION_CANDIDATES = 128;
-const MOBILE_LABEL_BUDGET = 9;
-
 /** Smallest readable step >= requested; null when the next sensible step overflows. */
 function readableStep(requested: number): number | null {
   if (requested <= 5) return 5;
@@ -180,7 +185,8 @@ function readableStep(requested: number): number | null {
 /**
  * Labels only: resize/spacing never changes prepared geometry or replays contributions.
  * Zero and exact positive top are mandatory even when they overlap on tiny axes.
- * Mobile keeps readable regional increments and negative context within nine labels.
+ * Both orientations keep readable regional increments and negative context within
+ * their shared label limits.
  * Spacing is a configurable center-to-center estimate; real text measurement is deferred.
  */
 export function calculateHealthBarLegend(
@@ -192,7 +198,7 @@ export function calculateHealthBarLegend(
   },
 ): readonly Readonly<HealthBarLegendLabel>[] {
   const orientation = options.orientation ?? scale.orientation;
-  const mobile = orientation === 'mobile';
+  const labelLimit = HEALTH_BAR_LEGEND_LABEL_LIMITS[orientation];
   const config = HEALTH_BAR_SCALE_CONFIG[orientation];
   const axisLength = Number.isFinite(options.axisLength) ? Math.max(0, options.axisLength) : 0;
   const requestedSpacing = options.minimumLabelSpacing ?? config.minimumLabelSpacing;
@@ -200,65 +206,47 @@ export function calculateHealthBarLegend(
     ? requestedSpacing : config.minimumLabelSpacing;
   const labels: Readonly<HealthBarLegendLabel>[] = [];
   const add = (candidate: number, mandatory = false) => {
-    if (mobile && labels.length >= MOBILE_LABEL_BUDGET) return;
     const value = candidate === 0 ? 0 : candidate;
     const position = mapHealthBarValue(scale, value);
     if (position === null || labels.some((label) => label.value === value)) return;
     if (!mandatory && labels.some((label) => Math.abs(label.position - position) * axisLength < spacing)) return;
     labels.push(Object.freeze({ value, position, label: String(value) }));
   };
-  if (mobile) {
-    const stepFor = (extent: number, fraction: number) => {
-      const slots = Math.min(MOBILE_LABEL_BUDGET - 1, Math.floor(axisLength * fraction / spacing));
-      return slots > 0 && extent > 0 ? readableStep(extent / slots) : null;
-    };
-    const ticksFor = (extent: number, sign: 1 | -1, step: number | null): number[] => {
-      const ticks: number[] = [];
-      if (step !== null) {
-        for (let index = 1; index <= MOBILE_LABEL_BUDGET - 1; index += 1) {
-          const value = index * step;
-          if (!Number.isFinite(value) || value > extent || (sign === 1 && value === extent)) break;
-          ticks.push(sign * value);
-        }
-      }
-      // Even tiny axes retain negative context; a -5 domain therefore always labels -5.
-      return sign === -1 && extent > 0 && ticks.length === 0 ? [-extent] : ticks;
-    };
-    let positiveStep = stepFor(scale.domainMax, scale.positiveFraction);
-    let negativeStep = stepFor(-scale.domainMin, scale.zeroPosition);
-    let positiveTicks = ticksFor(scale.domainMax, 1, positiveStep);
-    let negativeTicks = ticksFor(-scale.domainMin, -1, negativeStep);
-    // Coarsen complete regions rather than letting insertion order consume the budget.
-    while (positiveTicks.length + negativeTicks.length + 2 > MOBILE_LABEL_BUDGET) {
-      if (negativeTicks.length > positiveTicks.length) {
-        negativeStep = negativeStep === null ? null : readableStep(negativeStep * 2);
-        negativeTicks = ticksFor(-scale.domainMin, -1, negativeStep);
-      } else {
-        positiveStep = positiveStep === null ? null : readableStep(positiveStep * 2);
-        positiveTicks = ticksFor(scale.domainMax, 1, positiveStep);
+  const stepFor = (extent: number, fraction: number) => {
+    const slots = Math.min(labelLimit - 1, Math.floor(axisLength * fraction / spacing));
+    return slots > 0 && extent > 0 ? readableStep(extent / slots) : null;
+  };
+  const ticksFor = (extent: number, sign: 1 | -1, step: number | null): number[] => {
+    const ticks: number[] = [];
+    if (step !== null) {
+      for (let index = 1; index <= labelLimit - 1; index += 1) {
+        const value = index * step;
+        if (!Number.isFinite(value) || value > extent || (sign === 1 && value === extent)) break;
+        ticks.push(sign * value);
       }
     }
-    add(0, true);
-    add(scale.domainMax, true);
-    // Regional steps provide spacing; the exact top may sit closer to the final tick.
-    for (const value of [...negativeTicks, ...positiveTicks]) add(value, true);
-    return Object.freeze(labels.sort((a, b) => a.position - b.position));
+    // Even tiny axes retain negative context; a -5 domain therefore always labels -5.
+    return sign === -1 && extent > 0 && ticks.length === 0 ? [-extent] : ticks;
+  };
+  let positiveStep = stepFor(scale.domainMax, scale.positiveFraction);
+  let negativeStep = stepFor(-scale.domainMin, scale.zeroPosition);
+  let positiveTicks = ticksFor(scale.domainMax, 1, positiveStep);
+  let negativeTicks = ticksFor(-scale.domainMin, -1, negativeStep);
+  // Coarsen complete regions rather than letting insertion order consume the budget.
+  while (positiveTicks.length + negativeTicks.length + 2 > labelLimit) {
+    if (negativeTicks.length > positiveTicks.length) {
+      negativeStep = negativeStep === null ? null : readableStep(negativeStep * 2);
+      negativeTicks = ticksFor(-scale.domainMin, -1, negativeStep);
+    } else {
+      positiveStep = positiveStep === null ? null : readableStep(positiveStep * 2);
+      positiveTicks = ticksFor(scale.domainMax, 1, positiveStep);
+    }
   }
   add(0, true);
   add(scale.domainMax, true);
-  if (scale.domainMin < 0) add(scale.domainMin);
-  const region = (extent: number, fraction: number, sign: 1 | -1) => {
-    const slots = Math.min(MAX_REGION_CANDIDATES, Math.floor(axisLength * fraction / spacing));
-    if (slots < 1 || extent <= 0) return;
-    const step = readableStep(extent / slots);
-    if (step === null) return;
-    for (let index = 1; index <= MAX_REGION_CANDIDATES; index += 1) {
-      const value = index * step;
-      if (!Number.isFinite(value) || value >= extent) break;
-      add(sign * value);
-    }
-  };
-  region(scale.domainMax, scale.positiveFraction, 1);
-  region(-scale.domainMin, scale.zeroPosition, -1);
+  // Preserve negative context even on tiny axes. Desktop optional ticks retain
+  // mapped spacing; mobile permits the exact top beside its final regional tick.
+  if (negativeTicks.length) add(negativeTicks[negativeTicks.length - 1], true);
+  for (const value of [...negativeTicks, ...positiveTicks]) add(value, orientation === 'mobile');
   return Object.freeze(labels.sort((a, b) => a.position - b.position));
 }

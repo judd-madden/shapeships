@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { HEALTH_BAR_EXAMPLES } from '../../../components/dev/healthBarExampleFixtures';
 import { HealthBarPair } from '../healthBars/HealthBar';
 import { calculateHealthBarGeometry, healthBarValuePosition } from '../healthBars/healthBarPresentation';
-import { calculateHealthBarLegend, mapHealthBarValue, prepareHealthBarScale } from '../healthBars/healthBarScale';
+import { calculateHealthBarLegend, HEALTH_BAR_LEGEND_LABEL_LIMITS, mapHealthBarValue, prepareHealthBarScale } from '../healthBars/healthBarScale';
 import { prepareHealthBarSequence, sampleHealthBarSequence } from '../healthBars/healthBarSequence';
 import { interpolateHealthBarScale, prepareHealthBarLegendTransition, sampleHealthBarLegendTransition } from '../healthBars/healthBarScaleTransition';
 
@@ -108,18 +108,82 @@ describe('coordinated health-bar scale and legend transitions', () => {
           expect(ticks.map((tick) => tick.value)).toEqual(expect.arrayContaining([0, scale.domainMax]));
           if (scale.domainMin < 0) expect(ticks.some((tick) => tick.value < 0)).toBe(true);
         }
-        const expectedValues = new Set([...prepared.from, ...prepared.to].map((tick) => tick.value));
         for (const progress of [0, 0.5, 1]) {
           const scale = interpolateHealthBarScale(from, to, progress);
           const labels = sampleHealthBarLegendTransition(prepared, scale, progress);
-          expect(new Set(labels.map((tick) => tick.value))).toEqual(expectedValues);
+          expect(labels.length).toBeLessThanOrEqual(9);
+          if (progress === 0 || progress === 1) expect(labels.map((tick) => tick.value))
+            .toEqual((progress === 0 ? prepared.from : prepared.to).map((tick) => tick.value));
+          expect(labels.some((tick) => tick.value === 0 && tick.opacity === 1)).toBe(true);
           for (const tick of labels) {
             expect(tick.position).toBe(mapHealthBarValue(scale, tick.value) ??
               [...prepared.to, ...prepared.from].find((label) => label.value === tick.value)!.position);
-            const old = prepared.from.some((label) => label.value === tick.value);
-            const incoming = prepared.to.some((label) => label.value === tick.value);
-            expect(tick.opacity).toBe(old ? incoming ? 1 : 1 - progress : progress);
+            expect(tick.opacity).toBeGreaterThan(0);
+            expect(tick.opacity).toBeLessThanOrEqual(1);
           }
+        }
+      }
+    }
+  });
+
+  it('stages optional fades while retaining full readable endpoint legends', () => {
+    const { snapshot } = scales();
+    const prepare = (health: number) => prepareHealthBarScale({ mode: 'settled', identity: snapshot.identity,
+      outcome: snapshot.outcome, left: { playerId: 'a', health, maxHealth: 35 },
+      right: { playerId: 'b', health: 25, maxHealth: 35 } }, snapshot, { orientation: 'mobile' })!;
+    const from = prepare(25); const to = prepare(-40);
+    const transition = prepareHealthBarLegendTransition(from, to, 'mobile', 256);
+    const sample = (p: number) => sampleHealthBarLegendTransition(transition, interpolateHealthBarScale(from, to, p), p);
+    expect(sample(0).map((tick) => tick.value)).toEqual([0, 5, 10, 15, 20, 25, 30, 35]);
+    expect(sample(1).map((tick) => tick.value)).toEqual([-40, -30, -20, -10, 0, 10, 20, 30, 35]);
+    for (const value of [5, 15, 25]) {
+      expect(sample(0.25).find((tick) => tick.value === value)?.opacity).toBe(0.5);
+      expect(sample(0.5).some((tick) => tick.value === value)).toBe(false);
+    }
+    for (const value of [-30, -20, -10]) {
+      expect(sample(0.5).some((tick) => tick.value === value)).toBe(false);
+      expect(sample(0.75).find((tick) => tick.value === value)?.opacity).toBe(0.5);
+    }
+    expect(sample(0.25).find((tick) => tick.value === -40)?.opacity).toBe(0.25);
+  });
+
+  it('bounds visible labels, preserves top/negative anchors and stable numeric identity across transition progress', () => {
+    const { snapshot } = scales();
+    for (const orientation of ['desktop', 'mobile'] as const) {
+      const endpoints = [[0, 35], [-5, 35], [-40, 35], [-50, 45], [-300, 100], [-1000, 1000],
+        [-Number.MAX_VALUE, Number.MAX_VALUE]].map(([health, maxHealth]) =>
+        prepareHealthBarScale({ mode: 'settled', identity: snapshot.identity, outcome: snapshot.outcome,
+          left: { playerId: 'a', health, maxHealth }, right: { playerId: 'b', health: 25, maxHealth: 35 } },
+        snapshot, { orientation })!);
+      for (const from of endpoints) for (const to of endpoints) {
+        for (const axisLength of [0, 120, 256, 1600, Number.MAX_VALUE]) {
+          const prepared = prepareHealthBarLegendTransition(from, to, orientation, axisLength);
+          const before = JSON.stringify(prepared);
+          expect(prepareHealthBarLegendTransition(from, to, orientation, axisLength)).toEqual(prepared);
+          const seen = new Map<number, string>();
+          for (const p of [0, 0.001, 0.1, 0.25, 0.499, 0.5, 0.501, 0.75, 0.9, 0.999, 1]) {
+            const scale = interpolateHealthBarScale(from, to, p);
+            const labels = sampleHealthBarLegendTransition(prepared, scale, p);
+            expect(labels.length).toBeLessThanOrEqual(HEALTH_BAR_LEGEND_LABEL_LIMITS[orientation]);
+            expect(new Set(labels.map((tick) => tick.value)).size).toBe(labels.length);
+            expect(labels.some((tick) => tick.value === 0 && tick.opacity === 1)).toBe(true);
+            const tops = p === 0 ? [from.domainMax] : p === 1 ? [to.domainMax] : [from.domainMax, to.domainMax];
+            for (const top of tops) expect(labels.some((tick) => tick.value === top && tick.opacity > 0)).toBe(true);
+            if ((p < 1 && from.domainMin < 0) || (p > 0 && to.domainMin < 0)) {
+              expect(labels.some((tick) => tick.value < 0 && tick.opacity > 0)).toBe(true);
+            }
+            for (const tick of labels) {
+              expect(Number.isFinite(tick.position) && Number.isFinite(tick.value)).toBe(true);
+              expect(tick.opacity).toBeGreaterThan(0);
+              expect(tick.opacity).toBeLessThanOrEqual(1);
+              if (Number.isSafeInteger(tick.value)) expect(tick.value % 5 === 0).toBe(true);
+              expect(tick.label).toBe(String(tick.value));
+              if (seen.has(tick.value)) expect(tick.label).toBe(seen.get(tick.value));
+              seen.set(tick.value, tick.label);
+              if (mapHealthBarValue(scale, tick.value) !== null) expect(tick.position).toBe(mapHealthBarValue(scale, tick.value));
+            }
+          }
+          expect(JSON.stringify(prepared)).toBe(before);
         }
       }
     }

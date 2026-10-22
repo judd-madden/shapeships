@@ -27,6 +27,12 @@ export interface SessionHealthBarPresentation {
   readonly delta: { readonly left: number; readonly right: number; readonly visible: boolean; readonly key: string } | null;
 }
 
+/** Owned by the mounted live session, independently of playback identity/recovery. */
+export interface SessionHealthBarScaleRetention {
+  gameId: string | null;
+  negativeFloor: number;
+}
+
 function matchesSession(
   context: { identity: ResolvedHealthSessionPresentation['identity']; continuityKey: string },
   session: ResolvedHealthSessionPresentation,
@@ -38,10 +44,11 @@ function matchesSession(
 export function prepareSessionHealthBarScales(
   presentation: ResolvedHealthPresentation | null | undefined,
   session: ResolvedHealthSessionPresentation | null | undefined,
+  retainedNegativeFloor = 0,
 ): HealthBarScales | null {
   if (!session || !presentation) return null;
-  const desktop = prepareHealthBarScale(presentation, session, { orientation: 'desktop' });
-  const mobile = prepareHealthBarScale(presentation, session, { orientation: 'mobile' });
+  const desktop = prepareHealthBarScale(presentation, session, { orientation: 'desktop', retainedNegativeFloor });
+  const mobile = prepareHealthBarScale(presentation, session, { orientation: 'mobile', retainedNegativeFloor });
   return desktop && mobile ? { desktop, mobile } : null;
 }
 
@@ -66,6 +73,7 @@ export function selectSessionHealthBarPresentation(
   presentation: ResolvedHealthPresentation | null | undefined,
   session: ResolvedHealthSessionPresentation | null | undefined,
   orientation: HealthBarOrientation = 'desktop',
+  retainedNegativeFloor = 0,
 ): SessionHealthBarPresentation | null {
   if (!session) return null;
   const snapshot = playback.sequence?.snapshot;
@@ -79,7 +87,9 @@ export function selectSessionHealthBarPresentation(
       (!!retainsCompleted || !session.settled || settledHealthMatchesPlayback(playback, session)),
     key: JSON.stringify([snapshot.continuityKey, snapshot.presentationKey, snapshot.resolvedTurnNumber, 'complete']),
   } : null;
-  if (current && playback.frame && (!playback.presentationCompletion || retainsCompleted || settledMatchesPlayback(playback, session))) {
+  if (current && playback.frame && (!playback.presentationCompletion ||
+      (playback.frame.scales[orientation].domainMin <= retainedNegativeFloor &&
+        (retainsCompleted || settledMatchesPlayback(playback, session))))) {
     return {
       scale: playback.frame.scales[orientation], left: playback.frame.left, right: playback.frame.right,
       sequence: playback.sequence, scaleProgress: playback.frame.scaleProgress,
@@ -87,7 +97,7 @@ export function selectSessionHealthBarPresentation(
     };
   }
   const settled = session.settled;
-  const scale = settled && prepareHealthBarScale(settled, session, { orientation });
+  const scale = settled && prepareHealthBarScale(settled, session, { orientation, retainedNegativeFloor });
   return settled && scale ? {
     scale, left: settledHealthBarState(settled.left.health), right: settledHealthBarState(settled.right.health),
     sequence: null, scaleProgress: 1, delta,
@@ -106,7 +116,13 @@ export function syncSessionHealthBarController(
   presentation: ResolvedHealthPresentation | null | undefined,
   session: ResolvedHealthSessionPresentation | null | undefined,
   canAccept = true,
+  retention?: SessionHealthBarScaleRetention,
 ) {
+  if (session && retention && retention.gameId !== session.identity.gameId) {
+    retention.gameId = session.identity.gameId;
+    retention.negativeFloor = 0;
+  }
+  const retainedNegativeFloor = retention?.negativeFloor ?? 0;
   controller.updateContext(session ?? null);
   const candidate = canAccept && presentation?.mode === 'live' && session &&
     matchesSession(presentation.snapshot, session) &&
@@ -114,8 +130,10 @@ export function syncSessionHealthBarController(
     ? presentation.snapshot : null;
   const owned = controller.getSnapshot().sequence?.snapshot;
   const scales = candidate && (!owned || candidate.resolvedTurnNumber > owned.resolvedTurnNumber)
-    ? prepareSessionHealthBarScales({ mode: 'live', snapshot: candidate }, session) : null;
-  if (candidate && scales) controller.accept(candidate, scales);
+    ? prepareSessionHealthBarScales({ mode: 'live', snapshot: candidate }, session, retainedNegativeFloor) : null;
+  if (candidate && scales && controller.accept(candidate, scales, retainedNegativeFloor) && retention) {
+    retention.negativeFloor = Math.min(retention.negativeFloor, scales.desktop.domainMin, scales.mobile.domainMin);
+  }
   const state = controller.getSnapshot();
   if (session && state.sequence) {
     if ((session.observedResolvedTurnNumber ?? 0) > state.sequence.snapshot.resolvedTurnNumber) controller.invalidate();
@@ -124,6 +142,12 @@ export function syncSessionHealthBarController(
       !settledHealthMatchesPlayback(state, session)) {
       supersededHealthDeltas.add(state.sequence);
     }
+  }
+  // Commit only a valid selected settled fallback, never a hidden DTO or animated frame.
+  if (retention) {
+    const selected = selectSessionHealthBarPresentation(controller.getSnapshot(), presentation, session,
+      'desktop', retention.negativeFloor);
+    if (selected && !selected.sequence) retention.negativeFloor = Math.min(retention.negativeFloor, selected.scale.domainMin);
   }
 }
 
@@ -139,6 +163,7 @@ export function useSessionHealthBarPresentation(input: {
     scheduler: input.scheduler, animateSettledNumbers: true,
   }));
   const lease = useRef(0);
+  const retention = useRef<SessionHealthBarScaleRetention>({ gameId: null, negativeFloor: 0 });
   const playback = useHealthBarAnimation(controller);
   const [, commitCapture] = useState(0);
   const onComplete = useRef(input.onComplete);
@@ -155,7 +180,7 @@ export function useSessionHealthBarPresentation(input: {
   }, [controller]);
 
   useLayoutEffect(() => {
-    syncSessionHealthBarController(controller, input.presentation, input.session, input.canAccept);
+    syncSessionHealthBarController(controller, input.presentation, input.session, input.canAccept, retention.current);
     // Acceptance can precede the external-store subscription on its first commit.
     // Publish the captured starting frame before paint, including its hidden deltas.
     if (controller.getSnapshot() !== playback) commitCapture((revision) => revision + 1);
@@ -168,7 +193,8 @@ export function useSessionHealthBarPresentation(input: {
       completion.resolvedTurnNumber >= (input.session.observedResolvedTurnNumber ?? 0)) onComplete.current(completion);
   }, [controller, playback.presentationCompletion, input.session]);
 
-  return selectSessionHealthBarPresentation(playback, input.presentation, input.session, input.orientation);
+  const floor = retention.current.gameId === input.session?.identity.gameId ? retention.current.negativeFloor : 0;
+  return selectSessionHealthBarPresentation(playback, input.presentation, input.session, input.orientation, floor);
 }
 
 function useHealthBarAxisLength(regionRef: RefObject<HTMLDivElement | null>, orientation: HealthBarOrientation) {

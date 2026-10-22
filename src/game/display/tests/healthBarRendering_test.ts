@@ -110,9 +110,9 @@ describe('health-bar rendered structure', () => {
         expect(classes).toContain('leading-none');
         expect(classes).toContain(desktop ? 'font-normal' : 'font-medium');
         expect(classes).not.toContain(desktop ? 'font-medium' : 'font-normal');
-        expect(classes).toContain(desktop ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]');
-        expect(classes).not.toContain(desktop ? 'text-[var(--shapeships-grey-20)]' : 'text-[var(--shapeships-grey-50)]');
-        expect(legend.props.style).toMatchObject({ fontSize: desktop ? 12 : 10,
+        expect(classes).toContain('text-[var(--shapeships-grey-50)]');
+        expect(classes).not.toContain('text-[var(--shapeships-grey-20)]');
+        expect(legend.props.style).toMatchObject({ fontSize: desktop ? 12 : 9,
           height: desktop ? 260 : compactMobile ? 10 : 18 });
         const ticks = elements(legend).filter((node) => node.props['data-health-tick'] !== undefined);
         if (!desktop) expect(ticks.map((tick) => tick.props['data-health-tick'])).toEqual([0, 5, 10, 15, 20, 25, 30, 35]);
@@ -128,7 +128,7 @@ describe('health-bar rendered structure', () => {
     }
   }
 
-  it('fits the live mobile pair in 38px while keeping logical caps and outward markers', () => {
+  it('preserves compact mobile track geometry, logical caps and outward markers', () => {
     const prepared = scale(-300, 35, 45, 'mobile');
     const upper = HealthBar({ scale: prepared, orientation: 'mobile', axisLength: 256,
       side: 'right', state: { health: 21 }, label: 'Upper player', mobileMarkerEdge: 'top' });
@@ -152,7 +152,7 @@ describe('health-bar rendered structure', () => {
     expect(zeros[0].props.style).toEqual(zeros[1].props.style);
     expect(zeros[0].props.style.width).toBe(3);
     expect(zeros[0].props.style.height).toBe(10);
-    expect(legend.props.style).toMatchObject({ width: 260, height: 10, fontSize: 10 });
+    expect(legend.props.style).toMatchObject({ width: 260, height: 10, fontSize: 9 });
     for (const tick of elements(legend).filter((node) => node.props['data-health-tick'] !== undefined)) {
       expect(tick.props.className).not.toContain('py-');
       expect(tick.props.style.left).toBe(healthBarValuePosition(prepared, tick.props['data-health-tick'], 'mobile', 256));

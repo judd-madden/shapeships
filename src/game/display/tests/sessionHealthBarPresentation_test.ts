@@ -8,12 +8,14 @@ import {
 } from '../../client/gameSession/resolvedHealth';
 import { createHealthBarAnimationController, type HealthBarAnimationScheduler } from '../healthBars/healthBarAnimationController';
 import { HealthBarPair } from '../healthBars/HealthBar';
+import { HEALTH_BAR_EXAMPLES } from '../../../components/dev/healthBarExampleFixtures';
 import { calculateHealthBarGeometry } from '../healthBars/healthBarPresentation';
 import { HEALTH_BAR_ANIMATION_CONFIG } from '../healthBars/healthBarAnimationConfig';
 import type { HealthBarOrientation } from '../healthBars/healthBarScale';
 import { prepareHealthBarLegendTransition, sampleHealthBarLegendTransition } from '../healthBars/healthBarScaleTransition';
 import {
   attachSessionHealthBarController, selectSessionHealthBarPresentation, syncSessionHealthBarController,
+  type SessionHealthBarScaleRetention,
 } from '../healthBars/useSessionHealthBarPresentation';
 
 function clock() {
@@ -50,16 +52,146 @@ function setupForOrientation(snapshot: ResolvedHealthSnapshot, orientation: Heal
   const time = clock();
   const controller = createHealthBarAnimationController({ scheduler: time.scheduler, animateSettledNumbers: true });
   const context = session(snapshot);
+  const retention: SessionHealthBarScaleRetention = { gameId: null, negativeFloor: 0 };
   const live = { mode: 'live' as const, snapshot };
-  const sync = (presentation = live as typeof live | typeof context.settled, current = context) =>
-    syncSessionHealthBarController(controller, presentation, current);
+  const sync = (presentation = live as typeof live | typeof context.settled, current = context, canAccept = true) =>
+    syncSessionHealthBarController(controller, presentation, current, canAccept, retention);
   const view = (presentation = live as typeof live | typeof context.settled, current = context) =>
-    selectSessionHealthBarPresentation(controller.getSnapshot(), presentation, current, orientation);
-  return { time, controller, context, live, sync, view };
+    selectSessionHealthBarPresentation(controller.getSnapshot(), presentation, current, orientation,
+      retention.gameId === current.identity.gameId ? retention.negativeFloor : 0);
+  return { time, controller, context, live, sync, view, retention };
+}
+
+function resolution(turn: number, minimum: number, side: 'left' | 'right' = 'left'): ResolvedHealthSnapshot {
+  const snapshot = facts(turn);
+  const stationary = (playerId: string) => ({ playerId, startHealth: 20, damageTaken: 0, damageStageHealth: 20,
+    grossHealingReceived: 0, finalHealth: 20, actualNetDelta: 0, maxHealth: 35 });
+  const left = stationary(snapshot.left.playerId);
+  const right = stationary(snapshot.right.playerId);
+  const affected = side === 'left' ? left : right;
+  Object.assign(affected, { damageTaken: 20 - minimum, damageStageHealth: minimum, grossHealingReceived: 20 - minimum });
+  return { ...snapshot, left, right };
 }
 
 describe.each(['desktop', 'mobile'] as const)('live %s session health-bar integration', (orientation) => {
   const setup = (snapshot = facts()) => setupForOrientation(snapshot, orientation);
+
+  it('retains both players transient lows across turns, release and positive settled reconciliation', () => {
+    const s = setup(resolution(3, -2));
+    s.controller.setMotionEnabled(false);
+    let priorFloor = 0;
+    for (const [turn, minimum, expected] of [[3, -2, -5], [4, -37, -40], [5, -5, -40], [6, 10, -40], [7, -47, -50]]) {
+      const snapshot = resolution(turn, minimum, turn % 2 ? 'left' : 'right');
+      const current = session(snapshot);
+      const source = { mode: 'live' as const, snapshot };
+      const original = JSON.stringify(snapshot);
+      s.sync(source, current);
+      const sequence = s.controller.getSnapshot().sequence!;
+      expect(s.retention.negativeFloor).toBe(expected);
+      for (const axis of ['desktop', 'mobile'] as const) {
+        expect(sequence.scales[axis].domainMin).toBe(expected);
+        expect(sequence.previousScales[axis].domainMin).toBe(priorFloor);
+      }
+      expect(s.view(source, current)?.numbers).toEqual({ left: 20, right: 20 });
+      s.sync(current.settled, current);
+      expect(s.view(current.settled, current)?.scale.domainMin).toBe(expected);
+      const changed = { ...current, settled: { ...current.settled!,
+        left: { ...current.settled!.left, health: 25, maxHealth: 80 } } };
+      s.sync(changed.settled, changed);
+      expect(s.view(changed.settled, changed)?.scale.domainMin).toBe(expected);
+      expect(s.view(changed.settled, changed)?.scale.domainMax).toBe(80);
+      const normal = { ...changed, settled: { ...changed.settled!,
+        left: { ...changed.settled!.left, maxHealth: 35 } } };
+      s.sync(normal.settled, normal);
+      expect(s.view(normal.settled, normal)?.scale.domainMax).toBe(35);
+      expect(JSON.stringify(snapshot)).toBe(original);
+      priorFloor = expected;
+    }
+    // Independent gallery scales never consume the live session's floor.
+    const ordinary = HEALTH_BAR_EXAMPLES.find((example) => example.id === 'ordinary')!;
+    expect(ordinary.scales.desktop.domainMin).toBe(0);
+    expect(ordinary.scales.mobile.domainMin).toBe(0);
+  });
+
+  it('keeps only the floor through same-game recovery and temporary absence, then resets for another game', () => {
+    const s = setup(resolution(3, -37)); s.sync(); s.time.advance(100000);
+    expect(s.controller.getSnapshot().presentationCompletion).not.toBeNull();
+    const recovered = { ...s.context, continuityKey: 'recovered' };
+    s.sync(recovered.settled, recovered);
+    expect(s.controller.getSnapshot().sequence).toBeNull();
+    expect(s.controller.getSnapshot().completion).toBeNull();
+    expect(s.view(recovered.settled, recovered)?.delta).toBeNull();
+    expect(s.view(recovered.settled, recovered)?.scale.domainMin).toBe(-40);
+    syncSessionHealthBarController(s.controller, null, null, false, s.retention);
+    expect(s.retention.negativeFloor).toBe(-40);
+    const next = { ...resolution(4, -2), continuityKey: recovered.continuityKey };
+    const current = session(next);
+    s.sync({ mode: 'live', snapshot: next }, current);
+    for (const axis of ['desktop', 'mobile'] as const) {
+      expect(s.controller.getSnapshot().sequence!.previousScales[axis].domainMin).toBe(-40);
+      expect(s.controller.getSnapshot().sequence!.scales[axis].domainMin).toBe(-40);
+    }
+    const identity = { ...next.identity, gameId: 'another' };
+    const other = { ...current, identity, settled: { ...current.settled!, identity } };
+    s.sync(other.settled, other);
+    expect(s.retention).toEqual({ gameId: 'another', negativeFloor: 0 });
+    expect(s.view(other.settled, other)?.scale.domainMin).toBe(0);
+    expect(s.controller.getSnapshot().presentationCompletion).toBeNull();
+  });
+
+  it('cannot revive a shallower completed mapping after a deeper settled low returns to the captured final', () => {
+    const s = setup(resolution(3, -2));
+    s.controller.setMotionEnabled(false); s.sync();
+    const receipt = s.controller.getSnapshot().presentationCompletion;
+    const changed = { ...s.context, settled: { ...s.context.settled!,
+      left: { ...s.context.settled!.left, health: -47 } } };
+    s.sync(changed.settled, changed);
+    expect(s.retention.negativeFloor).toBe(-50);
+    s.sync(s.context.settled);
+    expect(s.view(s.context.settled)?.scale.domainMin).toBe(-50);
+    expect(s.view(s.context.settled)?.delta?.visible).toBe(false);
+    expect(s.controller.getSnapshot().presentationCompletion).toBe(receipt);
+    const next = resolution(4, -2);
+    s.sync({ mode: 'live', snapshot: next }, session(next));
+    expect(s.controller.getSnapshot().sequence!.previousScales[orientation].domainMin).toBe(-50);
+    expect(s.controller.getSnapshot().sequence!.scales[orientation].domainMin).toBe(-50);
+  });
+
+  it('commits selected settled lows, and excludes hidden settled data and rejected candidates', () => {
+    const s = setup(resolution(3, -2)); s.sync();
+    const hidden = { ...s.context, settled: { ...s.context.settled!,
+      left: { ...s.context.settled!.left, health: -999 } } };
+    s.sync(s.live, hidden);
+    expect(s.retention.negativeFloor).toBe(-5);
+    const accepted = s.controller.getSnapshot().sequence;
+    for (const candidate of [resolution(3, -1000), resolution(2, -1000),
+      { ...resolution(4, -1000), continuityKey: 'wrong' },
+      { ...resolution(4, -1000), left: { ...resolution(4, -1000).left, grossHealingReceived: NaN } }]) {
+      s.sync({ mode: 'live', snapshot: candidate });
+      expect(s.retention.negativeFloor).toBe(-5);
+      expect(s.controller.getSnapshot().sequence).toBe(accepted);
+    }
+    const blocked = resolution(4, -1000);
+    s.sync({ mode: 'live', snapshot: blocked }, session(blocked), false);
+    expect(s.retention.negativeFloor).toBe(-5);
+    expect(s.controller.getSnapshot().sequence).toBeNull();
+    expect(s.controller.getSnapshot().completion).toBeNull();
+    // Invalidation retains controller deduplication even though it drops the sequence.
+    s.sync({ mode: 'live', snapshot: resolution(3, -1000) });
+    const repeatedKey = { ...blocked, presentationKey: s.live.snapshot.presentationKey };
+    s.sync({ mode: 'live', snapshot: repeatedKey }, session(repeatedKey));
+    expect(s.retention.negativeFloor).toBe(-5);
+    expect(s.controller.getSnapshot().sequence).toBeNull();
+    // A genuine selected settled low establishes memory without any historical replay.
+    const settled = { ...hidden, continuityKey: 'recovery' };
+    s.sync(settled.settled, settled);
+    expect(s.retention.negativeFloor).toBe(-1000);
+    expect(s.view(settled.settled, settled)?.numbers.left).toBe(-999);
+    const positive = { ...settled, settled: s.context.settled };
+    s.sync(positive.settled, positive);
+    expect(s.view(positive.settled, positive)?.scale.domainMin).toBe(-1000);
+    expect(s.time.pending.size).toBe(0);
+  });
   it('captures an advanced bot response without history and runs through next-turn dice, Drawing and Ready DTOs', () => {
     const expected = facts();
     const response = { ok: true, events: [
@@ -283,6 +415,7 @@ describe.each(['desktop', 'mobile'] as const)('live %s session health-bar integr
         left: context.settled!.right, right: context.settled!.left } };
     s.sync(spectator.settled, spectator);
     expect(s.view(spectator.settled, spectator)?.left.health).toBe(newer.right.finalHealth);
+    expect(s.view(spectator.settled, spectator)?.scale.domainMin).toBe(-10);
     expect(s.time.pending.size).toBe(0);
   });
 
