@@ -1,9 +1,10 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameSessionViewModel } from '../../client/gameSession/types';
-import { captureResolvedHealthSnapshot, prepareResolvedHealthCapture } from '../../client/gameSession/resolvedHealth';
+import { captureResolvedHealthSnapshot, prepareResolvedHealthCapture, isTerminalHealthBarPresentationPending } from '../../client/gameSession/resolvedHealth';
 import { useEndOfTurnPresentation } from '../../client/gameSession/clienteffects/useEndOfTurnPresentation';
 import GameScreen from '../GameScreen';
+import { HEALTH_BAR_ANIMATION_CONFIG } from '../healthBars/healthBarAnimationConfig';
 import {
   useDesktopHealthBarAxisLength, useDesktopHealthBarLegend, useSessionHealthBarPresentation,
 } from '../healthBars/useSessionHealthBarPresentation';
@@ -105,6 +106,40 @@ beforeEach(() => {
 afterEach(async () => { hooks.unmount(); await Promise.resolve(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('session health presentation hooks and entry wiring', () => {
+  it('reports terminal completion only after the number tail, independent of delta reveal and layout remounts', () => {
+    const input = runtime.vm!;
+    if (input.resolvedHealth?.mode !== 'live') throw new Error('Expected live facts');
+    const snapshot = { ...input.resolvedHealth.snapshot,
+      outcome: { isTerminal: true, winnerPlayerId: 'p1', resultReason: 'decisive' } };
+    let source: GameSessionViewModel['resolvedHealth'] = { mode: 'live', snapshot };
+    const completed = vi.fn();
+    let canAccept = true;
+    const read = () => render(() => useSessionHealthBarPresentation({ presentation: source,
+      session: input.resolvedHealthSession, canAccept, onComplete: completed }));
+    read(); const sequence = read()!.sequence!;
+    advance(sequence.durationMs);
+    expect(read()!.delta?.visible).toBe(true);
+    expect(read()!.numbers).toEqual({ left: 30, right: 30 });
+    expect(read()!.presentationComplete).toBe(false);
+    expect(completed).not.toHaveBeenCalled();
+    expect(isTerminalHealthBarPresentationPending({ enabled: true, continuityKey: snapshot.continuityKey,
+      snapshot, completion: null })).toBe(true);
+    // Conditional children may disappear, source may release and acceptance may close.
+    source = input.resolvedHealthSession!.settled;
+    canAccept = false;
+    advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 2);
+    expect(read()!.numbers.left).toBeCloseTo(25);
+    hooks.reattach();
+    expect(read()!.numbers.left).toBeCloseTo(25);
+    advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 2);
+    expect(read()!.numbers).toEqual({ left: 20, right: 20 });
+    expect(read()!.presentationComplete).toBe(true);
+    expect(completed).toHaveBeenCalledOnce();
+    expect(isTerminalHealthBarPresentationPending({ enabled: true, continuityKey: snapshot.continuityKey,
+      snapshot, completion: completed.mock.calls[0][0] })).toBe(false);
+    expect(frames.size).toBe(0);
+  });
+
   it('publishes exact live facts on the capture commit and keeps animating after real dice publication and settlement', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
     const context = runtime.vm!.resolvedHealthSession!;

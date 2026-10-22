@@ -5,7 +5,7 @@ import { AnimatedHealthBarExamples, createAnimatedHealthBarGallery, HEALTH_BAR_S
 import { HEALTH_BAR_EXAMPLES } from '../../../components/dev/healthBarExampleFixtures';
 import type { ResolvedHealthSnapshot } from '../../client/gameSession/types';
 import { createHealthBarAnimationController, type HealthBarAnimationScheduler, type HealthBarCompletion } from '../healthBars/healthBarAnimationController';
-import { HEALTH_BAR_ANIMATION_DEV_CONFIG } from '../healthBars/healthBarAnimationConfig';
+import { HEALTH_BAR_ANIMATION_CONFIG, HEALTH_BAR_ANIMATION_DEV_CONFIG } from '../healthBars/healthBarAnimationConfig';
 import { prepareHealthBarScale } from '../healthBars/healthBarScale';
 
 function clock() {
@@ -35,6 +35,79 @@ function candidate(id = 'ordinary', turn = 1) {
     prepareHealthBarScale({ mode: 'live', snapshot: source }, source, { orientation })!;
   return { snapshot: source, scales: { desktop: prepare('desktop'), mobile: prepare('mobile') } };
 }
+
+describe('desktop settled-number tail', () => {
+  for (const id of ['ordinary', 'negative-final', 'recovery', 'overheal', 'excess-healing']) {
+    it(`${id}: counts monotonically to exact finals, skipping unchanged sides`, () => {
+      const time = clock();
+      const completed = [] as HealthBarCompletion[];
+      const controller = createHealthBarAnimationController({ scheduler: time.scheduler, animateSettledNumbers: true,
+        onComplete: (value) => completed.push(value) });
+      const { snapshot, scales } = candidate(id);
+      controller.accept(snapshot, scales);
+      time.advance(controller.getSnapshot().sequence!.durationMs);
+      const changed = snapshot.left.startHealth !== snapshot.left.finalHealth || snapshot.right.startHealth !== snapshot.right.finalHealth;
+      const boundary = controller.getSnapshot();
+      expect(boundary.deltasVisible).toBe(true);
+      expect(boundary.presentationCompletion !== null).toBe(!changed);
+      expect(completed).toHaveLength(1);
+      let previous = boundary.numbers!;
+      for (let step = 0; step < 10; step += 1) {
+        time.advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 10);
+        const next = controller.getSnapshot().numbers!;
+        for (const side of ['left', 'right'] as const) {
+          const { startHealth, finalHealth } = snapshot[side];
+          expect(next[side]).toBeGreaterThanOrEqual(Math.min(startHealth, finalHealth));
+          expect(next[side]).toBeLessThanOrEqual(Math.max(startHealth, finalHealth));
+          expect(Math.abs(next[side] - finalHealth)).toBeLessThanOrEqual(Math.abs(previous[side] - finalHealth));
+          if (startHealth === finalHealth) expect(next[side]).toBe(finalHealth);
+        }
+        previous = next;
+      }
+      expect(previous).toEqual({ left: snapshot.left.finalHealth, right: snapshot.right.finalHealth });
+      expect(controller.getSnapshot().presentationCompletion?.reason).toBe('finished');
+      expect(controller.getSnapshot().completion).toBe(boundary.completion);
+      expect(controller.getSnapshot().frame).toBe(boundary.frame);
+      expect(completed).toHaveLength(1);
+      expect(time.pending.size).toBe(0);
+    });
+  }
+
+  for (const action of ['supersede', 'recover', 'invalidate', 'reset', 'dispose', 'reduce-motion', 'stop'] as const) {
+    it(`cancels stale number callbacks on ${action}`, () => {
+      const time = clock();
+      const controller = createHealthBarAnimationController({ scheduler: time.scheduler, animateSettledNumbers: true });
+      const first = candidate();
+      controller.accept(first.snapshot, first.scales);
+      time.advance(controller.getSnapshot().sequence!.durationMs + 100);
+      expect(controller.getSnapshot().presentationCompletion).toBeNull();
+      const stale = [...time.pending.values()][0];
+      if (action === 'supersede') {
+        const next = candidate('ordinary', 2);
+        controller.accept(next.snapshot, next.scales);
+      } else if (action === 'recover') controller.updateContext({ ...first.snapshot, continuityKey: 'recovered' });
+      else if (action === 'reduce-motion') controller.setMotionEnabled(false);
+      else controller[action]();
+      const current = controller.getSnapshot();
+      stale();
+      expect(controller.getSnapshot()).toBe(current);
+      expect(time.pending.size).toBe(action === 'supersede' ? 1 : 0);
+      if (action === 'reduce-motion' || action === 'stop') {
+        expect(current.numbers).toEqual({ left: first.snapshot.left.finalHealth, right: first.snapshot.right.finalHealth });
+        expect(current.presentationCompletion?.reason).toBe(action === 'stop' ? 'stopped' : 'motion-disabled');
+      }
+    });
+  }
+
+  it('catches up a delayed frame without scheduling a number backlog', () => {
+    const time = clock();
+    const controller = createHealthBarAnimationController({ scheduler: time.scheduler, animateSettledNumbers: true });
+    const input = candidate(); controller.accept(input.snapshot, input.scales);
+    time.advance(100000);
+    expect(controller.getSnapshot().presentationCompletion).not.toBeNull();
+    expect(time.pending.size).toBe(0);
+  });
+});
 
 describe('captured health-bar playback ownership', () => {
   it('does not replay or cancel on duplicate delivery, rerender subscriptions or source release', () => {

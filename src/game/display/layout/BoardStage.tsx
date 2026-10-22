@@ -119,7 +119,7 @@ function BoardStageFrame({
             <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center">{healthBars}</div>
             {currentStatsContent}
           </div>
-          <div className="flex w-[var(--ss-board-center-width)] min-h-0 shrink flex-col items-center" data-name="Existing Board Stats">
+          <div className="flex w-[var(--ss-board-center-width)] min-h-0 shrink flex-col items-center [--ss-metric-value-height:20px] min-[1400px]:[--ss-metric-value-height:24px] min-[1920px]:[--ss-metric-value-height:28px] min-[2220px]:[--ss-metric-value-height:32px]" data-name="Existing Board Stats">
             <div aria-hidden="true" className="min-h-0 basis-[4px] shrink min-[1400px]:basis-[6px]" />
             {healthContent}
             <div aria-hidden="true" className="min-h-0 basis-[8px] shrink min-[1400px]:basis-[12px] min-[1920px]:basis-[16px] min-[2560px]:basis-[20px]" />
@@ -180,22 +180,21 @@ function Metric({
         {value}
       </p>
 
-      {hasLabel ? (
-        <p
-          className={cx(
-            "font-normal leading-[normal] relative shrink-0 text-[11px] text-nowrap uppercase",
-            isRight && 'text-right'
-          )}
-        >
-          {label}
-          {label2 ? (
-            <>
-              <br aria-hidden="true" />
-              {label2}
-            </>
-          ) : null}
-        </p>
-      ) : null}
+      <p
+        aria-hidden={!hasLabel || undefined}
+        className={cx(
+          "font-normal leading-[normal] relative shrink-0 text-[11px] text-nowrap uppercase min-h-[calc(var(--ss-metric-label-lines)*1lh)]",
+          isRight && 'text-right'
+        )}
+      >
+        {label}
+        {label2 ? (
+          <>
+            <br aria-hidden="true" />
+            {label2}
+          </>
+        ) : null}
+      </p>
     </div>
   );
 }
@@ -424,8 +423,8 @@ export function BoardStage({
   const opponentBonusJoiningAnchorRef = useRef<HTMLDivElement | null>(null);
   const axisLength = useDesktopHealthBarAxisLength(barRegionRef);
   const legendLabels = useDesktopHealthBarLegend(desktopHealthPresentation, axisLength);
-  const displayedMyHealth = Math.round(desktopHealthPresentation?.left.health ?? (vm.mode === 'board' ? vm.myHealth : 25));
-  const displayedOpponentHealth = Math.round(desktopHealthPresentation?.right.health ?? (vm.mode === 'board' ? vm.opponentHealth : 25));
+  const displayedMyHealth = Math.round(desktopHealthPresentation?.numbers.left ?? (vm.mode === 'board' ? vm.myHealth : 25));
+  const displayedOpponentHealth = Math.round(desktopHealthPresentation?.numbers.right ?? (vm.mode === 'board' ? vm.opponentHealth : 25));
   const leftRevealPulse = usePresentedFleetRevealPulse(
     vm.mode === 'board' ? vm.presentedMyRevealBlurSeq ?? 0 : null
   );
@@ -630,10 +629,10 @@ export function BoardStage({
       statsContent={
         <>
           {/* Keep real rows and yielding spacers in the same flex column. */}
+          {/* Row envelopes stay mounted; presentation gates still withhold their contents. */}
           {/* Saved Lines */}
-          {vm.showTurnStartEconomyPresentation ? (
-          <>
-          <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full" data-name="Saved Lines Group">
+          <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full text-[11px] leading-[normal] [--ss-metric-label-lines:1] min-h-[calc(var(--ss-metric-value-height)+1lh)]" data-name="Saved Lines Group">
+            {vm.showTurnStartEconomyPresentation ? (<>
             {/* P1 */}
             <div className="content-stretch flex items-start justify-end relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]" data-name="P1 Saved Wrapper">
               <div className="content-stretch flex items-start relative shrink-0">
@@ -671,15 +670,13 @@ export function BoardStage({
                 ) : null}
               </div>
             </div>
+            </>) : null}
           </div>
           <div aria-hidden="true" className="min-h-0 basis-[4px] shrink min-[1400px]:basis-[6px] min-[1920px]:basis-[12px]" />
-          </>
-          ) : null}
 
           {/* Bonus */}
-          {vm.showTurnStartEconomyPresentation ? (
-          <>
-          <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full" data-name="Bonus Group">
+          <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full text-[11px] leading-[normal] [--ss-metric-label-lines:2] min-h-[calc(var(--ss-metric-value-height)+2lh)]" data-name="Bonus Group">
+            {vm.showTurnStartEconomyPresentation ? (<>
             <div className="content-stretch flex gap-[4px] items-center justify-end relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]" data-name="P1 Bonuses">
               <HoverAnchor
                 hoverKey="my-bonus"
@@ -773,18 +770,17 @@ export function BoardStage({
                 ) : null}
               </HoverAnchor>
             </div>
+            </>) : null}
           </div>
           <div aria-hidden="true" className="min-h-0 basis-[4px] shrink min-[1400px]:basis-[6px] min-[1920px]:basis-[12px]" />
-          </>
-          ) : null}
 
-          {vm.showTurnStartEconomyPresentation && vm.presentedFleetValue ? (
-            <div className="hidden shrink-0 items-center justify-center gap-[10px] text-[var(--shapeships-pastel-purple)] min-[1400px]:flex" data-name="Fleet Value Group">
+            <div className="hidden min-h-[18px] shrink-0 items-center justify-center gap-[10px] text-[var(--shapeships-pastel-purple)] min-[1400px]:flex" data-name="Fleet Value Group">
+              {vm.showTurnStartEconomyPresentation && vm.presentedFleetValue ? (<>
               <span className="w-[86px] whitespace-nowrap text-right text-[18px] font-bold leading-none min-[1600px]:w-[100px]">{vm.presentedFleetValue.my}</span>
               <span className="w-[56px] text-center text-[12px] leading-none min-[1600px]:w-[64px]">Fleet</span>
               <span className="w-[86px] whitespace-nowrap text-left text-[18px] font-bold leading-none min-[1600px]:w-[100px]">{vm.presentedFleetValue.opponent}</span>
+              </>) : null}
             </div>
-          ) : null}
         </>
       }
     >

@@ -9,6 +9,7 @@ import {
 import { createHealthBarAnimationController, type HealthBarAnimationScheduler } from '../healthBars/healthBarAnimationController';
 import { HealthBarPair } from '../healthBars/HealthBar';
 import { calculateHealthBarGeometry } from '../healthBars/healthBarPresentation';
+import { HEALTH_BAR_ANIMATION_CONFIG } from '../healthBars/healthBarAnimationConfig';
 import { prepareHealthBarLegendTransition, sampleHealthBarLegendTransition } from '../healthBars/healthBarScaleTransition';
 import {
   attachSessionHealthBarController, selectSessionHealthBarPresentation, syncSessionHealthBarController,
@@ -46,7 +47,7 @@ function session(snapshot = facts()): ResolvedHealthSessionPresentation {
 }
 function setup(snapshot = facts()) {
   const time = clock();
-  const controller = createHealthBarAnimationController({ scheduler: time.scheduler });
+  const controller = createHealthBarAnimationController({ scheduler: time.scheduler, animateSettledNumbers: true });
   const context = session(snapshot);
   const live = { mode: 'live' as const, snapshot };
   const sync = (presentation = live as typeof live | typeof context.settled, current = context) =>
@@ -99,6 +100,8 @@ describe('live session health-bar integration', () => {
       expect(s.time.pending.size).toBe(1);
     }
     s.time.advance(sequence.durationMs);
+    expect(s.view(next.settled, next)?.numbers.left).toBeLessThan(30);
+    s.time.advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs);
     s.sync(next.settled, next);
     expect(s.view(next.settled, next)?.left.health).toBe(15);
     expect(s.view(next.settled, next)?.delta?.visible).toBe(false);
@@ -145,10 +148,16 @@ describe('live session health-bar integration', () => {
     s.sync({ ...s.live });
     expect(s.controller.getSnapshot().frame).toBe(frame);
     expect(s.view(s.context.settled)?.delta?.key).toBe(completed.delta?.key);
+    expect(completed.numbers).toEqual({ left: 30, right: 20 });
+    expect(completed.presentationComplete).toBe(false);
+    expect(s.time.pending.size).toBe(1);
+    s.time.advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs);
+    expect(s.view(s.context.settled)?.numbers).toEqual({ left: 10, right: 24 });
+    expect(s.view(s.context.settled)?.presentationComplete).toBe(true);
     expect(s.time.pending.size).toBe(0);
   });
 
-  it('uses the same unrounded logical health and explicit rectangles through negative motion, scale preparation and surplus', () => {
+  it('keeps rectangles on their existing frames and numbers at the previous finals through every bar stage', () => {
     const snapshot = facts();
     const s = setup({ ...snapshot, left: { ...snapshot.left, grossHealingReceived: 80, finalHealth: 35, actualNetDelta: 5 } });
     s.sync();
@@ -162,6 +171,7 @@ describe('live session health-bar integration', () => {
       expect(view.left).toBe(frame.left);
       expect(view.right).toBe(frame.right);
       expect(view.scale).toBe(frame.scales.desktop);
+      expect(view.numbers).toEqual({ left: snapshot.left.startHealth, right: snapshot.right.startHealth });
       if (stage.name === 'scale') expect(view.left.health).toBe(sequence.snapshot.left.startHealth);
       if (stage.name.startsWith('surplus')) expect(view.left.health).toBe(35);
       expect(view.delta?.visible).toBe(false);
@@ -175,6 +185,56 @@ describe('live session health-bar integration', () => {
     s.time.advance(sequence.durationMs - elapsed);
     expect(s.view()?.left.health).toBe(35);
     expect(s.view()?.delta).toMatchObject({ left: 5, visible: true });
+    expect(s.view()?.numbers.left).toBe(30);
+    expect(s.view()?.presentationComplete).toBe(false);
+  });
+
+  it('holds 22 through minus 10 then counts directly to 20 alongside the healing player', () => {
+    const snapshot = facts();
+    const s = setup({ ...snapshot, left: { ...snapshot.left, startHealth: 22, damageTaken: 32,
+      damageStageHealth: -10, grossHealingReceived: 30, finalHealth: 20, actualNetDelta: -2 } });
+    s.sync();
+    const sequence = s.controller.getSnapshot().sequence!;
+    let elapsed = 0;
+    for (const stage of sequence.stages) {
+      const target = stage.startMs + stage.durationMs / 2;
+      s.time.advance(target - elapsed); elapsed = target;
+      expect(s.view()?.numbers).toEqual({ left: 22, right: 20 });
+    }
+    s.time.advance(sequence.durationMs - elapsed);
+    expect(s.view()?.delta).toMatchObject({ left: -2, right: 4, visible: true });
+    expect(s.view()?.numbers).toEqual({ left: 22, right: 20 });
+    const displayed: number[] = [];
+    let previousLeft = 22; let previousRight = 20;
+    for (let i = 0; i < 30; i += 1) {
+      s.time.advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 30);
+      // Poll delivery and source release cannot replace the captured number target.
+      s.sync(i % 2 ? s.context.settled : { ...s.live });
+      const view = s.view(s.context.settled)!;
+      expect(view.numbers.left).toBeLessThanOrEqual(previousLeft);
+      expect(view.numbers.right).toBeGreaterThanOrEqual(previousRight);
+      previousLeft = view.numbers.left; previousRight = view.numbers.right;
+      displayed.push(Math.round(view.numbers.left));
+    }
+    expect(new Set(displayed)).toEqual(new Set([22, 21, 20]));
+    expect(s.view()?.numbers).toEqual({ left: 20, right: 24 });
+    expect(s.view()?.presentationComplete).toBe(true);
+    expect(s.time.pending.size).toBe(0);
+  });
+
+  it('retains the captured number target through cross-turn health/cap changes until the tail finishes', () => {
+    const s = setup(); s.sync();
+    s.time.advance(s.controller.getSnapshot().sequence!.durationMs);
+    const changed = { ...s.context, settled: { ...s.context.settled!,
+      left: { ...s.context.settled!.left, health: 70, maxHealth: 80 } } };
+    s.sync(changed.settled, changed);
+    s.time.advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 2);
+    expect(s.view(changed.settled, changed)?.numbers.left).toBeCloseTo(20);
+    expect(s.view(changed.settled, changed)?.scale.leftCap.value).toBe(35);
+    s.time.advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 2);
+    s.sync(changed.settled, changed);
+    expect(s.view(changed.settled, changed)?.numbers.left).toBe(70);
+    expect(s.view(changed.settled, changed)?.delta?.visible).toBe(false);
   });
 
   it('settles initial load, missing exact caps and recovery without accepting historical facts', () => {

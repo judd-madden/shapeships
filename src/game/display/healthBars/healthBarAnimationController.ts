@@ -2,6 +2,7 @@ import type { ResolvedHealthSnapshot } from '../../client/gameSession/types';
 import type { HealthBarScaleContext } from './healthBarScale';
 import { prepareHealthBarSequence, sampleHealthBarSequence, type HealthBarAnimationFrame, type HealthBarSequence } from './healthBarSequence';
 import type { HealthBarScales } from './healthBarScaleTransition';
+import { HEALTH_BAR_ANIMATION_CONFIG, healthBarEasing } from './healthBarAnimationConfig';
 
 export interface HealthBarAnimationScheduler {
   now(): number;
@@ -23,12 +24,16 @@ export interface HealthBarCompletion {
 export interface HealthBarPlaybackState {
   readonly sequence: Readonly<HealthBarSequence> | null;
   readonly frame: HealthBarAnimationFrame | null;
+  /** Bar completion reveals deltas; overall completion also waits for desktop numbers. */
   readonly completion: HealthBarCompletion | null;
+  readonly numbers: Readonly<{ left: number; right: number }> | null;
+  readonly presentationCompletion: HealthBarCompletion | null;
   readonly deltas: Readonly<{ left: number; right: number }> | null;
   readonly deltasVisible: boolean;
 }
 const emptyState = (): HealthBarPlaybackState => ({
-  sequence: null, frame: null, completion: null, deltas: null, deltasVisible: false,
+  sequence: null, frame: null, completion: null, numbers: null, presentationCompletion: null,
+  deltas: null, deltasVisible: false,
 });
 const contextKey = (context: HealthBarScaleContext) => JSON.stringify([
   context.identity.gameId, context.identity.viewerId, context.identity.viewerRole,
@@ -39,6 +44,8 @@ const contextKey = (context: HealthBarScaleContext) => JSON.stringify([
 export function createHealthBarAnimationController(options: {
   readonly scheduler?: HealthBarAnimationScheduler;
   readonly onComplete?: (completion: HealthBarCompletion) => void;
+  /** Production desktop only; gallery/bar completion keeps its existing timing. */
+  readonly animateSettledNumbers?: boolean;
 } = {}) {
   const scheduler = options.scheduler ?? browserHealthBarScheduler;
   const listeners = new Set<() => void>();
@@ -62,22 +69,39 @@ export function createHealthBarAnimationController(options: {
     handle = null;
   };
   const finish = (reason: HealthBarCompletion['reason']) => {
-    if (!state.sequence || state.completion) return;
+    if (!state.sequence || state.presentationCompletion) return;
     cancel();
     const sequence = state.sequence;
-    const completion = Object.freeze({
+    const alreadyCompletedBars = state.completion;
+    const receipt = Object.freeze({
       presentationKey: sequence.snapshot.presentationKey, resolvedTurnNumber: sequence.snapshot.resolvedTurnNumber,
       identity: sequence.snapshot.identity, continuityKey: sequence.snapshot.continuityKey, reason,
     });
+    const completion = alreadyCompletedBars ?? receipt;
+    const changed = (['left', 'right'] as const).some((side) =>
+      sequence.snapshot[side].startHealth !== sequence.snapshot[side].finalHealth);
+    const duration = options.animateSettledNumbers && changed ? HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs : 0;
+    // Both numbers share the original bar-end timestamp, even if a frame arrives late.
+    const fraction = reason !== 'finished' || duration <= 0 ? 1 :
+      Math.max(0, Math.min(1, (scheduler.now() - startedAt - sequence.durationMs) / duration));
+    const progress = healthBarEasing(fraction);
+    const number = (side: 'left' | 'right') => {
+      const { startHealth, finalHealth } = sequence.snapshot[side];
+      return fraction === 1 ? finalHealth : startHealth + (finalHealth - startHealth) * progress;
+    };
     const token = generation;
-    publish({ ...state, frame: sampleHealthBarSequence(sequence, sequence.durationMs), completion, deltasVisible: true });
-    if (!disposed && token === generation) options.onComplete?.(completion);
+    publish({ ...state, frame: alreadyCompletedBars ? state.frame : sampleHealthBarSequence(sequence, sequence.durationMs),
+      completion, deltasVisible: true, numbers: Object.freeze({ left: number('left'), right: number('right') }),
+      presentationCompletion: fraction === 1 ? receipt : null });
+    if (!disposed && token === generation && !alreadyCompletedBars) options.onComplete?.(completion);
+    if (!disposed && token === generation && !state.presentationCompletion) schedule();
   };
   const schedule = () => {
     const token = generation;
     handle = scheduler.request(() => {
-      if (disposed || token !== generation || !state.sequence || state.completion) return;
+      if (disposed || token !== generation || !state.sequence || state.presentationCompletion) return;
       handle = null;
+      if (state.completion) { finish('finished'); return; }
       const frame = sampleHealthBarSequence(state.sequence, scheduler.now() - startedAt);
       if (frame.complete) finish('finished');
       else {
@@ -122,6 +146,8 @@ export function createHealthBarAnimationController(options: {
       startedAt = scheduler.now();
       const token = generation;
       publish({ sequence, frame: sampleHealthBarSequence(sequence, 0), completion: null,
+        numbers: Object.freeze({ left: sequence.snapshot.left.startHealth, right: sequence.snapshot.right.startHealth }),
+        presentationCompletion: null,
         deltas: Object.freeze({ left: sequence.snapshot.left.actualNetDelta, right: sequence.snapshot.right.actualNetDelta }),
         deltasVisible: false });
       if (token !== generation || disposed) return true;

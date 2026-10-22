@@ -1,7 +1,10 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useBoardStatHover } from '../../layout/boardStage/useBoardStatHover';
 import { DesktopDicePresentation, type DesktopDicePresentationProps } from '../../layout/boardStage/DesktopDicePresentation';
+import { BoardStage } from '../../layout/BoardStage';
+import { MainStage } from '../../layout/MainStage';
 
 // Run the real callbacks/effect lifecycles with element doubles, without a browser dependency.
 const hooks = vi.hoisted(() => {
@@ -29,13 +32,19 @@ const hooks = vi.hoisted(() => {
     reset: () => { cells.length = 0; layout.length = 0; passive.length = 0; index = 0; },
     unmount: () => cells.forEach((entry) => entry.cleanup?.()),
     useState: (initial: unknown) => {
-      const entry = cell(initial);
+      const entry = cell();
+      if (!entry.ready) { entry.value = typeof initial === 'function' ? initial() : initial; entry.ready = true; }
       return [entry.value, (value: any) => { entry.value = typeof value === 'function' ? value(entry.value) : value; }];
     },
     useRef: (initial: unknown) => cell({ current: initial }).value,
     useCallback: (callback: unknown, deps: readonly unknown[]) => {
       const entry = cell(callback);
       if (changed(entry.deps, deps)) { entry.value = callback; entry.deps = deps; }
+      return entry.value;
+    },
+    useMemo: (compute: () => unknown, deps: readonly unknown[]) => {
+      const entry = cell();
+      if (!entry.ready || changed(entry.deps, deps)) { entry.value = compute(); entry.deps = deps; entry.ready = true; }
       return entry.value;
     },
     useEffect: (callback: () => void | (() => void), deps?: readonly unknown[]) => effect(passive, callback, deps),
@@ -115,6 +124,121 @@ afterEach(() => {
   hooks.unmount();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+describe('desktop lower-row reservations', () => {
+  type Props = Parameters<typeof BoardStage>[0];
+  const baseBoard = {
+    mode: 'board', mySpeciesId: 'human', opponentSpeciesId: 'human', turnNumber: 1,
+    myHealth: 20, opponentHealth: 24, myBonusLines: 2, opponentBonusLines: 3,
+    myBonusLinesOnEven: 0, opponentBonusLinesOnEven: 0,
+    myDisplayedSavedLines: 4, opponentDisplayedSavedLines: 5,
+    myDisplayedSavedJoiningLines: 0, opponentDisplayedSavedJoiningLines: 0,
+    myJoiningBonusLines: 0, opponentJoiningBonusLines: 0,
+    myBonusBreakdownRows: [], opponentBonusBreakdownRows: [], fleetAnim: { my: [], opponent: [] },
+    presentedFleetValue: { my: 9, opponent: 10 }, showTurnStartEconomyPresentation: true,
+  };
+  const read = (overrides = {}, desktopHealthPresentation: Props['desktopHealthPresentation'] = null) => render(() => BoardStage({
+    vm: { ...baseBoard, ...overrides }, viewer: { isSpectator: false },
+    thisTurn: null, presentedThisTurnStats: null, gameStats: null, desktopHealthPresentation,
+    desktopDicePresentation: {}, hudVm: {}, actions: {}, phaseKey: 'build.drawing', matchupIntro: null,
+    winStreak: { appliedBonus: { turnOneHoverEligible: false } },
+  } as unknown as Props)) as ReactElement<any>;
+  const rows = (tree: ReactElement<any>) => elements(tree.props.statsContent).filter((element) =>
+    ['Saved Lines Group', 'Bonus Group', 'Fleet Value Group'].includes(element.props['data-name']));
+
+  it('renders separate rounded health numbers and accessibility text while rectangles are below zero', () => {
+    const tree = read({}, { numbers: { left: 21.6, right: 24 }, left: { health: -10 }, right: { health: 18 },
+      scale: { leftCap: { value: 35 }, rightCap: { value: 35 } }, sequence: null,
+      delta: { left: -2, right: 4, visible: false, key: 'resolution' } } as unknown as Props['desktopHealthPresentation']);
+    const markup = renderToStaticMarkup(tree.props.healthContent);
+    expect(markup).toContain('Health 22, maximum 35');
+    expect(markup).toContain('>22</span>');
+    expect(markup).not.toContain('Health -10');
+    expect(markup).toContain('min-h-[1em]');
+  });
+
+  it('keeps the same row envelopes with joining metrics absent/present and one/two-line labels', () => {
+    const plain = read();
+    const reserved = rows(plain).map((element) => element.props.className);
+    const joining = read({ mySpeciesId: 'centaur', myBonusLinesOnEven: 2,
+      myDisplayedSavedJoiningLines: 3, opponentDisplayedSavedJoiningLines: 2,
+      myJoiningBonusLines: 1, opponentJoiningBonusLines: 1 });
+    expect(rows(joining).map((element) => element.props.className)).toEqual(reserved);
+    const saved = renderToStaticMarkup(rows(joining)[0]);
+    const bonus = renderToStaticMarkup(rows(joining)[1]);
+    expect(saved).toContain('[--ss-metric-label-lines:1]');
+    expect(bonus).toContain('[--ss-metric-label-lines:2]');
+    expect(saved).toContain('JOINING');
+    expect(bonus).toContain('ON EVEN');
+    expect(bonus).toContain('min-h-[calc(var(--ss-metric-label-lines)*1lh)]');
+    const plainSaved = renderToStaticMarkup(rows(plain)[0]);
+    expect(plainSaved).not.toContain('JOINING');
+    expect(plainSaved).toContain('<p aria-hidden="true"');
+    // Component/style coverage only; rendered geometry requires owner browser review.
+  });
+
+  it('keeps empty gated rows and separators without values, focus targets or misleading accessible labels', () => {
+    const shown = read();
+    const withheld = read({ showTurnStartEconomyPresentation: false });
+    expect(rows(withheld).map((element) => element.props.className))
+      .toEqual(rows(shown).map((element) => element.props.className));
+    for (const row of rows(withheld)) {
+      expect(Children.count(row.props.children)).toBe(0);
+      const markup = renderToStaticMarkup(row);
+      expect(markup).not.toMatch(/tabindex|aria-label|<span|<p|<button/);
+    }
+    const spacerClasses = (tree: ReactElement<any>) => elements(tree.props.statsContent)
+      .filter((element) => element.type === 'div' && element.props['aria-hidden']).map((element) => element.props.className);
+    expect(spacerClasses(withheld)).toEqual(spacerClasses(shown));
+    const fleet = rows(read({ presentedFleetValue: null }))[2];
+    expect(fleet.props.className).toContain('hidden min-h-[18px]');
+    expect(fleet.props.className).toContain('min-[1400px]:flex');
+    expect(Children.count(fleet.props.children)).toBe(0);
+  });
+
+  it('preserves outward bonus anchors and explicit board/bar refs and responsive value-height tiers', () => {
+    const tree = read({ opponentJoiningBonusLines: 1 });
+    expect(tree.props.boardRootRef).toBeDefined();
+    expect(tree.props.barRegionRef).toBeDefined();
+    const anchors = elements(tree.props.statsContent).filter((element) => element.props.hoverKey);
+    expect(anchors.map((element) => element.props.hoverKey)).toEqual(['my-bonus', 'opponent-bonus']);
+    expect(anchors.every((element) => element.props.className.includes('w-max shrink-0'))).toBe(true);
+    const opponentJoining = elements(anchors[1].props.children).find((element) =>
+      (element as any).ref === anchors[1].props.anchorRef);
+    expect(opponentJoining).toBeDefined();
+    const frame = (tree.type as (props: any) => ReactElement<any>)(tree.props);
+    const stack = elements(frame).find((element) => element.props['data-name'] === 'Existing Board Stats')!;
+    for (const tier of ['[--ss-metric-value-height:20px]', 'min-[1400px]:[--ss-metric-value-height:24px]',
+      'min-[1920px]:[--ss-metric-value-height:28px]', 'min-[2220px]:[--ss-metric-value-height:32px]']) {
+      expect(stack.props.className).toContain(tier);
+    }
+    expect(elements(frame).find((element) => element.props['data-name'] === 'Desktop Health Bar Region')!.props.className)
+      .toContain('min-h-[42px] basis-0 grow');
+  });
+});
+
+describe('terminal Mission number coordination', () => {
+  it('keeps an opened result behind the number tail even when deltas are visible', () => {
+    const presentation = { sequence: { snapshot: { outcome: { isTerminal: true } } },
+      delta: { visible: true }, presentationComplete: false };
+    const props = {
+      gameId: 'g', boardVm: { mode: 'board' }, viewer: { isPlayerViewer: true },
+      desktopHealthPresentation: presentation, desktopDicePresentation: {},
+      actionPanelVm: { activePanelId: 'ap.end_of_game.result', tabs: [], menu: { phaseKey: 'game.finished' } },
+      missionChallenge: { mission: { id: 'm' }, isFinished: true, result: { missionSucceeded: true } },
+      gameStats: null, actions: {},
+    } as unknown as Parameters<typeof MainStage>[0];
+    const read = () => render(() => MainStage(props));
+    let tree = read();
+    const actionPanel = elements(tree).find((element) => element.props.onTogglePostgameChallenge)!;
+    actionPanel.props.onTogglePostgameChallenge();
+    tree = read();
+    expect(elements(tree).some((element) => element.props.mode === 'result')).toBe(false);
+    presentation.presentationComplete = true;
+    tree = read();
+    expect(elements(tree).some((element) => element.props.mode === 'result')).toBe(true);
+  });
 });
 
 describe('explicit desktop stat layout refs', () => {

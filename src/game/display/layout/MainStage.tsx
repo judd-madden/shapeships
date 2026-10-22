@@ -101,7 +101,7 @@ export function MainStage({
       : 'reference';
   const isBoardMode = boardVm.mode === 'board';
   const terminalHealthBarPending = desktopHealthPresentation?.sequence?.snapshot.outcome.isTerminal === true &&
-    desktopHealthPresentation.delta?.visible !== true;
+    desktopHealthPresentation.presentationComplete !== true;
   const shouldShowInitialMission = Boolean(
     isBoardMode &&
     missionChallenge &&

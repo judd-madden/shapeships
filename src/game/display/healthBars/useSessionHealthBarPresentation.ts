@@ -22,6 +22,8 @@ export interface SessionHealthBarPresentation {
   readonly right: HealthBarPresentationState;
   readonly sequence: HealthBarPlaybackState['sequence'];
   readonly scaleProgress: number;
+  readonly numbers: Readonly<{ left: number; right: number }>;
+  readonly presentationComplete: boolean;
   readonly delta: { readonly left: number; readonly right: number; readonly visible: boolean; readonly key: string } | null;
 }
 
@@ -76,11 +78,11 @@ export function selectSessionHealthBarPresentation(
       (!!retainsCompleted || !session.settled || settledHealthMatchesPlayback(playback, session)),
     key: JSON.stringify([snapshot.continuityKey, snapshot.presentationKey, snapshot.resolvedTurnNumber, 'complete']),
   } : null;
-  if (current && playback.frame && (!playback.completion || retainsCompleted || settledMatchesPlayback(playback, session))) {
+  if (current && playback.frame && (!playback.presentationCompletion || retainsCompleted || settledMatchesPlayback(playback, session))) {
     return {
       scale: playback.frame.scales.desktop, left: playback.frame.left, right: playback.frame.right,
       sequence: playback.sequence, scaleProgress: playback.frame.scaleProgress,
-      delta,
+      delta, numbers: playback.numbers!, presentationComplete: playback.presentationCompletion !== null,
     };
   }
   const settled = session.settled;
@@ -88,6 +90,7 @@ export function selectSessionHealthBarPresentation(
   return settled && scale ? {
     scale, left: settledHealthBarState(settled.left.health), right: settledHealthBarState(settled.right.health),
     sequence: null, scaleProgress: 1, delta,
+    numbers: { left: settled.left.health, right: settled.right.health }, presentationComplete: true,
   } : null;
 }
 
@@ -115,7 +118,7 @@ export function syncSessionHealthBarController(
   const state = controller.getSnapshot();
   if (session && state.sequence) {
     if ((session.observedResolvedTurnNumber ?? 0) > state.sequence.snapshot.resolvedTurnNumber) controller.invalidate();
-    else if (state.completion && session.settled &&
+    else if (state.presentationCompletion && session.settled &&
       session.settledIncludesLiveResolution !== false &&
       !settledHealthMatchesPlayback(state, session)) {
       supersededHealthDeltas.add(state.sequence);
@@ -130,7 +133,9 @@ export function useSessionHealthBarPresentation(input: {
   onComplete: (completion: ResolvedHealthCompletionIdentity) => void;
   scheduler?: HealthBarAnimationScheduler;
 }) {
-  const [controller] = useState(() => createHealthBarAnimationController({ scheduler: input.scheduler }));
+  const [controller] = useState(() => createHealthBarAnimationController({
+    scheduler: input.scheduler, animateSettledNumbers: true,
+  }));
   const lease = useRef(0);
   const playback = useHealthBarAnimation(controller);
   const [, commitCapture] = useState(0);
@@ -152,13 +157,14 @@ export function useSessionHealthBarPresentation(input: {
     // Acceptance can precede the external-store subscription on its first commit.
     // Publish the captured starting frame before paint, including its hidden deltas.
     if (controller.getSnapshot() !== playback) commitCapture((revision) => revision + 1);
-  }, [controller, input.presentation, input.session, input.canAccept, playback.completion]);
+  }, [controller, input.presentation, input.session, input.canAccept, playback.presentationCompletion]);
 
   useEffect(() => {
-    const completion = playback.completion;
+    const completion = playback.presentationCompletion;
     if (completion && input.session && matchesSession(completion, input.session) &&
+      controller.getSnapshot().presentationCompletion === completion &&
       completion.resolvedTurnNumber >= (input.session.observedResolvedTurnNumber ?? 0)) onComplete.current(completion);
-  }, [playback.completion, input.session]);
+  }, [controller, playback.presentationCompletion, input.session]);
 
   return selectSessionHealthBarPresentation(playback, input.presentation, input.session);
 }

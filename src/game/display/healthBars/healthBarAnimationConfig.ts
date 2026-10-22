@@ -5,6 +5,7 @@ export const HEALTH_BAR_ANIMATION_CONFIG = Object.freeze({
   handoverMs: 200,
   scaleTransitionMs: 350,
   finalSettleMs: 0,
+  settledNumberTweenMs: 300,
   easing: Object.freeze([0.7, 0, 0.3, 1] as const),
 });
 
