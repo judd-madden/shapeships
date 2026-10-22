@@ -345,7 +345,7 @@ function HealthTrigger({
   const isRight = align === 'right';
   const deltaText = netDelta > 0 ? `+${netDelta}` : netDelta === 0 ? '±0' : `−${Math.abs(netDelta)}`;
   const previousValues = (
-    <span className={cx('row-start-1', isRight ? 'col-start-1' : 'col-start-2')}>
+    <span className={cx('row-start-1 w-max', isRight ? 'col-start-1 mr-[12px] justify-self-end' : 'col-start-2 ml-[12px] justify-self-start')}>
       <CombatValues damage={previous?.damage.totalText ?? '0'} healing={previous?.healing.totalText ?? '0'} previous />
     </span>
   );
@@ -358,7 +358,8 @@ function HealthTrigger({
       aria-controls={hoverTrackable ? 'board-stat-breakdown' : undefined}
       aria-expanded={hoverTrackable ? isActive : undefined}
       className={cx(
-        'inline-grid w-max grid-cols-[max-content_max-content] items-center gap-x-[12px] rounded-[4px] bg-transparent p-0 font-bold text-inherit cursor-default',
+        'inline-grid w-full items-center gap-x-0 rounded-[4px] bg-transparent p-0 font-bold text-inherit cursor-default',
+        isRight ? 'grid-cols-[0px_var(--ss-health-number-width)]' : 'grid-cols-[var(--ss-health-number-width)_0px]',
         'focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white',
         isRight ? 'text-right' : 'text-left',
       )}
@@ -370,13 +371,13 @@ function HealthTrigger({
     >
       {isRight ? previousValues : null}
       <span className={cx(
-        'row-start-1 text-[30px] leading-none text-white min-[1400px]:text-[40px] min-[1920px]:text-[64px]',
+        'row-start-1 w-[var(--ss-health-number-width)] min-w-[var(--ss-health-number-width)] overflow-visible whitespace-nowrap text-center text-[30px] leading-none text-white min-[1400px]:text-[40px] min-[1920px]:text-[64px]',
         isRight ? 'col-start-2' : 'col-start-1',
       )}>
         {health}
       </span>
       <span
-        className={cx('row-start-2 min-h-[1em] justify-self-center text-[16px] leading-none min-[1400px]:text-[24px] min-[1920px]:text-[28px]', isRight ? 'col-start-2' : 'col-start-1')}
+        className={cx('row-start-2 w-[var(--ss-health-number-width)] min-w-[var(--ss-health-number-width)] min-h-[1em] justify-self-center overflow-visible whitespace-nowrap text-center text-[16px] leading-none min-[1400px]:text-[24px] min-[1920px]:text-[28px]', isRight ? 'col-start-2' : 'col-start-1')}
         style={{
           color: netDelta > 0
             ? 'var(--shapeships-pastel-green)'
@@ -585,8 +586,8 @@ export function BoardStage({
         </>
       }
       healthContent={
-        <div className="relative flex w-full shrink-0 items-start justify-center gap-[24px] 2xl:gap-[32px]" data-name="Health Wrapper">
-          <div className="relative flex w-[100px] shrink-0 flex-col items-end text-right min-[768px]:max-[1599px]:w-[86px]" data-name="P1 Health Group">
+        <div className="relative flex w-full shrink-0 items-start justify-center gap-0 min-[120rem]:gap-[4px] [--ss-health-number-width:64px] xl:[--ss-health-number-width:70px] 2xl:[--ss-health-number-width:80px] min-[120rem]:[--ss-health-number-width:100px]" data-name="Health Wrapper">
+          <div className="relative flex w-[var(--ss-health-number-width)] shrink-0 flex-col items-end text-right" data-name="P1 Health Group">
             <HealthTrigger
               health={displayedMyHealth}
               previous={myResolvedBreakdown}
@@ -605,7 +606,7 @@ export function BoardStage({
               onBlur={statHover.onBlur}
             />
           </div>
-          <div className="relative flex w-[100px] shrink-0 flex-col items-start text-left min-[768px]:max-[1599px]:w-[86px]" data-name="P2 Health Group">
+          <div className="relative flex w-[var(--ss-health-number-width)] shrink-0 flex-col items-start text-left" data-name="P2 Health Group">
             <HealthTrigger
               health={displayedOpponentHealth}
               previous={opponentResolvedBreakdown}
