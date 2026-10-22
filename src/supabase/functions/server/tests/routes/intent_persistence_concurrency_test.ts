@@ -952,6 +952,42 @@ function terminalSubmitter(app: Hono, gameId: string) {
     });
 }
 
+Deno.test('ordinary resolving intent retains exact paired facts after bot next-turn build and readiness', async () => {
+  const gameId = 'resolved-health-bot-advance';
+  let initial = createTerminalDeclarationState(gameId);
+  initial.players[1].health = 25;
+  for (const request of [
+    { intentType: 'ACTION', nonce: 'bot-hold', payload: { actionType: 'power', actionId: 'INT#0', sourceInstanceId: 'p2-int', choiceId: 'hold' } },
+    { intentType: 'DECLARE_READY', nonce: 'bot-ready', payload: {} },
+  ]) {
+    const accepted = await applyIntent(initial, 'p2', { gameId, turnNumber: 3, ...request } as any, Date.now());
+    assert.equal(accepted.ok, true);
+    initial = accepted.state;
+  }
+  initial.controllersByPlayerId = {
+    p1: { kind: 'human' },
+    p2: { kind: 'bot', speciesId: 'HUM', chosenPlanId: 'hum_guardian_tactical_control' },
+  };
+  const persistence = new ScriptedPersistence();
+  persistence.store.set(`game_${gameId}`, initial);
+  const submit = terminalSubmitter(createApp(persistence), gameId);
+  assert.equal((await submit('p1', { intentType: 'ACTION', nonce: 'human-damage',
+    payload: { actionType: 'power', actionId: 'INT#0', sourceInstanceId: 'p1-int', choiceId: 'damage' } })).status, 200);
+  const response = await submit('p1', { intentType: 'DECLARE_READY', nonce: 'human-ready', payload: {} });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.state.status, 'active');
+  assert.equal(body.state.gameData.turnNumber, 4);
+  assert.equal(body.state.gameData.currentSubPhase, 'drawing');
+  assert.equal(body.state.gameData.phaseReadiness.some((entry: any) => entry.playerId === 'p2' && entry.isReady), true);
+  assert.equal(body.events.some((event: any) => event.type === 'BUILD_SUBMITTED' && event.playerId === 'p2'), true);
+  assert.deepEqual(body.state.gameData.lastTurnHealthResolution, {
+    resolvedTurnNumber: 3, finalHealthByPlayerId: { p1: 20, p2: body.state.players[1].health },
+    maxHealthByPlayerId: { p1: 35, p2: 35 },
+  });
+  assert.equal(body.state.gameData.lastTurnNetByPlayerId.p2, body.state.players[1].health - 25);
+});
+
 async function reachTerminalFinalization(submit: ReturnType<typeof terminalSubmitter>) {
   assert.equal((await submit('p2', {
     intentType: 'ACTION',
@@ -984,6 +1020,11 @@ Deno.test('post-CAS history failure cannot turn a terminal accepted intent into 
   assert.equal(finalResponse.status, 200);
   assert.equal(finalBody.ok, true);
   assert.equal(finalBody.state.status, 'finished');
+  assert.deepEqual(finalBody.state.gameData.lastTurnHealthResolution, {
+    resolvedTurnNumber: 3,
+    finalHealthByPlayerId: Object.fromEntries(finalBody.state.players.map((p: any) => [p.id, p.health])),
+    maxHealthByPlayerId: { p1: 35, p2: 35 },
+  });
   assert.ok(finalBody.events.some((event: any) => event.type === 'GAME_OVER'));
   const committed = persistence.store.get(`game_${gameId}`);
   assert.equal(committed.status, 'finished');

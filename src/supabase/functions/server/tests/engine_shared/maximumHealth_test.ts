@@ -161,4 +161,27 @@ Deno.test("end-of-turn healing and final clamp use derived player maximums", () 
   assert.equal(p2?.health, DEFAULT_PLAYER_MAX_HEALTH);
   assert.equal(result.state.gameData.lastTurnHealByPlayerId?.p1, 6);
   assert.equal(result.state.gameData.lastTurnNetByPlayerId?.p1, 1);
+  assert.deepEqual(result.state.gameData.lastTurnHealthResolution, {
+    resolvedTurnNumber: 3,
+    finalHealthByPlayerId: { p1: 40, p2: 35 },
+    maxHealthByPlayerId: { p1: 40, p2: 35 },
+  });
+  const duplicate = resolvePhase(result.state, 'battle.end_of_turn_resolution');
+  assert.equal(duplicate.state, result.state);
+  assert.deepEqual(duplicate.events, []);
+});
+
+Deno.test('zero-contribution resolution retains detached paired facts across fleet changes', () => {
+  const result = resolvePhase(createState(), 'battle.end_of_turn_resolution');
+  const metadata = result.state.gameData.lastTurnHealthResolution!;
+  assert.deepEqual(metadata, { resolvedTurnNumber: 3,
+    finalHealthByPlayerId: { p1: 25, p2: 25 }, maxHealthByPlayerId: { p1: 35, p2: 35 } });
+  assert.deepEqual(result.state.gameData.lastTurnDamageByPlayerId, { p1: 0, p2: 0 });
+  assert.deepEqual(result.state.gameData.lastTurnHealByPlayerId, { p1: 0, p2: 0 });
+  assert.deepEqual(result.state.gameData.lastTurnNetByPlayerId, { p1: 0, p2: 0 });
+  result.state.players[0].health = 40;
+  result.state.gameData.ships!.p1.push({ instanceId: 'next-spi', shipDefId: 'SPI' });
+  assert.equal(getPlayerMaxHealth(result.state, 'p1'), 40);
+  assert.equal(metadata.finalHealthByPlayerId.p1, 25);
+  assert.equal(metadata.maxHealthByPlayerId.p1, 35);
 });

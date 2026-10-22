@@ -389,6 +389,12 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   const [thisTurnResolutionSnapshot, setThisTurnResolutionSnapshot] =
     useState<ThisTurnResolutionSnapshot | null>(null);
   const [resolvedHealthState, setResolvedHealthState] = useState(createResolvedHealthState);
+  // Publish a complete capture on this commit, before dice publication can release
+  // its source. The reducer still rejects captures arriving after that boundary.
+  const presentedResolvedHealthState = transitionResolvedHealth(resolvedHealthState, {
+    type: 'sync', continuityKey: resolvedHealthContinuityKey, candidate: resolvedHealthCandidate,
+    observedResolvedTurnNumber: resolvedHealthPendingTurnNumber,
+  });
   useLayoutEffect(() => {
     setResolvedHealthState((current) => transitionResolvedHealth(current, {
       type: 'sync', continuityKey: resolvedHealthContinuityKey, candidate: resolvedHealthCandidate,
@@ -1220,8 +1226,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
   return {
     healthResolutionLockActive,
-    resolvedHealthSnapshot: resolvedHealthState.continuityKey === resolvedHealthContinuityKey
-      ? resolvedHealthState.snapshot : null,
+    resolvedHealthSnapshot: presentedResolvedHealthState.snapshot,
     thisTurnResolutionSnapshot,
     healthResolutionOverlay,
     myFleetHealthDeltaFlash: fleetAreaHealthDeltaFlashes.my,

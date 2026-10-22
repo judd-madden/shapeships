@@ -437,6 +437,13 @@ export interface ThisTurnResolutionSnapshot {
   liveLog: ThisTurnLiveLogVm | null;
 }
 
+/** Additive resolution-time metadata, paired with existing last-turn aggregate maps. */
+export interface ResolvedHealthResolutionMetadata {
+  readonly resolvedTurnNumber: number;
+  readonly finalHealthByPlayerId: Readonly<Record<string, number>>;
+  readonly maxHealthByPlayerId: Readonly<Record<string, number>>;
+}
+
 export interface ResolvedHealthIdentity {
   readonly gameId: string;
   readonly viewerId: string;

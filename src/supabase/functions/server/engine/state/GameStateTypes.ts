@@ -583,6 +583,14 @@ export type GameData = {
   /** Pending turn accumulators (for aggregated end-of-turn resolution) */
   pendingTurn?: PendingTurnState;
   
+  /** Resolution-time provenance for the accompanying last-turn aggregate maps.
+   * Kept outside turnData so next-turn building cannot replace the resolved caps. */
+  lastTurnHealthResolution?: {
+    resolvedTurnNumber: number;
+    finalHealthByPlayerId: Record<string, number>;
+    maxHealthByPlayerId: Record<string, number>;
+  };
+
   /** Last turn deltas (for UI/debug) */
   lastTurnDamageByPlayerId?: Record<string, number>;
   lastTurnHealByPlayerId?: Record<string, number>;

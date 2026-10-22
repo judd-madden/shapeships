@@ -183,7 +183,14 @@ describe('health-bar rendered structure', () => {
         expect(child.props.axisLength).toBe(256);
       }
       const legend = HealthBarLegend({ scale: prepared, orientation, axisLength: 256 });
-      expect(legend.props.style.width).toBe(orientation === 'desktop' ? 56 : 260);
+      if (orientation === 'desktop') {
+        expect(legend.props.style.width).toBeUndefined();
+        expect(legend.props.className.split(/\s+/)).toEqual(expect.arrayContaining([
+          'w-[36px]', 'xl:w-[42px]', '2xl:w-[52px]', 'min-[120rem]:w-[76px]',
+        ]));
+      } else {
+        expect(legend.props.style.width).toBe(260);
+      }
       const labels = elements(legend).filter((node) => node.props['data-health-tick'] !== undefined);
       expect(labels.map((node) => node.props['data-health-tick'])).toEqual(calculateHealthBarLegend(prepared, { axisLength: 256, orientation }).map((tick) => tick.value));
       for (const node of labels) {

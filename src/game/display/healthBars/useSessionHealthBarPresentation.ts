@@ -43,11 +43,19 @@ export function prepareSessionHealthBarScales(
   return desktop && mobile ? { desktop, mobile } : null;
 }
 
-function settledMatchesPlayback(state: HealthBarPlaybackState, session: ResolvedHealthSessionPresentation) {
+// Per accepted sequence, independent of controller completion/deduplication.
+// Once newer health has been shown, returning to the old finals cannot revive its deltas.
+const supersededHealthDeltas = new WeakSet<NonNullable<HealthBarPlaybackState['sequence']>>();
+
+function settledHealthMatchesPlayback(state: HealthBarPlaybackState, session: ResolvedHealthSessionPresentation) {
   const snapshot = state.sequence?.snapshot;
   return !!snapshot && !!session.settled && (['left', 'right'] as const).every((side) =>
-    snapshot[side].finalHealth === session.settled![side].health &&
-    snapshot[side].maxHealth === session.settled![side].maxHealth);
+    snapshot[side].finalHealth === session.settled![side].health);
+}
+
+function settledMatchesPlayback(state: HealthBarPlaybackState, session: ResolvedHealthSessionPresentation) {
+  return settledHealthMatchesPlayback(state, session) && (['left', 'right'] as const).every((side) =>
+    state.sequence!.snapshot[side].maxHealth === session.settled![side].maxHealth);
 }
 
 /** Pure frame selection keeps animated numbers out of authoritative board/stat inputs. */
@@ -62,21 +70,24 @@ export function selectSessionHealthBarPresentation(
   const current = snapshot && matchesSession(snapshot, session) &&
     (session.observedResolvedTurnNumber ?? 0) <= snapshot.resolvedTurnNumber &&
     (!incoming || incoming.resolvedTurnNumber <= snapshot.resolvedTurnNumber);
-  const retainsCompleted = incoming && matchesSession(incoming, session) &&
-    incoming.presentationKey === snapshot?.presentationKey && !session.settledIncludesLiveResolution;
+  const retainsCompleted = session.settledIncludesLiveResolution === false;
+  const delta = current && playback.deltas ? { ...playback.deltas,
+    visible: playback.deltasVisible && !supersededHealthDeltas.has(playback.sequence!) &&
+      (!!retainsCompleted || !session.settled || settledHealthMatchesPlayback(playback, session)),
+    key: JSON.stringify([snapshot.continuityKey, snapshot.presentationKey, snapshot.resolvedTurnNumber, 'complete']),
+  } : null;
   if (current && playback.frame && (!playback.completion || retainsCompleted || settledMatchesPlayback(playback, session))) {
     return {
       scale: playback.frame.scales.desktop, left: playback.frame.left, right: playback.frame.right,
       sequence: playback.sequence, scaleProgress: playback.frame.scaleProgress,
-      delta: playback.deltas ? { ...playback.deltas, visible: playback.deltasVisible,
-        key: JSON.stringify([snapshot.continuityKey, snapshot.presentationKey, snapshot.resolvedTurnNumber, 'complete']) } : null,
+      delta,
     };
   }
   const settled = session.settled;
   const scale = settled && prepareHealthBarScale(settled, session, { orientation: 'desktop' });
   return settled && scale ? {
     scale, left: settledHealthBarState(settled.left.health), right: settledHealthBarState(settled.right.health),
-    sequence: null, scaleProgress: 1, delta: null,
+    sequence: null, scaleProgress: 1, delta,
   } : null;
 }
 
@@ -102,11 +113,13 @@ export function syncSessionHealthBarController(
     ? prepareSessionHealthBarScales({ mode: 'live', snapshot: candidate }, session) : null;
   if (candidate && scales) controller.accept(candidate, scales);
   const state = controller.getSnapshot();
-  if (session && state.sequence &&
-    ((session.observedResolvedTurnNumber ?? 0) > state.sequence.snapshot.resolvedTurnNumber ||
-      (state.completion && (presentation?.mode !== 'live' || session.settledIncludesLiveResolution) &&
-        !settledMatchesPlayback(state, session)))) {
-    controller.invalidate();
+  if (session && state.sequence) {
+    if ((session.observedResolvedTurnNumber ?? 0) > state.sequence.snapshot.resolvedTurnNumber) controller.invalidate();
+    else if (state.completion && session.settled &&
+      session.settledIncludesLiveResolution !== false &&
+      !settledHealthMatchesPlayback(state, session)) {
+      supersededHealthDeltas.add(state.sequence);
+    }
   }
 }
 

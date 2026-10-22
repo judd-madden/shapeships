@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { Hono } from "npm:hono";
 import { registerGameRoutes } from "../../routes/game_routes.ts";
+import { resolvePhase } from "../../engine_shared/resolve/resolvePhase.ts";
 import {
   projectCurrentTurnFieldsForFullState,
 } from "../../routes/current_turn_projection_routes.ts";
@@ -264,6 +265,32 @@ async function fullStateBody(state: any, viewer = "p1") {
 }
 
 type FullStateViewer = "p1" | "p2" | "spec";
+
+Deno.test('full-state players and spectators receive exact completed health facts through next-turn Drawing', async () => {
+  const state: any = resolvePhase(createState('battle.end_of_turn_resolution') as any,
+    'battle.end_of_turn_resolution').state;
+  const metadata = structuredClone(state.gameData.lastTurnHealthResolution);
+  state.turnNumber = 6;
+  state.gameData.turnNumber = 6;
+  state.gameData.currentPhase = 'build';
+  state.gameData.currentSubPhase = 'drawing';
+  state.gameData.turnData = { turnNumber: 6, currentMajorPhase: 'build', currentSubPhase: 'drawing' };
+  state.gameData.phaseReadiness = [{ playerId: 'p2', isReady: true, currentStep: 'build.drawing' }];
+  state.gameData.ships.p2.push(ship('next-turn-ship', 'SPI', { createdTurn: 6 }));
+  for (const viewer of ['p1', 'p2', 'spec']) {
+    const body = await fullStateBody(state, viewer);
+    assert.deepEqual(body.publicState.lastTurnStats.healthResolution, metadata);
+    for (const playerId of ['p1', 'p2']) {
+      assert.equal(body.publicState.lastTurnStats.netByPlayerId[playerId], state.gameData.lastTurnNetByPlayerId[playerId]);
+      assert.equal(body.publicState.lastTurnStats.damageByPlayerId[playerId], state.gameData.lastTurnDamageByPlayerId[playerId]);
+      assert.equal(body.publicState.lastTurnStats.healByPlayerId[playerId], state.gameData.lastTurnHealByPlayerId[playerId]);
+    }
+    assert.equal(metadata.resolvedTurnNumber, 5);
+  }
+  const legacy: any = createState();
+  const body = await fullStateBody(legacy);
+  assert.equal(Object.hasOwn(body.publicState.lastTurnStats, 'healthResolution'), false);
+});
 
 function hiddenPlayerIdsFor(viewer: FullStateViewer): Array<"p1" | "p2"> {
   return viewer === "spec" ? ["p1", "p2"] : [viewer === "p1" ? "p2" : "p1"];

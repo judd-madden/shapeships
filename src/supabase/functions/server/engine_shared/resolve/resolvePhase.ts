@@ -601,7 +601,7 @@ function resolveBattleEndOfTurn(
   debugLog(`[resolveBattleEndOfTurn] Pending turn totals:`, totals);
 
   // Step 6: Apply aggregated health changes simultaneously
-  const healthResult = applyAggregatedHealth(applied.state, totals);
+  const healthResult = applyAggregatedHealth(applied.state, totals, currentTurn);
   const stateWithBreakdowns: GameState = {
     ...healthResult.state,
     gameData: {
@@ -668,7 +668,8 @@ function resolveBattleEndOfTurn(
  */
 function applyAggregatedHealth(
   state: GameState,
-  totals: { damageByPlayerId: Record<string, number>; healByPlayerId: Record<string, number> }
+  totals: { damageByPlayerId: Record<string, number>; healByPlayerId: Record<string, number> },
+  resolvedTurnNumber: number,
 ): { state: GameState; events: EffectEvent[] } {
   const events: EffectEvent[] = [];
   const nowMs = Date.now();
@@ -682,6 +683,8 @@ function applyAggregatedHealth(
   const lastTurnDamage: Record<string, number> = {};
   const lastTurnHeal: Record<string, number> = {};
   const lastTurnNet: Record<string, number> = {};
+  const finalHealthByPlayerId: Record<string, number> = {};
+  const maxHealthByPlayerId: Record<string, number> = {};
 
   // Apply aggregated health changes simultaneously
   for (let i = 0; i < newState.players.length; i++) {
@@ -693,9 +696,10 @@ function applyAggregatedHealth(
 
     const previousHealth = player.health;
     const rawNewHealth = previousHealth - damage + heal;
+    const maxHealth = getPlayerMaxHealth(state, playerId);
     const newHealth = Math.min(
       rawNewHealth,
-      getPlayerMaxHealth(state, playerId),
+      maxHealth,
     );
 
     player.health = newHealth;
@@ -705,6 +709,10 @@ function applyAggregatedHealth(
     lastTurnDamage[playerId] = damage;
     lastTurnHeal[playerId] = heal;
     lastTurnNet[playerId] = newHealth - previousHealth;
+    if (player.role === 'player') {
+      finalHealthByPlayerId[playerId] = newHealth;
+      maxHealthByPlayerId[playerId] = maxHealth;
+    }
 
     debugLog(
       `[applyAggregatedHealth] Player ${playerId}: ${previousHealth} - ${damage} + ${heal} = ${rawNewHealth} (clamped to ${newHealth})`
@@ -735,6 +743,7 @@ function applyAggregatedHealth(
     lastTurnDamageByPlayerId: lastTurnDamage,
     lastTurnHealByPlayerId: lastTurnHeal,
     lastTurnNetByPlayerId: lastTurnNet,
+    lastTurnHealthResolution: { resolvedTurnNumber, finalHealthByPlayerId, maxHealthByPlayerId },
   };
 
   return { state: newState, events };

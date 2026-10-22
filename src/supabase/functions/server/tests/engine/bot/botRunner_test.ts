@@ -662,6 +662,12 @@ Deno.test('current supported bot ceiling reaches eight accepted intents already 
   );
 
   const settledState = firstRun.state;
+  const resolution = settledState.gameData.lastTurnHealthResolution;
+  assert.equal(resolution.resolvedTurnNumber, 3);
+  assert.deepEqual(resolution.maxHealthByPlayerId, { player: 35, bot: 35 });
+  for (const player of settledState.players) {
+    assert.equal(resolution.finalHealthByPlayerId[player.id], player.health);
+  }
   assert.equal(settledState.gameData.currentPhase, 'build');
   assert.equal(settledState.gameData.currentSubPhase, 'drawing');
   assert.equal(
@@ -690,6 +696,7 @@ Deno.test('current supported bot ceiling reaches eight accepted intents already 
   const secondRun = await runBotsUntilSettled({ state: settledState, nowMs: 101 });
   assert.equal(secondRun.botStepsApplied, 0);
   assert.deepEqual(secondRun.state, settledState);
+  assert.deepEqual(secondRun.state.gameData.lastTurnHealthResolution, resolution);
   assert.equal(
     secondRun.events.some((event: any) =>
       event.type === 'POWER_USED' ||

@@ -1,6 +1,8 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameSessionViewModel } from '../../client/gameSession/types';
+import { captureResolvedHealthSnapshot, prepareResolvedHealthCapture } from '../../client/gameSession/resolvedHealth';
+import { useEndOfTurnPresentation } from '../../client/gameSession/clienteffects/useEndOfTurnPresentation';
 import GameScreen from '../GameScreen';
 import {
   useDesktopHealthBarAxisLength, useDesktopHealthBarLegend, useSessionHealthBarPresentation,
@@ -100,9 +102,76 @@ beforeEach(() => {
   vi.stubGlobal('cancelAnimationFrame', (id: number) => { frames.delete(id); });
   vi.stubGlobal('ResizeObserver', ObserverDouble);
 });
-afterEach(async () => { hooks.unmount(); await Promise.resolve(); vi.unstubAllGlobals(); });
+afterEach(async () => { hooks.unmount(); await Promise.resolve(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('session health presentation hooks and entry wiring', () => {
+  it('publishes exact live facts on the capture commit and keeps animating after real dice publication and settlement', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    const context = runtime.vm!.resolvedHealthSession!;
+    const response = { gameId: 'g', turnNumber: 4, phaseKey: 'build.drawing', status: 'active',
+      players: [{ id: 'p1', role: 'player', health: 20, maxHealth: 50 }, { id: 'p2', role: 'player', health: 20, maxHealth: 35 }],
+      gameData: { lastTurnHealthResolution: { resolvedTurnNumber: 3,
+        finalHealthByPlayerId: { p1: 20, p2: 20 }, maxHealthByPlayerId: { p1: 35, p2: 35 } },
+        lastTurnDamageByPlayerId: { p1: 10, p2: 10 }, lastTurnHealByPlayerId: { p1: 0, p2: 0 },
+        lastTurnNetByPlayerId: { p1: -10, p2: -10 },
+        phaseReadiness: [{ playerId: 'p2', isReady: true }], turnData: { shipsMadeThisTurnByPlayerId: { p2: 1 } } },
+    };
+    const prepared = prepareResolvedHealthCapture({ state: response, identity: context.identity,
+      continuityKey: context.continuityKey, resolvedTurnNumber: 3, source: 'intent' })!;
+    const candidate = captureResolvedHealthSnapshot({ ...prepared, liveCapture: prepared })!;
+    expect(candidate).not.toBeNull();
+    const args: Parameters<typeof useEndOfTurnPresentation>[0] = {
+      effectiveGameId: 'g', hasMatchingAuthoritativeGameId: true, phaseKey: 'build.drawing', turnNumber: 3,
+      isFinished: false, isBootstrapping: false, authoritativeHoldPhaseKey: null,
+      authoritativeHoldReason: null, authoritativeHoldUntilMs: null, resolvedHealthCandidate: null,
+      resolvedHealthContinuityKey: context.continuityKey, resolvedHealthPendingTurnNumber: null,
+      healthPresentation: { boardMode: 'board', viewerRole: 'player', meName: 'One', opponentName: 'Two',
+        myHealth: 20, opponentHealth: 20, myMaxHealth: 50, opponentMaxHealth: 35, hasExplicitProjectedMaxHealth: true,
+        myLastTurnNet: -10, opponentLastTurnNet: -10, spectatorHasTwoPlayers: false,
+        spectatorLeftName: '', spectatorRightName: '', spectatorLeftNet: 0, spectatorRightNet: 0 },
+      leftRail: { authoritativeDiceValue: 3, authoritativeDiceSignature: 'g:3:3',
+        authoritativeChronoswarmRolls: [], authoritativeCubeDiceValueByPlayerId: {} },
+      economyPresentation: null, continueAuthoritativePhaseHold: async () => 'released',
+    };
+    const complete = vi.fn();
+    const read = () => render(() => {
+      const runtime = useEndOfTurnPresentation(args);
+      const view = useSessionHealthBarPresentation({
+        presentation: runtime.resolvedHealthSnapshot ? { mode: 'live', snapshot: runtime.resolvedHealthSnapshot } : context.settled,
+        session: context, canAccept: true, onComplete: complete,
+      });
+      return { runtime, view };
+    });
+    read(); read();
+    args.turnNumber = 4;
+    args.resolvedHealthCandidate = candidate;
+    args.resolvedHealthPendingTurnNumber = 3;
+    args.leftRail = { ...args.leftRail, authoritativeDiceValue: 4, authoritativeDiceSignature: 'g:4:4' };
+    expect(read().runtime.resolvedHealthSnapshot).toBe(candidate);
+    const sequence = read().view!.sequence!;
+    const damage = sequence.stages.find((stage) => stage.name === 'damage')!;
+    advance(damage.startMs + damage.durationMs / 2);
+    vi.advanceTimersByTime(10000);
+    read();
+    const released = read();
+    expect(released.runtime.resolvedHealthSnapshot).toBeNull();
+    expect(released.runtime.presentedTurnDiceSettledTurnNumber).toBe(4);
+    expect(released.runtime.healthResolutionLockActive).toBe(false);
+    expect(released.view!.sequence).toBe(sequence);
+    expect(released.view!.left.health).toBeLessThan(30);
+    expect(released.view!.left.health).toBeGreaterThan(20);
+    expect(released.view!.delta?.visible).toBe(false);
+    for (const phase of ['build.drawing', 'battle.reveal']) {
+      args.phaseKey = phase;
+      advance(25);
+      expect(read().view!.sequence).toBe(sequence);
+    }
+    advance(sequence.durationMs);
+    read();
+    expect(read().view!.delta).toMatchObject({ left: -10, right: -10, visible: true });
+    expect(complete).toHaveBeenCalledWith(expect.objectContaining({ resolvedTurnNumber: 3 }));
+  });
+
   it('keeps the actual session owner above desktop/mobile switches with no mobile presentation prop', () => {
     const screen = () => render(() => GameScreen({ gameId: 'g', playerName: 'Player', onBack: () => {} }));
     screen();

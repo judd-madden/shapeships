@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { DEFAULT_PLAYER_MAX_HEALTH } from "../../../engine_shared/maximumHealth.ts";
-import { resolveRevealSpecialPowers } from "../../../engine_shared/resolve/resolvePhase.ts";
+import { resolvePhase, resolveRevealSpecialPowers } from "../../../engine_shared/resolve/resolvePhase.ts";
 import type {
   AncientSolarLedgerEntry,
   AncientSolarPowerId,
@@ -40,6 +40,29 @@ Deno.test("restart terminalization is not a completed battle-log turn", () => {
     detectCompletedBattleTurnFromStateTransition(previous, restarted),
     null,
   );
+});
+
+Deno.test('finalized history uses aggregate-time finals and caps after next-turn materialization', () => {
+  const resolved = resolvePhase({ gameId: 'history-exact-health', status: 'active',
+    players: [
+      { id: 'p1', role: 'player', faction: 'ancient', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'p2', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+    ], gameData: { turnNumber: 4, ships: { p1: [], p2: [] }, turnData: { turnNumber: 4 },
+      powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} } },
+  } as any, 'battle.end_of_turn_resolution').state;
+  resolved.gameData.turnNumber = 5;
+  resolved.gameData.turnData = { turnNumber: 5 } as any;
+  resolved.gameData.ships!.p1.push({ instanceId: 'materialized-spi', shipDefId: 'SPI', createdTurn: 5 });
+  resolved.players[0].health = 40;
+  const args = { scratch: normalizeBattleLogScratch(null), finalizedTurnNumber: 4, finalizedState: resolved };
+  const summary = buildBattleLogTurnSummaryFromScratch(args);
+  assert.equal(summary.players[0].healthEnd, 25);
+  assert.equal(summary.players[0].maxHealthEnd, 35);
+  assert.equal(summary.players[0].healthDelta, 0);
+  // No metadata means compatibility behavior, not invented historical provenance.
+  delete resolved.gameData.lastTurnHealthResolution;
+  const legacy = buildBattleLogTurnSummaryFromScratch(args);
+  assert.equal(legacy.players[0].maxHealthEnd, 40);
 });
 
 function buildSummaryForAtoms(buildAtoms: any[]) {

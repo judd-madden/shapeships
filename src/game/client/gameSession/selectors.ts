@@ -516,6 +516,20 @@ export function getBonusBreakdownByPlayerId(state: any): Record<string, unknown>
   return undefined;
 }
 
+/** Read the whole aggregate envelope from one projection, including missing fields.
+ * An incomplete public envelope cannot borrow raw-state provenance or totals. */
+export function getLastTurnResolvedHealthFacts(state: any) {
+  if (hasOwn(state?.publicState, 'lastTurnStats')) {
+    const stats = state.publicState.lastTurnStats;
+    return { healthResolution: stats?.healthResolution as unknown,
+      damage: stats?.damageByPlayerId as unknown, healing: stats?.healByPlayerId as unknown,
+      net: stats?.netByPlayerId as unknown };
+  }
+  return { healthResolution: state?.gameData?.lastTurnHealthResolution as unknown,
+    damage: getLastTurnDamageByPlayerId(state), healing: getLastTurnHealByPlayerId(state),
+    net: getLastTurnNetByPlayerId(state) };
+}
+
 export function getLastTurnNetByPlayerId(state: any): Record<string, unknown> | undefined {
   if (hasOwn(state?.publicState?.lastTurnStats, 'netByPlayerId')) {
     return state.publicState.lastTurnStats.netByPlayerId;

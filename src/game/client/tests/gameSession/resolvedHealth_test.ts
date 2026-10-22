@@ -57,6 +57,16 @@ function pending(input: any) {
   assert(value);
   return value;
 }
+function resolved(input = state()): any {
+  input.gameData.lastTurnHealthResolution = {
+    resolvedTurnNumber: 4,
+    finalHealthByPlayerId: Object.fromEntries(input.players.filter((p: any) => p.role === 'player').map((p: any) => [p.id, p.health])),
+    maxHealthByPlayerId: Object.fromEntries(input.players.filter((p: any) => p.role === 'player').map((p: any) => [p.id, p.maxHealth])),
+  };
+  input.turnNumber = 5;
+  input.phaseKey = 'build.drawing';
+  return input;
+}
 function complete(input: ReturnType<typeof pending>, archive: BattleLogHistoryResponse | null) {
   return captureResolvedHealthSnapshot({ ...input, liveCapture: input, history: archive });
 }
@@ -100,6 +110,8 @@ for (const [name, start, damage, healing, cap, end] of [
       result.left.finalHealth, result.left.actualNetDelta, result.left.maxHealth, result.left.damageStageHealth],
     [start, damage, healing, end, end - start, cap, start - damage]);
     equal(result.right.damageTaken, 2);
+    const exact = complete(pending(resolved(state(start, damage, healing, cap))), null);
+    equal(exact?.left, result.left);
   });
 }
 
@@ -118,28 +130,29 @@ Deno.test('both sides, identity and outcomes are frozen and detached from source
   assert([result, result.left, result.right, result.identity, result.outcome].every(Object.isFrozen));
 });
 
-Deno.test('live next-turn drawing captures use matching finalized history rather than later projected caps', () => {
-  const input = state(30, 10, 25);
-  input.turnNumber = 5;
-  input.phaseKey = 'build.drawing';
+Deno.test('live next-turn capture owns exact resolution caps without history despite later health and fleet work', () => {
+  const input = resolved(state(30, 10, 25));
   const archive = history(input);
   input.players[0].maxHealth = 50;
+  input.players[0].health = 45;
+  input.gameData.turnData.shipsMadeThisTurnByPlayerId = { p2: 2 };
+  input.gameData.ships = { p2: [{ instanceId: 'new-bot-ship', createdTurn: 5 }] };
+  input.gameData.phaseReadiness = [{ playerId: 'p2', isReady: true, currentStep: 'build.drawing' }];
   const owned = pending(input);
-  assert(complete(owned, null) === null);
-  const result = complete(owned, archive);
+  const result = complete(owned, null);
   assert(result);
   equal(result.left.maxHealth, 35);
+  equal(result.left.finalHealth, 35);
   equal(result.left.startHealth, 30);
+  input.gameData.lastTurnHealthResolution.maxHealthByPlayerId.p1 = 999;
   input.gameData.lastTurnDamageByPlayerId.p1 = 1000;
   input.players[0].health = -900;
   equal(complete(owned, archive)?.left.damageTaken, 10);
   assert(Object.isFrozen(owned.state.players[0]));
 });
 
-Deno.test('intent without projected caps completes from the existing matching history source', () => {
-  const input = state();
-  input.turnNumber = 5;
-  input.phaseKey = 'build.drawing';
+Deno.test('resolving intent without current caps completes immediately from exact facts', () => {
+  const input = resolved();
   const archive = history(input);
   delete input.players[0].maxHealth;
   delete input.players[1].maxHealth;
@@ -163,7 +176,7 @@ Deno.test('matching terminal poll caps can complete an intent without waiting fo
   assert(captureResolvedHealthSnapshot({ ...owned, liveCapture: owned, boundaryState: boundary }) === null);
 });
 
-Deno.test('post-resolution fleet work cannot lend N+1 maxima to N, even through history', () => {
+Deno.test('post-resolution fleet work is supported only with exact captured provenance', () => {
   for (const change of [
     (s: any) => { s.publicState = { ancient: { materializedSimulacrumFleetInstanceIdsByPlayerId: { p1: ['copy'] } } }; },
     (s: any) => { s.gameData.turnData.shipsMadeThisTurnByPlayerId = { p1: 1 }; },
@@ -177,21 +190,30 @@ Deno.test('post-resolution fleet work cannot lend N+1 maxima to N, even through 
     assert(prepareResolvedHealthCapture({ state: input, identity, continuityKey,
       resolvedTurnNumber: 4, source: 'poll' }) === null);
     equal(buildSettledHealthPresentation(input, identity)?.mode, 'settled');
+    // Capture N's facts, then simulate independent N+1 fleet/cap changes.
+    input.players[0].maxHealth = 35;
+    resolved(input);
+    input.players[0].maxHealth = 50;
+    const exact = complete(pending(input), null);
+    assert(exact);
+    equal(exact.left.maxHealth, 35);
   }
   const input = state(); input.turnNumber = 5; input.phaseKey = 'build.drawing';
   assert(prepareResolvedHealthCapture({ state: input, identity, continuityKey,
-    resolvedTurnNumber: 4, source: 'intent', postResolutionFleetWork: true }) === null);
+    resolvedTurnNumber: 4, source: 'intent' }) === null);
 });
 
 for (const cap of [35, 45]) {
-  Deno.test(`history cap ${cap} requires live provenance, not a numeric special case`, () => {
+  Deno.test(`exact cap ${cap} requires a live observation, not history or a numeric special case`, () => {
     const input = state(30, 0, 0, cap);
     input.turnNumber = 5;
     input.phaseKey = 'build.drawing';
     const archive = history(input, { p1: cap, p2: 35 });
     assert(captureResolvedHealthSnapshot({ state: input, identity, continuityKey,
       resolvedTurnNumber: 4, source: 'poll', history: archive }) === null);
-    const result = complete(pending(input), archive);
+    assert(prepareResolvedHealthCapture({ state: input, identity, continuityKey,
+      resolvedTurnNumber: 4, source: 'poll' }) === null);
+    const result = complete(pending(resolved(input)), null);
     assert(result);
     equal(result.left.maxHealth, cap);
   });
@@ -201,7 +223,6 @@ Deno.test('sparse/incompatible history settles without manufacturing caps or con
   const input = state();
   input.turnNumber = 5;
   input.phaseKey = 'build.drawing';
-  const owned = pending(input);
   for (const change of [
     (h: any) => { h.turns = []; }, (h: any) => { delete h.turns[0].analysisByPlayerId; },
     (h: any) => { delete h.turns[0].players[0].maxHealthEnd; },
@@ -213,7 +234,8 @@ Deno.test('sparse/incompatible history settles without manufacturing caps or con
   ]) {
     const archive = history(input);
     change(archive);
-    assert(complete(owned, archive) === null);
+    assert(captureResolvedHealthSnapshot({ state: input, identity, continuityKey,
+      resolvedTurnNumber: 4, source: 'poll', history: archive }) === null);
   }
   const settled = buildSettledHealthPresentation(input, identity);
   assert(settled?.mode === 'settled');
@@ -231,6 +253,64 @@ Deno.test('public projection selectors preserve aggregate availability without b
   delete input.gameData.lastTurnHealByPlayerId;
   delete input.gameData.lastTurnNetByPlayerId;
   assert(capture(input));
+});
+
+Deno.test('exact full-state projections animate adjacent polls in viewer and spectator order', () => {
+  const input = resolved();
+  const metadata = input.gameData.lastTurnHealthResolution;
+  input.publicState = { players: input.players, lastTurnStats: {
+    healthResolution: metadata,
+    damageByPlayerId: input.gameData.lastTurnDamageByPlayerId,
+    healByPlayerId: input.gameData.lastTurnHealByPlayerId,
+    netByPlayerId: input.gameData.lastTurnNetByPlayerId,
+  } };
+  delete input.gameData;
+  const observation = observeHealthResolution(observed(4), observed(5));
+  equal(observation.resolvedTurnNumber, 4);
+  const poll = capture(input); assert(poll);
+  equal([poll.left.playerId, poll.left.maxHealth], ['p1', 35]);
+  equal(capture(input, { ...identity, viewerId: 'p2', leftPlayerId: 'p2', rightPlayerId: 'p1' })?.left.damageTaken, 2);
+  equal(capture(input, { ...identity, viewerId: 's1', viewerRole: 'spectator' })?.left.playerId, 'p1');
+  // A stored record never changes the observation gate on load/refresh/resume.
+  for (const previous of [null, { ...observed(5), resumeToken: -1 }]) {
+    equal(observeHealthResolution(previous, observed(5)), { resolvedTurnNumber: null, recovery: true });
+  }
+});
+
+Deno.test('malformed explicit facts cannot borrow current caps or matching history', () => {
+  for (const change of [
+    (s: any) => { s.gameData.lastTurnHealthResolution = null; },
+    (s: any) => { s.gameData.lastTurnHealthResolution.resolvedTurnNumber = 3; },
+    (s: any) => { delete s.gameData.lastTurnHealthResolution.finalHealthByPlayerId.p2; },
+    (s: any) => { s.gameData.lastTurnHealthResolution.maxHealthByPlayerId.p1 = Infinity; },
+    (s: any) => { s.gameData.lastTurnHealthResolution.maxHealthByPlayerId.p1 = 0; },
+    (s: any) => { s.gameData.lastTurnHealthResolution.finalHealthByPlayerId.p1 = 99; },
+    (s: any) => { s.gameData.lastTurnHealthResolution.finalHealthByPlayerId.other = 20; },
+    (s: any) => { s.gameData.lastTurnNetByPlayerId.p1 = NaN; },
+    (s: any) => { s.gameData.lastTurnHealByPlayerId.p1 = -1; },
+  ]) {
+    const input = resolved(); const archive = history(input); change(input);
+    assert(prepareResolvedHealthCapture({ state: input, identity, continuityKey,
+      resolvedTurnNumber: 4, source: 'poll' }) === null);
+    assert(captureResolvedHealthSnapshot({ state: input, identity, continuityKey,
+      resolvedTurnNumber: 4, source: 'poll', history: archive }) === null);
+  }
+});
+
+Deno.test('incomplete public resolution envelopes never mix raw-state totals or provenance', () => {
+  for (const missing of ['healthResolution', 'damageByPlayerId', 'healByPlayerId', 'netByPlayerId']) {
+    const input = resolved();
+    input.publicState = { lastTurnStats: {
+      healthResolution: input.gameData.lastTurnHealthResolution,
+      damageByPlayerId: input.gameData.lastTurnDamageByPlayerId,
+      healByPlayerId: input.gameData.lastTurnHealByPlayerId,
+      netByPlayerId: input.gameData.lastTurnNetByPlayerId,
+    } };
+    delete input.publicState.lastTurnStats[missing];
+    assert(prepareResolvedHealthCapture({ state: input, identity, continuityKey,
+      resolvedTurnNumber: 4, source: 'poll' }) === null);
+    assert(capture(input) === null);
+  }
 });
 
 Deno.test('requester-relative and spectator ordering use canonical seat selectors', () => {
@@ -273,6 +353,8 @@ for (const [damage, healing, reason, winner] of [
     assert(result);
     equal(result.left.finalHealth, 12 - damage + healing);
     equal(result.outcome, { isTerminal: true, winnerPlayerId: winner, resultReason: reason });
+    resolved(input); input.turnNumber = 4;
+    equal(capture(input)?.left, result.left);
   });
 }
 

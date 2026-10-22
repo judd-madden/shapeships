@@ -2082,8 +2082,8 @@ export function useGameSession(
     [rawState, resolvedHealthIdentityKey]);
   const resolvedHealthCandidate = useMemo(() => pendingResolvedHealthCapture
     ? captureResolvedHealthSnapshot({ ...pendingResolvedHealthCapture,
-        liveCapture: pendingResolvedHealthCapture, history: battleLogHistory, boundaryState: rawState }) : null,
-    [pendingResolvedHealthCapture, battleLogHistory, rawState]);
+        liveCapture: pendingResolvedHealthCapture, boundaryState: rawState }) : null,
+    [pendingResolvedHealthCapture, rawState]);
   const displayLeftReadyKey = isViewerSpectator ? viewerSeats.p1ReadyKey : meReadyKey;
   const displayRightReadyKey = isViewerSpectator ? viewerSeats.p2ReadyKey : opponentReadyKey;
   const displayContinuityIdentityKey = JSON.stringify({
@@ -2712,7 +2712,7 @@ export function useGameSession(
     }
   }
 
-  function captureHealthResolution(state: any, resolvedTurnNumber: number, source: 'intent' | 'poll', postResolutionFleetWork = false): void {
+  function captureHealthResolution(state: any, resolvedTurnNumber: number, source: 'intent' | 'poll'): void {
     if (!resolvedHealthIdentity || !resolvedHealthContinuityKey ||
         resolvedHealthContinuityKeyRef.current !== resolvedHealthContinuityKey ||
         getTurnNumber(rawState) > resolvedTurnNumber + 1 ||
@@ -2724,13 +2724,13 @@ export function useGameSession(
       : { continuityKey: resolvedHealthContinuityKey, turnNumber: resolvedTurnNumber });
     const capture = prepareResolvedHealthCapture({
       state, identity: resolvedHealthIdentity, continuityKey: resolvedHealthContinuityKey,
-      resolvedTurnNumber, source, postResolutionFleetWork,
+      resolvedTurnNumber, source,
     });
     // Claim exact eligible terminal facts synchronously at live capture, before the
     // later automatic-finish layout effect can route away on this same commit.
     if (capture) {
       const snapshot = captureResolvedHealthSnapshot({ ...capture, liveCapture: capture,
-        history: battleLogHistory, boundaryState: state });
+        boundaryState: state });
       if (snapshot?.outcome.isTerminal) terminalHealthBarCandidateRef.current = snapshot;
     }
     if (!capture) {
@@ -2753,10 +2753,7 @@ export function useGameSession(
     void enqueueWinStreakObservation(result?.state, false);
     const resolvedHealthTurn = getIntentResolvedHealthTurn(result, meta?.turn);
     if (resolvedHealthTurn != null && !hasNonHealthResolutionFinishReason(result)) {
-      captureHealthResolution(result.state, resolvedHealthTurn, 'intent', result.events.some((event: any) =>
-        event?.type === 'SIMULACRUM_COPY_MATERIALIZED' ||
-        (typeof event?.type === 'string' && event.type.startsWith('BATTLE_LOG_CAPTURE_BUILD_') &&
-          event.turnNumber > resolvedHealthTurn)));
+      captureHealthResolution(result.state, resolvedHealthTurn, 'intent');
     }
     const localPlayerId = getPlayerIdentityKey(displayLeftPlayer);
     const opponentPlayerId = getPlayerIdentityKey(displayRightPlayer);
@@ -5214,12 +5211,14 @@ useEffect(() => {
       identity: resolvedHealthIdentity, continuityKey: resolvedHealthContinuityKey,
       observedResolvedTurnNumber: observedResolvedHealthTurn?.continuityKey === resolvedHealthContinuityKey
         ? observedResolvedHealthTurn.turnNumber : null,
-      settledIncludesLiveResolution: !resolvedHealthSnapshot ||
-        turnNumber > resolvedHealthSnapshot.resolvedTurnNumber ||
-        isResolvedHealthBoundary(rawState, resolvedHealthSnapshot.resolvedTurnNumber),
+      // Capture ownership outlives source release, including a lagging intent DTO.
+      settledIncludesLiveResolution: !pendingResolvedHealthCapture ||
+        pendingResolvedHealthCapture.continuityKey !== resolvedHealthContinuityKey ||
+        getTurnNumber(rawState) > pendingResolvedHealthCapture.resolvedTurnNumber ||
+        isResolvedHealthBoundary(rawState, pendingResolvedHealthCapture.resolvedTurnNumber),
       settled: settledResolvedHealth,
     } : null, [resolvedHealthContinuityKey, settledResolvedHealth, observedResolvedHealthTurn,
-      resolvedHealthSnapshot, turnNumber, rawState]);
+      pendingResolvedHealthCapture, rawState]);
   const thisTurnPresentation = buildThisTurnVm(thisTurnResolutionSnapshot);
   const thisTurnStatOrientationKey = getTurnStartStatOrientationKey({
     viewerRole: healthResolutionViewerRole,

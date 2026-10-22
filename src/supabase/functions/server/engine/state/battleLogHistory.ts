@@ -312,6 +312,11 @@ type GameStateLike = {
     lastTurnDamageByPlayerId?: Record<string, number>;
     lastTurnHealByPlayerId?: Record<string, number>;
     lastTurnNetByPlayerId?: Record<string, number>;
+    lastTurnHealthResolution?: {
+      resolvedTurnNumber: number;
+      finalHealthByPlayerId: Record<string, number>;
+      maxHealthByPlayerId: Record<string, number>;
+    };
     lastTurnDamageDealtBreakdownByPlayerId?: Record<string, unknown>;
     lastTurnHealingReceivedBreakdownByPlayerId?: Record<string, unknown>;
     ancient?: {
@@ -2362,6 +2367,12 @@ export function buildBattleLogTurnSummaryFromScratch(args: {
       ? normalizedScratch.currentTurnCapture
       : null;
   const activePlayers = getActivePlayers(args.finalizedState);
+  const resolution = args.finalizedState?.gameData?.lastTurnHealthResolution;
+  const matchingResolution = resolution?.resolvedTurnNumber === args.finalizedTurnNumber &&
+    activePlayers.length === 2 && activePlayers.every((player) =>
+      isFiniteNumber(resolution.finalHealthByPlayerId?.[player.id]) &&
+      isFiniteNumber(resolution.maxHealthByPlayerId?.[player.id]) &&
+      resolution.maxHealthByPlayerId[player.id] > 0) ? resolution : null;
   const lastTurnDamageByPlayerId =
     args.finalizedState?.gameData?.lastTurnDamageByPlayerId ?? {};
   const lastTurnHealByPlayerId =
@@ -2435,8 +2446,10 @@ export function buildBattleLogTurnSummaryFromScratch(args: {
     players: activePlayers.map((player) => ({
       playerId: player.id,
       name: typeof player.name === "string" ? player.name : player.id,
-      healthEnd: isFiniteNumber(player.health) ? player.health : 0,
-      maxHealthEnd: getPlayerMaxHealth(args.finalizedState, player.id),
+      healthEnd: matchingResolution?.finalHealthByPlayerId[player.id] ??
+        (isFiniteNumber(player.health) ? player.health : 0),
+      maxHealthEnd: matchingResolution?.maxHealthByPlayerId[player.id] ??
+        getPlayerMaxHealth(args.finalizedState, player.id),
       healthDelta: isFiniteNumber(lastTurnNetByPlayerId[player.id])
         ? lastTurnNetByPlayerId[player.id]
         : 0,

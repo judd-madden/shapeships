@@ -2846,6 +2846,7 @@ export function registerGameRoutes(
           projectedGameData.gameData?.voidShipsByPlayerId ?? {},
         visibleDice,
         lastTurnStats: {
+          healthResolution: gameData.gameData?.lastTurnHealthResolution,
           netByPlayerId: gameData.gameData?.lastTurnNetByPlayerId ?? {},
           damageByPlayerId: gameData.gameData?.lastTurnDamageByPlayerId ?? {},
           healByPlayerId: gameData.gameData?.lastTurnHealByPlayerId ?? {},

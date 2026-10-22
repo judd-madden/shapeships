@@ -2,12 +2,13 @@ import {
   findPlayerByIdentity, getLastTurnDamageByPlayerId, getLastTurnHealByPlayerId,
   getLastTurnNetByPlayerId, getPhaseHold, getPhaseKey, getPlayerIdentityKey,
   getPlayers, getResultReason, getTurnNumber, getWinnerPlayerId, isGameFinished,
-  getMaterializedSimulacrumFleetInstanceIdsByPlayerId, getShipsByPlayerId, isPlayerReadyForPhase,
+  getLastTurnResolvedHealthFacts,
 } from './selectors';
 import { deriveViewerSeats } from './viewerSeats';
 import type {
   BattleLogHistoryResponse, ResolvedHealthIdentity, ResolvedHealthOutcome,
   ResolvedHealthPresentation, ResolvedHealthSide, ResolvedHealthSnapshot, ResolvedHealthCompletionIdentity,
+  ResolvedHealthResolutionMetadata,
 } from './types';
 
 const HEALTH_FINISH_REASONS = new Set(['decisive', 'narrow', 'mutual_destruction']);
@@ -79,6 +80,18 @@ function ownNumber(map: any, playerId: string): number | undefined {
   return finite(value) ? value : undefined;
 }
 
+function resolutionMetadata(value: unknown, ids: string[], resolvedTurnNumber: number): Readonly<ResolvedHealthResolutionMetadata> | null {
+  const raw = value as Partial<ResolvedHealthResolutionMetadata> | null | undefined;
+  if (!raw || raw.resolvedTurnNumber !== resolvedTurnNumber ||
+      ![raw.finalHealthByPlayerId, raw.maxHealthByPlayerId].every((map) =>
+        map && Object.keys(map).length === ids.length && ids.every((id) => ownNumber(map, id) !== undefined)) ||
+      !ids.every((id) => positive(ownNumber(raw.maxHealthByPlayerId, id)))) return null;
+  return Object.freeze({ resolvedTurnNumber,
+    finalHealthByPlayerId: Object.freeze(Object.fromEntries(ids.map((id) => [id, ownNumber(raw.finalHealthByPlayerId, id)!]))),
+    maxHealthByPlayerId: Object.freeze(Object.fromEntries(ids.map((id) => [id, ownNumber(raw.maxHealthByPlayerId, id)!]))),
+  });
+}
+
 function buildSide(args: {
   playerId: string; finalHealth: unknown; actualNetDelta: unknown;
   damageTaken: unknown; grossHealingReceived: unknown; maxHealth: unknown;
@@ -114,11 +127,10 @@ export interface PendingResolvedHealthCapture {
   readonly continuityKey: string;
   readonly resolvedTurnNumber: number;
   readonly source: 'intent' | 'poll';
-  readonly postResolutionFleetWork?: boolean;
 }
 
 /** Called only for an observed live completion, never by history/bootstrap loading.
- * Own aggregate facts immediately, even when the response omits finalized caps. */
+ * Own exact aggregate facts immediately; history never supplies next-turn caps. */
 export function prepareResolvedHealthCapture(args: PendingResolvedHealthCapture): PendingResolvedHealthCapture | null {
   const { state, identity, resolvedTurnNumber } = args;
   if (!matchesIdentity(state, identity) || !turn(resolvedTurnNumber)) return null;
@@ -126,21 +138,19 @@ export function prepareResolvedHealthCapture(args: PendingResolvedHealthCapture)
   if (outcome.isTerminal ? !isResolvedHealthBoundary(state, resolvedTurnNumber)
     : getTurnNumber(state) !== resolvedTurnNumber + 1 && !isResolvedHealthBoundary(state, resolvedTurnNumber)) return null;
   const ids = [identity.leftPlayerId, identity.rightPlayerId];
-  if (!outcome.isTerminal && getTurnNumber(state) === resolvedTurnNumber + 1) {
-    // Current history summaries are built from the post-advance state. Fleet work
-    // after N can change that cap before it is archived. Do not guess N's cap.
-    const materialized = getMaterializedSimulacrumFleetInstanceIdsByPlayerId(state);
-    const fleets = getShipsByPlayerId(state);
-    const made = state?.gameData?.turnData?.shipsMadeThisTurnByPlayerId;
-    if (args.postResolutionFleetWork || ids.some((id) =>
-      materialized[id]?.length > 0 || (finite(made?.[id]) && made[id] > 0) ||
-      fleets[id]?.some((ship) => ship.createdTurn === resolvedTurnNumber + 1) ||
-      (getPhaseKey(state) === 'build.drawing' && isPlayerReadyForPhase(state, id)))) return null;
-  }
-  const maps = [getLastTurnDamageByPlayerId(state), getLastTurnHealByPlayerId(state), getLastTurnNetByPlayerId(state)];
-  if (!ids.every((id) => finite(findPlayerByIdentity(state, id)?.health) &&
+  const facts = getLastTurnResolvedHealthFacts(state);
+  const metadata = resolutionMetadata(facts.healthResolution, ids, resolvedTurnNumber);
+  // Explicit malformed/mismatched provenance must never fall back to legacy caps.
+  if (facts.healthResolution !== undefined && !metadata) return null;
+  if (!metadata && !isResolvedHealthBoundary(state, resolvedTurnNumber)) return null;
+  const maps = [facts.damage, facts.healing, facts.net];
+  if (!ids.every((id) => finite(metadata?.finalHealthByPlayerId[id] ?? findPlayerByIdentity(state, id)?.health) &&
       maps.every((map) => ownNumber(map, id) !== undefined) &&
       ownNumber(maps[0], id)! >= 0 && ownNumber(maps[1], id)! >= 0)) return null;
+  if (metadata && !ids.every((playerId) => buildSide({ playerId,
+    finalHealth: metadata.finalHealthByPlayerId[playerId], maxHealth: metadata.maxHealthByPlayerId[playerId],
+    damageTaken: ownNumber(maps[0], playerId), grossHealingReceived: ownNumber(maps[1], playerId),
+    actualNetDelta: ownNumber(maps[2], playerId) }))) return null;
   const ownMap = (map: any) => Object.freeze(Object.fromEntries(ids.map((id) => [id, ownNumber(map, id)])));
   const players = Object.freeze(getPlayers(state).map((player) => Object.freeze({
     id: player.id, playerId: player.playerId, sessionId: player.sessionId,
@@ -152,6 +162,7 @@ export function prepareResolvedHealthCapture(args: PendingResolvedHealthCapture)
     winnerPlayerId: outcome.winnerPlayerId, resultReason: outcome.resultReason,
     gameData: Object.freeze({ lastTurnDamageByPlayerId: ownMap(maps[0]),
       lastTurnHealByPlayerId: ownMap(maps[1]), lastTurnNetByPlayerId: ownMap(maps[2]),
+      ...(metadata ? { lastTurnHealthResolution: metadata } : {}),
       turnData: Object.freeze({ phaseHold: Object.freeze({ holdReason: getPhaseHold(state)?.holdReason }) }) }),
   });
   return Object.freeze({ ...args, identity: Object.freeze({ ...identity }), state: ownedState });
@@ -172,19 +183,23 @@ export function getIntentResolvedHealthTurn(result: any, submittedTurn?: number)
 export function captureResolvedHealthSnapshot(args: {
   state: any; identity: ResolvedHealthIdentity; continuityKey: string;
   resolvedTurnNumber: number; source: 'intent' | 'poll';
+  /** Legacy input only; history cannot establish missing resolution-time provenance. */
   history?: BattleLogHistoryResponse | null;
   /** A subsequent poll can supply missing caps at the SAME finalized boundary. */
   boundaryState?: any;
   /** An owned capture prepared from a live event/adjacent observation, never historical loading. */
   liveCapture?: PendingResolvedHealthCapture | null;
 }): ResolvedHealthSnapshot | null {
-  const { state, identity, continuityKey, resolvedTurnNumber, source, history, boundaryState } = args;
+  const { state, identity, continuityKey, resolvedTurnNumber, source, boundaryState } = args;
   if (!matchesIdentity(state, identity) || !turn(resolvedTurnNumber)) return null;
   const outcome = readResolvedHealthOutcome(state);
   if (outcome.isTerminal && (!HEALTH_FINISH_REASONS.has(outcome.resultReason ?? '') ||
       (outcome.winnerPlayerId != null && ![identity.leftPlayerId, identity.rightPlayerId].includes(outcome.winnerPlayerId)))) return null;
   const atBoundary = isResolvedHealthBoundary(state, resolvedTurnNumber);
   const ids = [identity.leftPlayerId, identity.rightPlayerId];
+  const facts = getLastTurnResolvedHealthFacts(state);
+  const metadata = resolutionMetadata(facts.healthResolution, ids, resolvedTurnNumber);
+  if (facts.healthResolution !== undefined && !metadata) return null;
   const boundaryMatches = boundaryState && matchesIdentity(boundaryState, identity) &&
     isResolvedHealthBoundary(boundaryState, resolvedTurnNumber) &&
     JSON.stringify(readResolvedHealthOutcome(boundaryState)) === JSON.stringify(outcome) &&
@@ -195,33 +210,18 @@ export function captureResolvedHealthSnapshot(args: {
   const boundaryCap = (id: string): unknown => atBoundary && positive(findPlayerByIdentity(state, id)?.maxHealth)
     ? findPlayerByIdentity(state, id).maxHealth
     : boundaryMatches ? findPlayerByIdentity(boundaryState, id)?.maxHealth : undefined;
-  const live = args.liveCapture;
-  const liveHistory = live && live.state === state && live.continuityKey === continuityKey &&
-    live.resolvedTurnNumber === resolvedTurnNumber && history?.gameId === identity.gameId &&
-    getResolvedHealthIdentityKey(live.identity) === getResolvedHealthIdentityKey(identity)
-      ? history.turns.filter((row) => row.turnNumber === resolvedTurnNumber) : [];
-  // Complete direct boundary facts do not depend on archive availability/detail.
-  const matchingHistory = ids.every((id) => positive(boundaryCap(id))) ? null
-    : liveHistory.length === 1 ? liveHistory[0] : null;
-  if (!atBoundary && !boundaryMatches && !matchingHistory) return null;
-  // History may corroborate a cap for an identified resolution, but never a later turn's totals.
+  if (!metadata && !atBoundary && !boundaryMatches) return null;
   if (!atBoundary && getTurnNumber(state) !== resolvedTurnNumber + 1) return null;
-  const damage = getLastTurnDamageByPlayerId(state);
-  const healing = getLastTurnHealByPlayerId(state);
-  const net = getLastTurnNetByPlayerId(state);
+  const damage = facts.damage;
+  const healing = facts.healing;
+  const net = facts.net;
   const side = (playerId: string) => {
     const player = findPlayerByIdentity(state, playerId);
     if (!player || getPlayerIdentityKey(player) !== playerId || player.role !== 'player') return null;
-    const historyPlayers = matchingHistory?.players.filter((row) => row.playerId === playerId);
-    const summary = historyPlayers?.length === 1 ? historyPlayers[0] : null;
-    const analysis = matchingHistory?.analysisByPlayerId?.[playerId];
-    if (matchingHistory && (!summary || summary.healthEnd !== player.health ||
-        summary.healthDelta !== ownNumber(net, playerId) || analysis?.netHealthDelta !== summary.healthDelta ||
-        analysis?.damageTaken !== ownNumber(damage, playerId) || analysis?.healReceived !== ownNumber(healing, playerId))) return null;
-    return buildSide({ playerId, finalHealth: player.health,
+    return buildSide({ playerId, finalHealth: metadata ? metadata.finalHealthByPlayerId[playerId] : player.health,
       actualNetDelta: ownNumber(net, playerId), damageTaken: ownNumber(damage, playerId),
       grossHealingReceived: ownNumber(healing, playerId),
-      maxHealth: positive(boundaryCap(playerId)) ? boundaryCap(playerId) : summary?.maxHealthEnd });
+      maxHealth: metadata ? metadata.maxHealthByPlayerId[playerId] : boundaryCap(playerId) });
   };
   const left = side(identity.leftPlayerId);
   const right = side(identity.rightPlayerId);
