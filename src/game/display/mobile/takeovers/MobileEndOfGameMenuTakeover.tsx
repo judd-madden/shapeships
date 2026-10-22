@@ -10,6 +10,7 @@ interface MobileEndOfGameMenuTakeoverProps {
   winStreak: GameSessionViewModel['winStreak'];
   canViewGameStats: boolean;
   showChallengeAction: boolean;
+  missionSucceeded?: boolean;
   onOpenChallenge: () => void;
   onOpenGameStats: () => void;
   onClose: () => void;
@@ -23,6 +24,7 @@ export function MobileEndOfGameMenuTakeover({
   winStreak,
   canViewGameStats,
   showChallengeAction,
+  missionSucceeded = false,
   onOpenChallenge,
   onOpenGameStats,
   onClose,
@@ -71,7 +73,9 @@ export function MobileEndOfGameMenuTakeover({
 
             {showChallengeAction ? (
               <GameMenuButton
-                className="h-[54px] w-[260px] max-w-full"
+                className={`h-[54px] w-[260px] max-w-full ${missionSucceeded
+                  ? '[&:not(:hover)]:bg-[var(--shapeships-green)]'
+                  : ''}`}
                 onClick={onOpenChallenge}
               >
                 <span className="flex items-center gap-[10px]">

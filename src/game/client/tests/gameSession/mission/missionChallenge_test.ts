@@ -2,20 +2,17 @@ declare const Deno: {
   test(name: string, fn: () => void | Promise<void>): void;
 };
 
+import type { MissionChallengeResultViewModel } from '../../../gameSession/types';
 import {
-  advanceMissionResultAutoPresentation,
   buildMissionChallengeViewModel,
   claimMissionAcknowledgement,
   createMissionAutoAckState,
-  createMissionResultAutoPresentationState,
-  consumeMissionResultAutoPresentationRequest,
   getCompletedMissionFindingIds,
   getCompletedMissionId,
   isCompletedSpeciesMissionIntroSetupGate,
   normalizeRequesterMissionChallenge,
   shouldAutomaticallyAcknowledgeMission,
   shouldPresentInitialMissionIntro,
-  type MissionResultAutoPresentationSnapshot,
 } from '../../../gameSession/mission/missionChallenge';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
@@ -206,7 +203,6 @@ Deno.test('builds one central VM without deriving result truth', () => {
     isIntroAcknowledgementPending: true,
     minimizeMissionsThisSession: true,
     shouldPresentInitialIntro: false,
-    postgameResultAutoOpenRequest: null,
   });
   assert(vm);
   assert(vm.isFinished === true);
@@ -215,6 +211,38 @@ Deno.test('builds one central VM without deriving result truth', () => {
   assert(vm.shouldPresentInitialIntro === false);
   assertEquals(vm.result, normalized?.result);
 });
+
+for (const minimizeMissionsThisSession of [false, true]) {
+  Deno.test(`finished Mission VM preserves results without auto-open requests (Ignore Missions: ${minimizeMissionsThisSession})`, () => {
+    const results: Array<MissionChallengeResultViewModel | null> = [null];
+    for (const missionSucceeded of [false, true]) {
+      for (const fleetConditionMet of [false, true]) {
+        for (const challengeSucceeded of [false, true]) {
+          results.push({ missionSucceeded, fleetConditionMet, challengeSucceeded });
+        }
+      }
+    }
+
+    for (const result of results) {
+      const normalized = normalizeRequesterMissionChallenge(requesterState({
+        introPending: false,
+        result,
+      }));
+      const vm = buildMissionChallengeViewModel({
+        normalized,
+        isFinished: true,
+        isIntroAcknowledgementPending: false,
+        minimizeMissionsThisSession,
+        shouldPresentInitialIntro: false,
+      });
+      assert(vm);
+      assertEquals(vm.result, result);
+      assert(vm.minimizeMissionsThisSession === minimizeMissionsThisSession);
+      assert(vm.shouldPresentInitialIntro === false);
+      assert(!('postgameResultAutoOpenRequest' in vm));
+    }
+  });
+}
 
 Deno.test('Mission Finding completion consumes only authoritative Mission success', () => {
   const visibleIntro = normalizeRequesterMissionChallenge(requesterState());
@@ -261,193 +289,6 @@ Deno.test('Mission Finding completion consumes only authoritative Mission succes
   assertEquals(getCompletedMissionId(failedMissionWithSuccessfulChallenge), null);
 });
 
-function missionResultSnapshot(
-  overrides: Partial<MissionResultAutoPresentationSnapshot> = {},
-): MissionResultAutoPresentationSnapshot {
-  return {
-    gameId: 'game-a',
-    missionId: 'mission-h-x',
-    liveTerminalTriggerPresentationKey: null,
-    activeHealthPresentationKey: null,
-    healthResolutionPresentationActive: false,
-    isFinished: true,
-    isPlayerViewer: true,
-    minimizeMissionsThisSession: false,
-    hasResult: false,
-    findingCompletionHandled: false,
-    loreUnlocked: false,
-    ...overrides,
-  };
-}
-
-Deno.test('postgame Mission result requires a matching live terminal presentation', () => {
-  const initial = createMissionResultAutoPresentationState(
-    'game-a',
-    'mission-h-x',
-  );
-  const presentationKey = 'game-a::health::7';
-
-  const hydratedLegacyOverlay = advanceMissionResultAutoPresentation(
-    initial,
-    missionResultSnapshot({
-      activeHealthPresentationKey: presentationKey,
-      healthResolutionPresentationActive: true,
-      hasResult: true,
-    }),
-  );
-  assert(hydratedLegacyOverlay.matchedPresentationKey === null);
-
-  const hydratedAfterClear = advanceMissionResultAutoPresentation(
-    hydratedLegacyOverlay,
-    missionResultSnapshot({ hasResult: true }),
-  );
-  assert(hydratedAfterClear.request === null);
-
-  const mismatched = advanceMissionResultAutoPresentation(
-    initial,
-    missionResultSnapshot({
-      liveTerminalTriggerPresentationKey: presentationKey,
-      activeHealthPresentationKey: 'game-a::health::8',
-      healthResolutionPresentationActive: true,
-    }),
-  );
-  assert(mismatched.matchedPresentationKey === null);
-  assert(mismatched.request === null);
-});
-
-Deno.test('postgame Mission result stays armed after presentation clear until result arrives', () => {
-  const presentationKey = 'game-a::health::7';
-  const initial = createMissionResultAutoPresentationState(
-    'game-a',
-    'mission-h-x',
-  );
-  const matched = advanceMissionResultAutoPresentation(
-    initial,
-    missionResultSnapshot({
-      liveTerminalTriggerPresentationKey: presentationKey,
-      activeHealthPresentationKey: presentationKey,
-      healthResolutionPresentationActive: true,
-    }),
-  );
-  assert(matched.matchedPresentationKey === presentationKey);
-  assert(matched.presentationCleared === false);
-
-  const clearedWithoutResult = advanceMissionResultAutoPresentation(
-    matched,
-    missionResultSnapshot({
-      liveTerminalTriggerPresentationKey: presentationKey,
-    }),
-  );
-  assert(clearedWithoutResult.matchedPresentationKey === presentationKey);
-  assert(clearedWithoutResult.presentationCleared === true);
-  assert(clearedWithoutResult.request === null);
-
-  const stillWaiting = advanceMissionResultAutoPresentation(
-    clearedWithoutResult,
-    missionResultSnapshot({
-      liveTerminalTriggerPresentationKey: presentationKey,
-    }),
-  );
-  assertEquals(stillWaiting, clearedWithoutResult);
-
-  const resultBeforeCompletionPersistence = advanceMissionResultAutoPresentation(
-    stillWaiting,
-    missionResultSnapshot({
-      liveTerminalTriggerPresentationKey: presentationKey,
-      hasResult: true,
-    }),
-  );
-  assert(resultBeforeCompletionPersistence.request === null);
-  assert(
-    resultBeforeCompletionPersistence.matchedPresentationKey === presentationKey,
-  );
-
-  const requested = advanceMissionResultAutoPresentation(
-    resultBeforeCompletionPersistence,
-    missionResultSnapshot({
-      liveTerminalTriggerPresentationKey: presentationKey,
-      hasResult: true,
-      findingCompletionHandled: true,
-      loreUnlocked: true,
-    }),
-  );
-  assertEquals(requested.request, {
-    key: 'game-a::health::7\u0000mission-h-x\u0000result',
-    loreUnlocked: true,
-  });
-
-  const ignoredConsume = consumeMissionResultAutoPresentationRequest(
-    requested,
-    'different-request',
-  );
-  assertEquals(ignoredConsume, requested);
-  const consumed = consumeMissionResultAutoPresentationRequest(
-    requested,
-    requested.request?.key ?? '',
-  );
-  assert(consumed.request === null);
-
-  const afterRemount = advanceMissionResultAutoPresentation(
-    consumed,
-    missionResultSnapshot({
-      liveTerminalTriggerPresentationKey: presentationKey,
-      hasResult: true,
-      findingCompletionHandled: true,
-      loreUnlocked: true,
-    }),
-  );
-  assert(afterRemount.request === null);
-});
-
-Deno.test('postgame Mission waits for terminal bars after the independent health overlay clears', () => {
-  const presentationKey = 'game-a::health::7';
-  const matched = advanceMissionResultAutoPresentation(
-    createMissionResultAutoPresentationState('game-a', 'mission-h-x'),
-    missionResultSnapshot({ liveTerminalTriggerPresentationKey: presentationKey,
-      activeHealthPresentationKey: presentationKey, healthResolutionPresentationActive: true }),
-  );
-  const pending = advanceMissionResultAutoPresentation(matched, missionResultSnapshot({
-    hasResult: true, findingCompletionHandled: true, terminalHealthBarPresentationPending: true,
-  }));
-  assert(pending.presentationCleared);
-  assert(pending.request === null);
-  const completed = advanceMissionResultAutoPresentation(pending, missionResultSnapshot({
-    hasResult: true, findingCompletionHandled: true, terminalHealthBarPresentationPending: false,
-  }));
-  assert(completed.request !== null);
-});
-
-Deno.test('postgame Mission result pending state clears on explicit invalidation', () => {
-  const presentationKey = 'game-a::health::7';
-  const matched = advanceMissionResultAutoPresentation(
-    createMissionResultAutoPresentationState('game-a', 'mission-h-x'),
-    missionResultSnapshot({
-      liveTerminalTriggerPresentationKey: presentationKey,
-      activeHealthPresentationKey: presentationKey,
-      healthResolutionPresentationActive: true,
-    }),
-  );
-
-  const minimized = advanceMissionResultAutoPresentation(
-    matched,
-    missionResultSnapshot({ minimizeMissionsThisSession: true }),
-  );
-  assert(minimized.matchedPresentationKey === null);
-  assert(minimized.request === null);
-
-  const ineligibleViewer = advanceMissionResultAutoPresentation(
-    matched,
-    missionResultSnapshot({ isPlayerViewer: false }),
-  );
-  assert(ineligibleViewer.matchedPresentationKey === null);
-
-  const nextGame = advanceMissionResultAutoPresentation(
-    matched,
-    missionResultSnapshot({ gameId: 'game-b', missionId: 'mission-b' }),
-  );
-  assert(nextGame.gameId === 'game-b');
-  assert(nextGame.matchedPresentationKey === null);
-});
 
 Deno.test('initial Mission presentation follows captured auto-ack state', () => {
   const pendingMission = normalizeRequesterMissionChallenge(requesterState());

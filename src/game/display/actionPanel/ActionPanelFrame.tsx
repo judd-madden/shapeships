@@ -38,6 +38,7 @@ interface ActionPanelFrameProps {
   onOpenGameStats?: () => void;
   onToggleGameStats?: () => void;
   isPostgameMissionOpen?: boolean;
+  missionSucceeded?: boolean;
   showPostgameChallengeAction?: boolean;
   onTogglePostgameChallenge?: () => void;
   soundEnabled: boolean;
@@ -64,6 +65,7 @@ export function ActionPanelFrame({
   onOpenGameStats,
   onToggleGameStats,
   isPostgameMissionOpen = false,
+  missionSucceeded = false,
   showPostgameChallengeAction = false,
   onTogglePostgameChallenge,
   soundEnabled,
@@ -412,6 +414,7 @@ export function ActionPanelFrame({
           onOpenGameStats={onOpenGameStats}
           onToggleGameStats={onToggleGameStats}
           isPostgameMissionOpen={isPostgameMissionOpen}
+          missionSucceeded={missionSucceeded}
           showChallengeAction={showPostgameChallengeAction}
           onToggleChallenge={onTogglePostgameChallenge}
           onReturnToMainMenu={onReturnToMainMenu}

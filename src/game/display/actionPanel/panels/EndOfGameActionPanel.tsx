@@ -19,6 +19,7 @@ interface EndOfGameActionPanelProps {
   onOpenGameStats?: () => void;
   onToggleGameStats?: () => void;
   isPostgameMissionOpen?: boolean;
+  missionSucceeded?: boolean;
   showChallengeAction?: boolean;
   onToggleChallenge?: () => void;
   onReturnToMainMenu: () => void;
@@ -37,6 +38,7 @@ export function EndOfGameActionPanel({
   onOpenGameStats,
   onToggleGameStats,
   isPostgameMissionOpen = false,
+  missionSucceeded = false,
   showChallengeAction = false,
   onToggleChallenge,
   onReturnToMainMenu,
@@ -145,7 +147,9 @@ export function EndOfGameActionPanel({
 
           {showChallengeAction ? (
             <GameMenuButton
-              className={isPostgameMissionOpen ? 'bg-white' : ''}
+              className={missionSucceeded
+                ? '[&:not(:hover)]:bg-[var(--shapeships-green)]'
+                : isPostgameMissionOpen ? 'bg-white' : ''}
               onClick={onToggleChallenge}
             >
               <span className="flex items-center gap-[10px]">

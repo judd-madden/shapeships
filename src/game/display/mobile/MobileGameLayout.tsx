@@ -182,11 +182,6 @@ export function MobileGameLayout({
   const topPopoverRef = useRef<HTMLDivElement | null>(null);
   const bottomPopoverRef = useRef<HTMLDivElement | null>(null);
   const fleetShipHoverCardRef = useRef<HTMLDivElement | null>(null);
-  const consumeMissionResultAutoOpenRequestRef = useRef(
-    actions.onConsumeMissionResultAutoOpenRequest,
-  );
-  consumeMissionResultAutoOpenRequestRef.current =
-    actions.onConsumeMissionResultAutoOpenRequest;
   const isCataloguePanelActive = CATALOGUE_PANEL_IDS.has(actionPanelVm.activePanelId);
   const isAncientCatalogueSurfaceActive =
     actionPanelVm.activePanelId === 'ap.catalog.ships.ancient' ||
@@ -604,20 +599,6 @@ export function MobileGameLayout({
   }, [canShowPostgameMissionChallengeAction, endGameResultKey]);
 
   useEffect(() => {
-    const request = missionChallenge?.postgameResultAutoOpenRequest;
-    if (!request || !canShowPostgameMissionChallengeAction) {
-      return;
-    }
-
-    handleOpenPostgameMissionChallenge(request.loreUnlocked);
-    consumeMissionResultAutoOpenRequestRef.current(request.key);
-  }, [
-    canShowPostgameMissionChallengeAction,
-    handleOpenPostgameMissionChallenge,
-    missionChallenge?.postgameResultAutoOpenRequest,
-  ]);
-
-  useEffect(() => {
     if (
       boardVm.mode !== 'board' ||
       missionChallenge === null ||
@@ -978,6 +959,7 @@ export function MobileGameLayout({
                 winStreak={winStreak}
                 canViewGameStats={canViewGameStats}
                 showChallengeAction={canShowPostgameMissionChallengeAction}
+                missionSucceeded={missionChallenge?.result?.missionSucceeded === true}
                 onOpenChallenge={handleOpenPostgameMissionChallenge}
                 onOpenGameStats={handleOpenGameStats}
                 onClose={handleReturnToBoard}

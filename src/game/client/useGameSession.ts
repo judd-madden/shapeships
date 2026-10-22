@@ -129,12 +129,9 @@ import { appendEventsToTape } from './gameSession/eventTape';
 import { usePhaseCommitCache } from './gameSession/commitCache';
 import { mapGameSessionVm } from './gameSession/mapVm';
 import {
-  advanceMissionResultAutoPresentation,
   buildMissionChallengeViewModel,
   claimMissionAcknowledgement,
   createMissionAutoAckState,
-  createMissionResultAutoPresentationState,
-  consumeMissionResultAutoPresentationRequest,
   getCompletedMissionId,
   getCompletedMissionFindingIds,
   isCompletedSpeciesMissionIntroSetupGate,
@@ -142,7 +139,6 @@ import {
   shouldAutomaticallyAcknowledgeMission,
   shouldPresentInitialMissionIntro,
   type MissionAutoAckState,
-  type MissionResultAutoPresentationState,
 } from './gameSession/mission/missionChallenge';
 import {
   readCompletedMissionIds,
@@ -219,7 +215,6 @@ import { useClockPresentation } from './gameSession/clienteffects/useClockPresen
 import { deriveMatchupIntroViewModel } from './gameSession/matchupIntro';
 import {
   buildPhaseHoldSignature,
-  getHealthResolutionPresentationKey,
   useEndOfTurnPresentation,
   type ContinueAuthoritativePhaseHoldArgs,
   type ContinueAuthoritativePhaseHoldOutcome,
@@ -946,10 +941,6 @@ export function useGameSession(
   const missionAutoAckStateRef = useRef<MissionAutoAckState>(
     createMissionAutoAckState(effectiveGameId, minimizeMissionsThisSession),
   );
-  const [missionResultAutoPresentationState, setMissionResultAutoPresentationState] =
-    useState<MissionResultAutoPresentationState>(() =>
-      createMissionResultAutoPresentationState(effectiveGameId, null)
-    );
   const missionFindingCompletionRef = useRef<{
     gameId: string | null;
     missionId: string | null;
@@ -5453,13 +5444,6 @@ useEffect(() => {
     });
   }
   const terminalHealthBarPresentationPending = terminalHealthBarPending();
-  const liveTerminalHealthPresentationKey =
-    effectiveGameId && healthResolutionPresentationTrigger?.isTerminalTurn
-      ? getHealthResolutionPresentationKey(
-          effectiveGameId,
-          healthResolutionPresentationTrigger.resolvedTurnKey,
-        )
-      : null;
 
   useEffect(() => {
     const missionId = normalizedMissionChallenge?.mission.id ?? null;
@@ -5503,34 +5487,9 @@ useEffect(() => {
       };
       missionFindingCompletionRef.current = findingCompletion;
     }
-
-    setMissionResultAutoPresentationState((current) =>
-      advanceMissionResultAutoPresentation(current, {
-        gameId: effectiveGameId,
-        missionId,
-        liveTerminalTriggerPresentationKey: liveTerminalHealthPresentationKey,
-        activeHealthPresentationKey:
-          healthResolutionOverlay?.presentationKey ?? null,
-        healthResolutionPresentationActive,
-        terminalHealthBarPresentationPending: terminalHealthBarPending(),
-        isFinished: isOrdinaryFinished,
-        isPlayerViewer: isViewerPlayer,
-        minimizeMissionsThisSession,
-        hasResult: normalizedMissionChallenge?.result !== null &&
-          normalizedMissionChallenge?.result !== undefined,
-        findingCompletionHandled: findingCompletion.handled,
-        loreUnlocked: findingCompletion.loreUnlocked,
-      })
-    );
   }, [
     effectiveGameId,
-    healthResolutionOverlay?.presentationKey,
-    healthResolutionPresentationActive,
-    terminalHealthBarPresentationPending,
-    isOrdinaryFinished,
     isViewerPlayer,
-    liveTerminalHealthPresentationKey,
-    minimizeMissionsThisSession,
     normalizedMissionChallenge?.mission.id,
     normalizedMissionChallenge?.result,
   ]);
@@ -6599,12 +6558,6 @@ useEffect(() => {
       gameId: effectiveGameId,
       missionChallenge: normalizedMissionChallenge,
     }),
-    postgameResultAutoOpenRequest:
-      missionResultAutoPresentationState.gameId === effectiveGameId &&
-      missionResultAutoPresentationState.missionId ===
-        (normalizedMissionChallenge?.mission.id ?? null)
-        ? missionResultAutoPresentationState.request
-        : null,
   });
   const vm: GameSessionViewModel = mapGameSessionVm({
     isBootstrapping,
@@ -7286,11 +7239,6 @@ useEffect(() => {
       void acknowledgeMissionIntro('manual');
     },
 
-    onConsumeMissionResultAutoOpenRequest: (requestKey: string) => {
-      setMissionResultAutoPresentationState((current) =>
-        consumeMissionResultAutoPresentationRequest(current, requestKey)
-      );
-    },
     
     onActionPanelTabClick: (tabId: ActionPanelTabId) => {
       console.log('[useGameSession] Action panel tab clicked:', tabId);
@@ -8446,7 +8394,6 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       onOpenMenu: () => {},
       onSetMinimizeMissionsThisSession: () => {},
       onAcknowledgeMissionIntro: () => {},
-      onConsumeMissionResultAutoOpenRequest: () => {},
       onActionPanelTabClick: () => {},
       onShipClick: () => {},
       onSendChat: () => {},

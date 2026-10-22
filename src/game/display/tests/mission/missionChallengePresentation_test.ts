@@ -2,6 +2,14 @@ declare const Deno: {
   test(name: string, fn: () => void | Promise<void>): void;
 };
 
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import type { MissionChallengeResultViewModel } from '../../../client/gameSession/types';
+import { buildMissionChallengeViewModel } from '../../../client/gameSession/mission/missionChallenge';
+import { deriveWinStreakGameViewModel } from '../../../client/winStreak/authoritative';
+import { createEmptyWinStreakProfile } from '../../../client/winStreak/profile';
+import { EndOfGameActionPanel } from '../../actionPanel/panels/EndOfGameActionPanel';
+import { MobileEndOfGameMenuTakeover } from '../../mobile/takeovers/MobileEndOfGameMenuTakeover';
 import {
   ANCIENT_FOREIGN_CHALLENGE_NOTE,
   formatMissionSystem,
@@ -22,6 +30,94 @@ function assertEquals(actual: unknown, expected: unknown): void {
   const expectedJson = JSON.stringify(expected);
   if (actualJson !== expectedJson) {
     throw new Error(`values differ\nactual: ${actualJson}\nexpected: ${expectedJson}`);
+  }
+}
+
+const endOfGame = {
+  bannerText: 'Game Over',
+  bannerBgCssVar: 'var(--shapeships-pastel-blue)',
+  metaLeftText: 'Game Over. 18 turns.',
+  metaRightText: 'Shapeships Game: Player v Computer',
+  rematchHelperText: 'Link will be posted in chat',
+};
+const winStreak = deriveWinStreakGameViewModel({
+  profile: createEmptyWinStreakProfile(),
+  game: null,
+  resetBusy: false,
+  resetError: null,
+  resetRetryAvailable: false,
+});
+const noop = () => {};
+
+function missionButtonClasses(markup: string): string[] {
+  const button = markup.match(/<button\b[^>]*>[\s\S]*?<\/button>/g)
+    ?.find((candidate) => candidate.includes('<span>Mission</span>'));
+  assert(button, 'Mission button must remain available');
+  const classes = button.match(/class="([^"]*)"/)?.[1];
+  assert(classes);
+  return classes.replaceAll('&amp;', '&').split(/\s+/);
+}
+
+for (const minimizeMissionsThisSession of [false, true]) {
+  for (const isPostgameMissionOpen of [false, true]) {
+    Deno.test(`postgame Mission buttons use only Mission success (Ignore Missions: ${minimizeMissionsThisSession}, open: ${isPostgameMissionOpen})`, () => {
+      const results: Array<MissionChallengeResultViewModel | null> = [null];
+      for (const missionSucceeded of [false, true]) {
+        for (const fleetConditionMet of [false, true]) {
+          for (const challengeSucceeded of [false, true]) {
+            results.push({ missionSucceeded, fleetConditionMet, challengeSucceeded });
+          }
+        }
+      }
+
+      for (const result of results) {
+        const vm = buildMissionChallengeViewModel({
+          normalized: {
+            mission: {
+              id: 'mission-h-x', year: 2814, title: 'The Signal', location: 'Mintaka',
+              author: 'juddly', paragraphs: [], findingIds: ['mintaka'],
+            },
+            challenge: { shipDefId: 'DEF', condition: 'with' },
+            introPending: false,
+            result,
+          },
+          isFinished: true,
+          isIntroAcknowledgementPending: false,
+          minimizeMissionsThisSession,
+          shouldPresentInitialIntro: false,
+        });
+        const missionSucceeded = vm?.result?.missionSucceeded === true;
+        const desktopClasses = missionButtonClasses(renderToStaticMarkup(createElement(EndOfGameActionPanel, {
+          ...endOfGame,
+          isPostgameMissionOpen,
+          missionSucceeded,
+          showChallengeAction: true,
+          onReturnToMainMenu: noop,
+          onRematch: noop,
+          onDownloadBattleLog: noop,
+        })));
+        const mobileClasses = missionButtonClasses(renderToStaticMarkup(createElement(MobileEndOfGameMenuTakeover, {
+          endOfGame,
+          winStreak,
+          canViewGameStats: true,
+          showChallengeAction: true,
+          missionSucceeded,
+          onOpenChallenge: noop,
+          onOpenGameStats: noop,
+          onClose: noop,
+          onReturnToMainMenu: noop,
+          onRematch: noop,
+          onDownloadBattleLog: noop,
+        })));
+
+        for (const classes of [desktopClasses, mobileClasses]) {
+          assertEquals(classes.includes('[&:not(:hover)]:bg-[var(--shapeships-green)]'), result?.missionSucceeded === true);
+          assert(classes.includes('hover:bg-white'), 'normal hover must remain');
+          assert(classes.includes('bg-[var(--shapeships-grey-20)]'), 'default button styling must remain');
+        }
+        assertEquals(desktopClasses.includes('bg-white'), !missionSucceeded && isPostgameMissionOpen);
+      }
+    });
   }
 }
 

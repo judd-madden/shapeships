@@ -4,7 +4,7 @@
  * NO LOGIC - composition matching Figma design exactly (Pass 1.25)
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { BoardStage } from './BoardStage';
 import type { SessionHealthBarPresentation } from '../healthBars/useSessionHealthBarPresentation';
 import type { DesktopDicePresentationProps } from './boardStage/DesktopDicePresentation';
@@ -83,11 +83,6 @@ export function MainStage({
   const [postgameSurface, setPostgameSurface] = useState<PostgameSurface>(null);
   const [isSiphonInspectionOpen, setIsSiphonInspectionOpen] = useState(false);
   const [isMissionReopenOpen, setIsMissionReopenOpen] = useState(false);
-  const consumeMissionResultAutoOpenRequestRef = useRef(
-    actions.onConsumeMissionResultAutoOpenRequest,
-  );
-  consumeMissionResultAutoOpenRequestRef.current =
-    actions.onConsumeMissionResultAutoOpenRequest;
   const simulacrumSpecies = resolveAncientSimulacrumSpecies(boardVm);
   const isEndGameResultPanel = actionPanelVm.activePanelId === 'ap.end_of_game.result';
   const canViewGameStats = gameStats != null;
@@ -196,23 +191,6 @@ export function MainStage({
       );
     }
   }, [canShowPostgameMissionChallengeAction]);
-
-  useEffect(() => {
-    const request = missionChallenge?.postgameResultAutoOpenRequest;
-    if (!request || !canShowPostgameMissionChallengeAction || terminalHealthBarPending) {
-      return;
-    }
-
-    setPostgameSurface({
-      kind: 'mission',
-      loreUnlocked: request.loreUnlocked,
-    });
-    consumeMissionResultAutoOpenRequestRef.current(request.key);
-  }, [
-    canShowPostgameMissionChallengeAction,
-    terminalHealthBarPending,
-    missionChallenge?.postgameResultAutoOpenRequest,
-  ]);
 
   useEffect(() => {
     if (!isAncientCatalogueSurfaceActive || ancientSelectorMode != null) {
@@ -470,6 +448,7 @@ export function MainStage({
             onOpenGameStats={handleOpenGameStats}
             onToggleGameStats={handleToggleGameStats}
             isPostgameMissionOpen={isPostgameMissionOpen}
+            missionSucceeded={missionChallenge?.result?.missionSucceeded === true}
             showPostgameChallengeAction={canShowPostgameMissionChallengeAction}
             onTogglePostgameChallenge={handleTogglePostgameMissionChallenge}
             soundEnabled={soundEnabled}

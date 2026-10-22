@@ -1,8 +1,5 @@
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
-import type {
-  MissionChallengeViewModel,
-  MissionResultAutoOpenRequest,
-} from '../types';
+import type { MissionChallengeViewModel } from '../types';
 
 export interface NormalizedMissionChallenge {
   mission: {
@@ -32,29 +29,6 @@ export interface MissionAutoAckState {
   autoAttempted: boolean;
   automaticAttemptSettled: boolean;
   inFlight: boolean;
-}
-
-export interface MissionResultAutoPresentationState {
-  gameId: string | null;
-  missionId: string | null;
-  matchedPresentationKey: string | null;
-  presentationCleared: boolean;
-  request: MissionResultAutoOpenRequest | null;
-}
-
-export interface MissionResultAutoPresentationSnapshot {
-  gameId: string | null;
-  missionId: string | null;
-  liveTerminalTriggerPresentationKey: string | null;
-  activeHealthPresentationKey: string | null;
-  healthResolutionPresentationActive: boolean;
-  terminalHealthBarPresentationPending?: boolean;
-  isFinished: boolean;
-  isPlayerViewer: boolean;
-  minimizeMissionsThisSession: boolean;
-  hasResult: boolean;
-  findingCompletionHandled: boolean;
-  loreUnlocked: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -165,7 +139,6 @@ export function buildMissionChallengeViewModel(args: {
   isIntroAcknowledgementPending: boolean;
   minimizeMissionsThisSession: boolean;
   shouldPresentInitialIntro: boolean;
-  postgameResultAutoOpenRequest: MissionResultAutoOpenRequest | null;
 }): MissionChallengeViewModel | null {
   if (!args.normalized) return null;
   return {
@@ -181,8 +154,6 @@ export function buildMissionChallengeViewModel(args: {
     isFinished: args.isFinished,
     result: args.normalized.result ? { ...args.normalized.result } : null,
     minimizeMissionsThisSession: args.minimizeMissionsThisSession,
-    postgameResultAutoOpenRequest:
-      args.postgameResultAutoOpenRequest,
   };
 }
 
@@ -200,110 +171,6 @@ export function getCompletedMissionId(
   return missionChallenge?.result?.missionSucceeded === true
     ? missionChallenge.mission.id
     : null;
-}
-
-export function createMissionResultAutoPresentationState(
-  gameId: string | null,
-  missionId: string | null,
-): MissionResultAutoPresentationState {
-  return {
-    gameId,
-    missionId,
-    matchedPresentationKey: null,
-    presentationCleared: false,
-    request: null,
-  };
-}
-
-export function advanceMissionResultAutoPresentation(
-  state: MissionResultAutoPresentationState,
-  snapshot: MissionResultAutoPresentationSnapshot,
-): MissionResultAutoPresentationState {
-  let next = state;
-
-  if (
-    state.gameId !== snapshot.gameId ||
-    state.missionId !== snapshot.missionId
-  ) {
-    next = createMissionResultAutoPresentationState(
-      snapshot.gameId,
-      snapshot.missionId,
-    );
-  }
-
-  if (
-    snapshot.gameId === null ||
-    snapshot.missionId === null ||
-    !snapshot.isPlayerViewer ||
-    snapshot.minimizeMissionsThisSession
-  ) {
-    if (
-      next.matchedPresentationKey === null &&
-      !next.presentationCleared &&
-      next.request === null
-    ) {
-      return next;
-    }
-    return createMissionResultAutoPresentationState(
-      snapshot.gameId,
-      snapshot.missionId,
-    );
-  }
-
-  if (next.request !== null) {
-    return next;
-  }
-
-  if (
-    next.matchedPresentationKey === null &&
-    snapshot.liveTerminalTriggerPresentationKey !== null &&
-    snapshot.activeHealthPresentationKey ===
-      snapshot.liveTerminalTriggerPresentationKey
-  ) {
-    next = {
-      ...next,
-      matchedPresentationKey: snapshot.liveTerminalTriggerPresentationKey,
-      presentationCleared: false,
-    };
-  }
-
-  if (
-    next.matchedPresentationKey !== null &&
-    !next.presentationCleared &&
-    !snapshot.healthResolutionPresentationActive
-  ) {
-    next = { ...next, presentationCleared: true };
-  }
-
-  if (
-    next.matchedPresentationKey === null ||
-    !next.presentationCleared ||
-    snapshot.terminalHealthBarPresentationPending === true ||
-    !snapshot.isFinished ||
-    !snapshot.hasResult ||
-    !snapshot.findingCompletionHandled
-  ) {
-    return next;
-  }
-
-  return {
-    ...next,
-    matchedPresentationKey: null,
-    presentationCleared: false,
-    request: {
-      key: `${next.matchedPresentationKey}\u0000${snapshot.missionId}\u0000result`,
-      loreUnlocked: snapshot.loreUnlocked,
-    },
-  };
-}
-
-export function consumeMissionResultAutoPresentationRequest(
-  state: MissionResultAutoPresentationState,
-  requestKey: string,
-): MissionResultAutoPresentationState {
-  return state.request?.key === requestKey
-    ? { ...state, request: null }
-    : state;
 }
 
 export function createMissionAutoAckState(

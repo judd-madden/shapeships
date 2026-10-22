@@ -1094,7 +1094,6 @@ export interface GameSessionActions {
   onOpenMenu: () => void;
   onSetMinimizeMissionsThisSession: (enabled: boolean) => void;
   onAcknowledgeMissionIntro: () => void;
-  onConsumeMissionResultAutoOpenRequest: (requestKey: string) => void;
   onActionPanelTabClick: (tabId: ActionPanelTabId) => void;
   onShipClick: (shipId: string) => void;
   onSendChat: (text: string) => void;
@@ -1147,11 +1146,6 @@ export interface MissionChallengeResultViewModel {
   challengeSucceeded: boolean;
 }
 
-export interface MissionResultAutoOpenRequest {
-  key: string;
-  loreUnlocked: boolean;
-}
-
 export interface MissionChallengeViewModel {
   mission: MissionChallengeMissionViewModel;
   challenge: {
@@ -1164,5 +1158,4 @@ export interface MissionChallengeViewModel {
   isFinished: boolean;
   result: MissionChallengeResultViewModel | null;
   minimizeMissionsThisSession: boolean;
-  postgameResultAutoOpenRequest: MissionResultAutoOpenRequest | null;
 }
