@@ -132,6 +132,13 @@ export function createHealthBarAnimationController(options: {
     },
     /** Stop is a completion at captured final health, and preserves production deduplication. */
     stop() { if (!disposed) finish('stopped'); },
+    /** Unsupported newer facts replace stale visuals without completing or replaying them. */
+    invalidate() {
+      if (disposed) return;
+      cancel();
+      retainedScales = null;
+      publish(emptyState());
+    },
     /** Explicit recovery/development replay only; source release must never call reset. */
     reset() { if (!disposed) reset(); },
     dispose() {

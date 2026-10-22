@@ -6,6 +6,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BoardStage } from './BoardStage';
+import type { SessionHealthBarPresentation } from '../healthBars/useSessionHealthBarPresentation';
 import type { DesktopDicePresentationProps } from './boardStage/DesktopDicePresentation';
 import { BottomActionRail } from './BottomActionRail';
 import { ActionPanelFrame } from '../actionPanel/ActionPanelFrame';
@@ -30,6 +31,7 @@ import type {
 } from '../../client/useGameSession';
 
 interface MainStageProps {
+  desktopHealthPresentation: SessionHealthBarPresentation | null;
   desktopDicePresentation: DesktopDicePresentationProps;
   gameId: string;
   hudVm: HudViewModel;
@@ -57,6 +59,7 @@ type PostgameSurface =
   | null;
 
 export function MainStage({ 
+  desktopHealthPresentation,
   desktopDicePresentation,
   gameId,
   hudVm, 
@@ -102,6 +105,8 @@ export function MainStage({
       ? 'declaration'
       : 'reference';
   const isBoardMode = boardVm.mode === 'board';
+  const terminalHealthBarPending = desktopHealthPresentation?.sequence?.snapshot.outcome.isTerminal === true &&
+    desktopHealthPresentation.delta?.visible !== true;
   const shouldShowInitialMission = Boolean(
     isBoardMode &&
     missionChallenge &&
@@ -126,6 +131,7 @@ export function MainStage({
     });
   const shouldShowPostgameMission = Boolean(
     isBoardMode &&
+    !terminalHealthBarPending &&
     canShowPostgameMissionChallengeAction &&
     isPostgameMissionOpen,
   );
@@ -193,7 +199,7 @@ export function MainStage({
 
   useEffect(() => {
     const request = missionChallenge?.postgameResultAutoOpenRequest;
-    if (!request || !canShowPostgameMissionChallengeAction) {
+    if (!request || !canShowPostgameMissionChallengeAction || terminalHealthBarPending) {
       return;
     }
 
@@ -204,6 +210,7 @@ export function MainStage({
     consumeMissionResultAutoOpenRequestRef.current(request.key);
   }, [
     canShowPostgameMissionChallengeAction,
+    terminalHealthBarPending,
     missionChallenge?.postgameResultAutoOpenRequest,
   ]);
 
@@ -327,6 +334,7 @@ export function MainStage({
       >
         {/* Board Stage */}
         <BoardStage
+          desktopHealthPresentation={desktopHealthPresentation}
           desktopDicePresentation={{
             ...desktopDicePresentation,
             guidanceSuppressed: isMissionInteractionLocked || missionOverlayMode !== null || isGameStatsOpen,

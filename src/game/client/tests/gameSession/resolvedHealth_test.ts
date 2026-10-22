@@ -4,6 +4,7 @@ import {
   buildSettledHealthPresentation, captureResolvedHealthSnapshot, createResolvedHealthState,
   getIntentResolvedHealthTurn, getResolvedHealthIdentityKey,
   observeHealthResolution, prepareResolvedHealthCapture, transitionResolvedHealth,
+  isTerminalHealthBarPresentationPending,
   type HealthResolutionObservation,
 } from '../../gameSession/resolvedHealth';
 import type { BattleLogHistoryResponse, ResolvedHealthIdentity } from '../../gameSession/types';
@@ -59,6 +60,32 @@ function pending(input: any) {
 function complete(input: ReturnType<typeof pending>, archive: BattleLogHistoryResponse | null) {
   return captureResolvedHealthSnapshot({ ...input, liveCapture: input, history: archive });
 }
+
+Deno.test('terminal bars release only on matching presentation completion, independently of source and overlay timing', () => {
+  const snapshot = capture({ ...state(30, 40), status: 'finished', resultReason: 'decisive', winnerPlayerId: 'p2' });
+  assert(snapshot);
+  const input = { enabled: true, continuityKey, snapshot, completion: null };
+  assert(isTerminalHealthBarPresentationPending(input));
+  assert(!isTerminalHealthBarPresentationPending({ ...input, completion: snapshot }));
+  for (const receipt of [
+    { ...snapshot, presentationKey: 'older' }, { ...snapshot, resolvedTurnNumber: 3 },
+    { ...snapshot, continuityKey: 'recovered' },
+    ...(['gameId', 'viewerId', 'viewerRole', 'leftPlayerId', 'rightPlayerId'] as const).map((field) => ({
+      ...snapshot, identity: { ...snapshot.identity, [field]: field === 'viewerRole' ? 'spectator' as const : 'different' },
+    })),
+  ]) assert(isTerminalHealthBarPresentationPending({ ...input, completion: receipt }));
+});
+
+Deno.test('terminal bars never wait for mobile, recovery, unsupported sources or non-health finishes', () => {
+  const snapshot = capture({ ...state(30, 40), status: 'finished', resultReason: 'decisive', winnerPlayerId: 'p2' });
+  assert(snapshot);
+  const input = { enabled: true, continuityKey, snapshot, completion: null };
+  assert(!isTerminalHealthBarPresentationPending({ ...input, enabled: false }));
+  assert(!isTerminalHealthBarPresentationPending({ ...input, continuityKey: 'recovered' }));
+  assert(!isTerminalHealthBarPresentationPending({ ...input, snapshot: null }));
+  assert(!isTerminalHealthBarPresentationPending({ ...input, snapshot: { ...snapshot,
+    outcome: { isTerminal: true, winnerPlayerId: 'p2', resultReason: 'resignation' } } }));
+});
 
 for (const [name, start, damage, healing, cap, end] of [
   ['damage only', 30, 10, 0, 35, 20], ['healing only', 20, 0, 8, 35, 28],

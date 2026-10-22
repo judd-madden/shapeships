@@ -74,11 +74,20 @@ export function HealthBarLegend({ scale, orientation, axisLength, legendLabels }
   const length = healthBarAxisLength(axisLength);
   const labels = legendLabels ?? calculateHealthBarLegend(scale, { orientation, axisLength: length });
   return (
-    <div aria-label="Shared health scale" data-health-legend={orientation}
-      className="relative shrink-0 overflow-visible font-normal leading-none text-[var(--shapeships-grey-50)]"
-      style={{ width: desktop ? 56 : length + 4, height: desktop ? length + 4 : 18, fontSize: desktop ? 12 : 10 }}>
+    <div
+        aria-label="Shared health scale"
+        data-health-legend={orientation}
+        className={`relative shrink-0 overflow-visible font-normal leading-none text-[var(--shapeships-grey-50)] ${
+          desktop ? 'w-[36px] xl:w-[42px] 2xl:w-[52px] min-[120rem]:w-[76px]' : ''
+        }`}
+        style={{
+          ...(!desktop ? { width: length + 4 } : {}),
+          height: desktop ? length + 4 : 18,
+          fontSize: desktop ? 12 : 10,
+        }}
+      >
       {labels.map((tick) => (
-        <span key={tick.value} data-health-tick={tick.value} className="absolute whitespace-nowrap"
+        <span key={tick.value} data-health-tick={tick.value} className="absolute whitespace-nowrap bg-black py-[2px]"
           style={{ opacity: 'opacity' in tick && typeof tick.opacity === 'number' ? tick.opacity : 1, ...(desktop
             ? { top: healthBarValuePosition(scale, tick.value, orientation, length)!, left: '50%', transform: 'translate(-50%, -50%)' }
             : { left: healthBarValuePosition(scale, tick.value, orientation, length)!, top: '50%', transform: 'translate(-50%, -50%)' }) }}>

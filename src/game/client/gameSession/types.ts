@@ -485,6 +485,20 @@ export type ResolvedHealthPresentation =
       readonly outcome: Readonly<ResolvedHealthOutcome>;
     };
 
+/** Runtime facts for presentation ownership, independent of live-source release. */
+export interface ResolvedHealthSessionPresentation {
+  readonly identity: Readonly<ResolvedHealthIdentity>;
+  readonly continuityKey: string;
+  readonly observedResolvedTurnNumber: number | null;
+  /** False while an intent's captured finals are ahead of the current authoritative DTO. */
+  readonly settledIncludesLiveResolution?: boolean;
+  readonly settled: Extract<ResolvedHealthPresentation, { mode: 'settled' }> | null;
+}
+
+/** A presentation receipt only; it cannot change a canonical result or phase. */
+export type ResolvedHealthCompletionIdentity = Pick<ResolvedHealthSnapshot,
+  'identity' | 'continuityKey' | 'presentationKey' | 'resolvedTurnNumber'>;
+
 export interface ThisTurnPresentationVm {
   turnNumber: number;
   phaseKey: string;
@@ -1043,8 +1057,9 @@ export interface ActionPanelViewModel {
 }
 
 export interface GameSessionViewModel {
-  /** Presentation data only; existing health counters/effects retain their inputs. */
+  /** Presentation data only; authoritative stats/effects retain their inputs. */
   resolvedHealth?: ResolvedHealthPresentation | null;
+  resolvedHealthSession?: ResolvedHealthSessionPresentation | null;
   isBootstrapping: boolean; // true until valid server state with valid phaseKey
   viewer: GameSessionViewerViewModel;
   matchupIntro: MatchupIntroViewModel | null;

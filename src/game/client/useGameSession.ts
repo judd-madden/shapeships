@@ -106,6 +106,8 @@ import {
   getIntentResolvedHealthTurn,
   observeHealthResolution,
   prepareResolvedHealthCapture,
+  isTerminalHealthBarPresentationPending,
+  isResolvedHealthBoundary,
   type HealthResolutionObservation,
   type PendingResolvedHealthCapture,
 } from './gameSession/resolvedHealth';
@@ -276,6 +278,10 @@ import type {
   ThisTurnPresentationVm,
   ThisTurnResolutionSnapshot,
   ResolvedHealthIdentity,
+  ResolvedHealthSnapshot,
+  ResolvedHealthCompletionIdentity,
+  ResolvedHealthSessionPresentation,
+  ResolvedHealthPresentation,
 } from './gameSession/types';
 
 export type {
@@ -370,6 +376,8 @@ import {
 
 interface UseGameSessionOptions {
   boardFlashEnabled?: boolean;
+  desktopHealthBarsEnabled?: boolean;
+  healthBarCompletion?: ResolvedHealthCompletionIdentity | null;
   onNavigateToGame?: (gameId: string) => void;
 }
 
@@ -1328,6 +1336,10 @@ export function useGameSession(
   const [pendingResolvedHealthCapture, setPendingResolvedHealthCapture] = useState<PendingResolvedHealthCapture | null>(null);
   const [resolvedHealthRecoveryVersion, setResolvedHealthRecoveryVersion] = useState(0);
   const resolvedHealthContinuityKeyRef = useRef<string | null>(null);
+  const terminalHealthBarCandidateRef = useRef<ResolvedHealthSnapshot | null>(null);
+  const [observedResolvedHealthTurn, setObservedResolvedHealthTurn] = useState<{
+    continuityKey: string; turnNumber: number;
+  } | null>(null);
   const [publicMultiChargeByPlayerId, setPublicMultiChargeByPlayerId] =
     useState<Record<string, Record<string, number>>>({});
 
@@ -2066,6 +2078,8 @@ export function useGameSession(
         isFinished && !['decisive', 'narrow', 'mutual_destruction'].includes(terminalResultReason) ? 'non_health_finish' : 'health'])
     : null;
   resolvedHealthContinuityKeyRef.current = resolvedHealthContinuityKey;
+  const settledResolvedHealth = useMemo(() => buildSettledHealthPresentation(rawState, resolvedHealthIdentity),
+    [rawState, resolvedHealthIdentityKey]);
   const resolvedHealthCandidate = useMemo(() => pendingResolvedHealthCapture
     ? captureResolvedHealthSnapshot({ ...pendingResolvedHealthCapture,
         liveCapture: pendingResolvedHealthCapture, history: battleLogHistory, boundaryState: rawState }) : null,
@@ -2705,10 +2719,20 @@ export function useGameSession(
         (source === 'intent' && getTurnNumber(rawState) === resolvedTurnNumber &&
           getPhaseHold(rawState)?.holdReason === 'end_of_turn_health') ||
         isBootstrapping || untimedPollingMode === 'hidden' || resumeSyncLocked) return;
+    setObservedResolvedHealthTurn((current) => current?.continuityKey === resolvedHealthContinuityKey &&
+      current.turnNumber >= resolvedTurnNumber ? current
+      : { continuityKey: resolvedHealthContinuityKey, turnNumber: resolvedTurnNumber });
     const capture = prepareResolvedHealthCapture({
       state, identity: resolvedHealthIdentity, continuityKey: resolvedHealthContinuityKey,
       resolvedTurnNumber, source, postResolutionFleetWork,
     });
+    // Claim exact eligible terminal facts synchronously at live capture, before the
+    // later automatic-finish layout effect can route away on this same commit.
+    if (capture) {
+      const snapshot = captureResolvedHealthSnapshot({ ...capture, liveCapture: capture,
+        history: battleLogHistory, boundaryState: state });
+      if (snapshot?.outcome.isTerminal) terminalHealthBarCandidateRef.current = snapshot;
+    }
     if (!capture) {
       if (pendingResolvedHealthCapture?.continuityKey === resolvedHealthContinuityKey &&
           resolvedTurnNumber > pendingResolvedHealthCapture.resolvedTurnNumber) {
@@ -5182,6 +5206,20 @@ useEffect(() => {
     boardFlashEnabled,
     continueAuthoritativePhaseHold,
   });
+  const resolvedHealthPresentation = useMemo<ResolvedHealthPresentation | null>(() => resolvedHealthSnapshot
+    ? { mode: 'live', snapshot: resolvedHealthSnapshot } : settledResolvedHealth,
+    [resolvedHealthSnapshot, settledResolvedHealth]);
+  const resolvedHealthSession = useMemo<ResolvedHealthSessionPresentation | null>(() =>
+    resolvedHealthIdentity && resolvedHealthContinuityKey ? {
+      identity: resolvedHealthIdentity, continuityKey: resolvedHealthContinuityKey,
+      observedResolvedTurnNumber: observedResolvedHealthTurn?.continuityKey === resolvedHealthContinuityKey
+        ? observedResolvedHealthTurn.turnNumber : null,
+      settledIncludesLiveResolution: !resolvedHealthSnapshot ||
+        turnNumber > resolvedHealthSnapshot.resolvedTurnNumber ||
+        isResolvedHealthBoundary(rawState, resolvedHealthSnapshot.resolvedTurnNumber),
+      settled: settledResolvedHealth,
+    } : null, [resolvedHealthContinuityKey, settledResolvedHealth, observedResolvedHealthTurn,
+      resolvedHealthSnapshot, turnNumber, rawState]);
   const thisTurnPresentation = buildThisTurnVm(thisTurnResolutionSnapshot);
   const thisTurnStatOrientationKey = getTurnStartStatOrientationKey({
     viewerRole: healthResolutionViewerRole,
@@ -5404,6 +5442,18 @@ useEffect(() => {
   }
   const healthResolutionPresentationActive =
     healthResolutionLockActive || healthResolutionOverlay != null;
+  const terminalHealthBarCandidate = resolvedHealthSnapshot ?? resolvedHealthCandidate ?? terminalHealthBarCandidateRef.current;
+  function terminalHealthBarPending(): boolean {
+    return isTerminalHealthBarPresentationPending({
+      enabled: options.desktopHealthBarsEnabled === true && isOrdinaryFinished &&
+        ['decisive', 'narrow', 'mutual_destruction'].includes(terminalResultReason),
+      continuityKey: resolvedHealthContinuityKey,
+      snapshot: terminalHealthBarCandidateRef.current?.continuityKey === resolvedHealthContinuityKey
+        ? terminalHealthBarCandidateRef.current : terminalHealthBarCandidate,
+      completion: options.healthBarCompletion,
+    });
+  }
+  const terminalHealthBarPresentationPending = terminalHealthBarPending();
   const liveTerminalHealthPresentationKey =
     effectiveGameId && healthResolutionPresentationTrigger?.isTerminalTurn
       ? getHealthResolutionPresentationKey(
@@ -5463,6 +5513,7 @@ useEffect(() => {
         activeHealthPresentationKey:
           healthResolutionOverlay?.presentationKey ?? null,
         healthResolutionPresentationActive,
+        terminalHealthBarPresentationPending: terminalHealthBarPending(),
         isFinished: isOrdinaryFinished,
         isPlayerViewer: isViewerPlayer,
         minimizeMissionsThisSession,
@@ -5476,6 +5527,7 @@ useEffect(() => {
     effectiveGameId,
     healthResolutionOverlay?.presentationKey,
     healthResolutionPresentationActive,
+    terminalHealthBarPresentationPending,
     isOrdinaryFinished,
     isViewerPlayer,
     liveTerminalHealthPresentationKey,
@@ -5861,7 +5913,7 @@ useEffect(() => {
     !!actionsTargetPanelId &&
     (hasServerActionsAvailable || hasClientActionsAvailable);
 
-  const menuTargetPanelId: ActionPanelId = isOrdinaryFinished && !healthResolutionPresentationActive
+  const menuTargetPanelId: ActionPanelId = isOrdinaryFinished && !healthResolutionPresentationActive && !terminalHealthBarPresentationPending
     ? 'ap.end_of_game.result'
     : 'ap.menu.root';
 
@@ -6344,11 +6396,12 @@ useEffect(() => {
 
   useLayoutEffect(() => {
     if (!effectiveGameId || !isOrdinaryFinished) return;
+    if (terminalHealthBarPending()) return;
     if (finishedRedirectHandledGameIdRef.current === effectiveGameId) return;
 
     finishedRedirectHandledGameIdRef.current = effectiveGameId;
     setActivePanelId('ap.end_of_game.result');
-  }, [effectiveGameId, isOrdinaryFinished]);
+  }, [effectiveGameId, isOrdinaryFinished, terminalHealthBarPresentationPending]);
 
   useEffect(() => {
     if (!phaseKey || isFinished) {
@@ -6610,6 +6663,7 @@ useEffect(() => {
     board,
     healthResolutionLockActive,
     healthResolutionPresentationActive,
+    terminalHealthBarPresentationPending,
     healthResolutionOverlay,
     myFleetHealthDeltaFlash,
     opponentFleetHealthDeltaFlash,
@@ -8456,9 +8510,8 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
 
   return {
     vm: { ...vm, board: presentedBoard, turnPhasePresentation,
-      resolvedHealth: resolvedHealthSnapshot
-        ? { mode: 'live' as const, snapshot: resolvedHealthSnapshot }
-        : buildSettledHealthPresentation(rawState, resolvedHealthIdentity) },
+      resolvedHealthSession,
+      resolvedHealth: resolvedHealthPresentation },
     actions,
     loading,
     error,

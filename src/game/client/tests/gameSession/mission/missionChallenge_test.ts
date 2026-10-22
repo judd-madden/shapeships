@@ -399,6 +399,24 @@ Deno.test('postgame Mission result stays armed after presentation clear until re
   assert(afterRemount.request === null);
 });
 
+Deno.test('postgame Mission waits for terminal bars after the independent health overlay clears', () => {
+  const presentationKey = 'game-a::health::7';
+  const matched = advanceMissionResultAutoPresentation(
+    createMissionResultAutoPresentationState('game-a', 'mission-h-x'),
+    missionResultSnapshot({ liveTerminalTriggerPresentationKey: presentationKey,
+      activeHealthPresentationKey: presentationKey, healthResolutionPresentationActive: true }),
+  );
+  const pending = advanceMissionResultAutoPresentation(matched, missionResultSnapshot({
+    hasResult: true, findingCompletionHandled: true, terminalHealthBarPresentationPending: true,
+  }));
+  assert(pending.presentationCleared);
+  assert(pending.request === null);
+  const completed = advanceMissionResultAutoPresentation(pending, missionResultSnapshot({
+    hasResult: true, findingCompletionHandled: true, terminalHealthBarPresentationPending: false,
+  }));
+  assert(completed.request !== null);
+});
+
 Deno.test('postgame Mission result pending state clears on explicit invalidation', () => {
   const presentationKey = 'game-a::health::7';
   const matched = advanceMissionResultAutoPresentation(

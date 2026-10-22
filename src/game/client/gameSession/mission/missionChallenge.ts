@@ -48,6 +48,7 @@ export interface MissionResultAutoPresentationSnapshot {
   liveTerminalTriggerPresentationKey: string | null;
   activeHealthPresentationKey: string | null;
   healthResolutionPresentationActive: boolean;
+  terminalHealthBarPresentationPending?: boolean;
   isFinished: boolean;
   isPlayerViewer: boolean;
   minimizeMissionsThisSession: boolean;
@@ -277,6 +278,7 @@ export function advanceMissionResultAutoPresentation(
   if (
     next.matchedPresentationKey === null ||
     !next.presentationCleared ||
+    snapshot.terminalHealthBarPresentationPending === true ||
     !snapshot.isFinished ||
     !snapshot.hasResult ||
     !snapshot.findingCompletionHandled

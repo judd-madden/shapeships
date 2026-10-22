@@ -209,6 +209,7 @@ export function mapGameSessionVm(args: {
   board: BoardViewModel;
   healthResolutionLockActive: boolean;
   healthResolutionPresentationActive: boolean;
+  terminalHealthBarPresentationPending?: boolean;
   healthResolutionOverlay?: HealthResolutionPresentationVm;
   myFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
   opponentFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
@@ -344,6 +345,7 @@ export function mapGameSessionVm(args: {
     drawingStage,
     board,
     healthResolutionPresentationActive,
+    terminalHealthBarPresentationPending = false,
     healthResolutionOverlay,
     myFleetHealthDeltaFlash,
     opponentFleetHealthDeltaFlash,
@@ -488,7 +490,7 @@ export function mapGameSessionVm(args: {
   let finalActivePanelId = activePanelId;
   let finalTabs = tabs;
   
-  if (isFinished && !healthResolutionPresentationActive) {
+  if (isFinished && !healthResolutionPresentationActive && !terminalHealthBarPresentationPending) {
     if (finalActivePanelId === 'ap.menu.root') {
       finalActivePanelId = 'ap.end_of_game.result';
     }

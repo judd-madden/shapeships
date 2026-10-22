@@ -7,7 +7,7 @@ import {
 import { deriveViewerSeats } from './viewerSeats';
 import type {
   BattleLogHistoryResponse, ResolvedHealthIdentity, ResolvedHealthOutcome,
-  ResolvedHealthPresentation, ResolvedHealthSide, ResolvedHealthSnapshot,
+  ResolvedHealthPresentation, ResolvedHealthSide, ResolvedHealthSnapshot, ResolvedHealthCompletionIdentity,
 } from './types';
 
 const HEALTH_FINISH_REASONS = new Set(['decisive', 'narrow', 'mutual_destruction']);
@@ -22,6 +22,27 @@ export function getHealthResolutionPresentationKey(gameId: string, resolvedTurnK
 export function getResolvedHealthIdentityKey(identity: ResolvedHealthIdentity): string {
   return JSON.stringify([identity.gameId, identity.viewerId, identity.viewerRole,
     identity.leftPlayerId, identity.rightPlayerId]);
+}
+
+export function matchesResolvedHealthCompletion(
+  snapshot: ResolvedHealthCompletionIdentity, receipt: ResolvedHealthCompletionIdentity | null | undefined,
+): boolean {
+  return !!receipt && snapshot.continuityKey === receipt.continuityKey &&
+    snapshot.presentationKey === receipt.presentationKey && snapshot.resolvedTurnNumber === receipt.resolvedTurnNumber &&
+    getResolvedHealthIdentityKey(snapshot.identity) === getResolvedHealthIdentityKey(receipt.identity);
+}
+
+/** This gate is deliberately separate from next-turn input/overlay locking. */
+export function isTerminalHealthBarPresentationPending(args: {
+  enabled: boolean;
+  continuityKey: string | null;
+  snapshot: ResolvedHealthSnapshot | null | undefined;
+  completion: ResolvedHealthCompletionIdentity | null | undefined;
+}): boolean {
+  const { snapshot } = args;
+  return args.enabled && !!snapshot && snapshot.continuityKey === args.continuityKey &&
+    snapshot.outcome.isTerminal && HEALTH_FINISH_REASONS.has(snapshot.outcome.resultReason ?? '') &&
+    !matchesResolvedHealthCompletion(snapshot, args.completion);
 }
 
 function validIdentity(identity: ResolvedHealthIdentity): boolean {
@@ -210,7 +231,7 @@ export function captureResolvedHealthSnapshot(args: {
     source, eligibility: 'live', left, right, outcome });
 }
 
-export function buildSettledHealthPresentation(state: any, identity: ResolvedHealthIdentity | null): ResolvedHealthPresentation | null {
+export function buildSettledHealthPresentation(state: any, identity: ResolvedHealthIdentity | null): Extract<ResolvedHealthPresentation, { mode: 'settled' }> | null {
   if (!identity || !matchesIdentity(state, identity)) return null;
   const side = (playerId: string) => {
     const player = findPlayerByIdentity(state, playerId);

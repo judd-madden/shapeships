@@ -24,6 +24,8 @@ import { StarsBackground } from './graphics/StarsBackground';
 import { MobileGameLayout } from './mobile/MobileGameLayout';
 import { useMobileGameLayout } from './mobile/useMobileGameLayout';
 import { useMatchupIntroPresentation } from './matchup/useMatchupIntroPresentation';
+import type { ResolvedHealthCompletionIdentity } from '../client/gameSession/types';
+import { useSessionHealthBarPresentation } from './healthBars/useSessionHealthBarPresentation';
 
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 const SOUND_ENABLED_STORAGE_KEY = 'shapeships.soundEnabled.v1';
@@ -63,17 +65,26 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
       return true;
     }
   });
+  const isMobileGameLayout = useMobileGameLayout();
+  const [healthBarCompletion, setHealthBarCompletion] = useState<ResolvedHealthCompletionIdentity | null>(null);
   const { vm, actions } = useGameSession(gameId, playerName, {
     boardFlashEnabled,
     onNavigateToGame,
+    desktopHealthBarsEnabled: !isMobileGameLayout,
+    healthBarCompletion,
   });
-  const isMobileGameLayout = useMobileGameLayout();
   const isMobileLandscapeBlocked = useMobileLandscapeBlocker();
   const isFinished = Boolean(vm.actionPanel.endOfGame);
   const presentedMatchupIntro = useMatchupIntroPresentation({
     gameId,
     authoritativeMatchupIntro: vm.matchupIntro,
     isFinished,
+  });
+  const desktopHealthPresentation = useSessionHealthBarPresentation({
+    presentation: vm.resolvedHealth, session: vm.resolvedHealthSession,
+    canAccept: !vm.isBootstrapping && vm.board.mode === 'board' && !presentedMatchupIntro &&
+      vm.missionChallenge?.introPending !== true,
+    onComplete: setHealthBarCompletion,
   });
   const firstTurnBuildHelper = useFirstTurnBuildHelper(
     gameId,
@@ -242,6 +253,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
 
           {/* Main Stage - fills remaining width */}
           <MainStage
+            desktopHealthPresentation={desktopHealthPresentation}
             desktopDicePresentation={{
               diceValue: vm.leftRail.diceValue,
               diceAnimateKey: vm.leftRail.diceAnimateKey,

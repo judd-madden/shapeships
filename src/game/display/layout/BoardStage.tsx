@@ -4,7 +4,7 @@
  * NO LOGIC - displays view-model data only (Pass 1.25)
  */
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import type {
   BoardViewModel,
   GameSessionActions,
@@ -38,13 +38,19 @@ import {
   buildHealthBreakdownPresentation,
   buildResolvedBoardCombatBreakdown,
   getHealthContributionLabels,
+  formatHealthChange,
 } from './boardStage/healthBreakdownPresentation';
 import {
   shouldShowWinStreakBonusDetail,
   withoutWinStreakBreakdownRow,
 } from '../winStreak/winStreakPresentation';
+import { HealthBarPair } from '../healthBars/HealthBar';
+import {
+  useDesktopHealthBarAxisLength, useDesktopHealthBarLegend, type SessionHealthBarPresentation,
+} from '../healthBars/useSessionHealthBarPresentation';
 
 interface BoardStageProps {
+  desktopHealthPresentation: SessionHealthBarPresentation | null;
   desktopDicePresentation: DesktopDicePresentationProps;
   vm: BoardViewModel;
   hudVm: HudViewModel;
@@ -63,6 +69,7 @@ function cx(...parts: Array<string | undefined | false>) {
 }
 
 interface BoardStageFrameProps {
+  healthBars?: ReactNode;
   boardRootRef: RefObject<HTMLDivElement | null>;
   barRegionRef: RefObject<HTMLDivElement | null>;
   hudVm: HudViewModel;
@@ -76,6 +83,7 @@ interface BoardStageFrameProps {
 }
 
 function BoardStageFrame({
+  healthBars,
   boardRootRef,
   barRegionRef,
   hudVm,
@@ -101,16 +109,14 @@ function BoardStageFrame({
         inert={isChoosingSpecies || undefined}
         data-name="Health and Stats"
       >
-        {/* Placeholders yield first; metric spacers can then compress without clipping real content. */}
+        {/* The measured bar region yields first; metric spacers then compress. */}
         <div className="absolute inset-0 flex flex-col items-center overflow-visible" data-name="Central Stats Content">
           <div
             ref={barRegionRef}
             className="relative flex w-full min-h-[42px] basis-0 grow items-stretch justify-center min-[1400px]:min-h-[50px] min-[1920px]:min-h-[78px]"
-            data-name="Inactive Health Bar Placeholders"
+            data-name="Desktop Health Bar Region"
           >
-            <div aria-hidden="true" className="pointer-events-none w-[24px] shrink-0 bg-[var(--shapeships-grey-90)]" />
-            <div aria-hidden="true" className="pointer-events-none w-[56px] shrink-0" />
-            <div aria-hidden="true" className="pointer-events-none w-[24px] shrink-0 bg-[var(--shapeships-grey-90)]" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center">{healthBars}</div>
             {currentStatsContent}
           </div>
           <div className="flex w-[var(--ss-board-center-width)] min-h-0 shrink flex-col items-center" data-name="Existing Board Stats">
@@ -139,61 +145,6 @@ function BoardStageFrame({
       {children}
     </div>
   );
-}
-
-function useAnimatedHealth(targetValue: number): number {
-  const [displayedValue, setDisplayedValue] = useState(targetValue);
-  const rafRef = useRef<number | null>(null);
-  const mountedRef = useRef(false);
-
-  useEffect(() => {
-    if (!mountedRef.current) {
-      mountedRef.current = true;
-      setDisplayedValue(targetValue);
-      return;
-    }
-
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-
-    setDisplayedValue((currentValue) => {
-      if (currentValue === targetValue) return currentValue;
-
-      const direction = targetValue > currentValue ? 1 : -1;
-      const distance = Math.abs(targetValue - currentValue);
-      const totalDurationMs = Math.min(300, Math.max(180, distance * 36));
-      const stepDurationMs = totalDurationMs / distance;
-      const animationStart = performance.now();
-
-      const tick = (now: number) => {
-        const elapsed = now - animationStart;
-        const stepsCompleted = Math.min(distance, Math.max(1, Math.floor(elapsed / stepDurationMs)));
-        const nextValue = currentValue + (stepsCompleted * direction);
-
-        setDisplayedValue(nextValue);
-
-        if (nextValue !== targetValue) {
-          rafRef.current = requestAnimationFrame(tick);
-        } else {
-          rafRef.current = null;
-        }
-      };
-
-      rafRef.current = requestAnimationFrame(tick);
-      return currentValue;
-    });
-
-    return () => {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-    };
-  }, [targetValue]);
-
-  return displayedValue;
 }
 
 function Metric({
@@ -450,6 +401,7 @@ function HealthTrigger({
 }
 
 export function BoardStage({
+  desktopHealthPresentation,
   desktopDicePresentation,
   vm,
   hudVm,
@@ -470,8 +422,10 @@ export function BoardStage({
   const myBonusAnchorRef = useRef<HTMLDivElement | null>(null);
   const opponentBonusPrimaryAnchorRef = useRef<HTMLDivElement | null>(null);
   const opponentBonusJoiningAnchorRef = useRef<HTMLDivElement | null>(null);
-  const displayedMyHealth = useAnimatedHealth(vm.mode === 'board' ? vm.myHealth : 25);
-  const displayedOpponentHealth = useAnimatedHealth(vm.mode === 'board' ? vm.opponentHealth : 25);
+  const axisLength = useDesktopHealthBarAxisLength(barRegionRef);
+  const legendLabels = useDesktopHealthBarLegend(desktopHealthPresentation, axisLength);
+  const displayedMyHealth = Math.round(desktopHealthPresentation?.left.health ?? (vm.mode === 'board' ? vm.myHealth : 25));
+  const displayedOpponentHealth = Math.round(desktopHealthPresentation?.right.health ?? (vm.mode === 'board' ? vm.opponentHealth : 25));
   const leftRevealPulse = usePresentedFleetRevealPulse(
     vm.mode === 'board' ? vm.presentedMyRevealBlurSeq ?? 0 : null
   );
@@ -523,18 +477,24 @@ export function BoardStage({
     gameStats,
     viewer,
   });
-  // Preserve the established delta lifecycle, with the confirmed turn-one final exception.
-  const showDeltas = healthBreakdown.deltaVisible;
-  const shouldAnimateDeltas = vm.healthDeltaPresentationKey != null;
+  const capturedDelta = desktopHealthPresentation?.delta;
+  const showDeltas = capturedDelta ? capturedDelta.visible : healthBreakdown.deltaVisible;
+  const shouldAnimateDeltas = capturedDelta?.visible === true;
+  const myChangeText = capturedDelta
+    ? (capturedDelta.visible ? formatHealthChange(capturedDelta.left) : 'pending')
+    : healthBreakdown.my?.changeText ?? 'unavailable';
+  const opponentChangeText = capturedDelta
+    ? (capturedDelta.visible ? formatHealthChange(capturedDelta.right) : 'pending')
+    : healthBreakdown.opponent?.changeText ?? 'unavailable';
   const myDeltaKey = !showDeltas
     ? 'my:hidden'
     : shouldAnimateDeltas
-      ? `my:resolution:${vm.healthDeltaPresentationKey}`
+      ? `my:resolution:${capturedDelta?.key}`
       : 'my:stable';
   const opponentDeltaKey = !showDeltas
     ? 'opp:hidden'
     : shouldAnimateDeltas
-      ? `opp:resolution:${vm.healthDeltaPresentationKey}`
+      ? `opp:resolution:${capturedDelta?.key}`
       : 'opp:stable';
   const labels = getHealthContributionLabels(viewer, gameStats);
   const myCurrentMetrics = getAffectedHealthMetrics(presentedThisTurnStats, 'my');
@@ -608,6 +568,13 @@ export function BoardStage({
       hudVm={hudVm}
       desktopDicePresentation={desktopDicePresentation}
       matchupIntro={matchupIntro}
+      healthBars={desktopHealthPresentation ? (
+        <HealthBarPair orientation="desktop" axisLength={axisLength} scale={desktopHealthPresentation.scale}
+          left={desktopHealthPresentation.left} right={desktopHealthPresentation.right}
+          legendLabels={legendLabels}
+          leftLabel={viewer.isSpectator ? viewer.p1Name : 'Your health'}
+          rightLabel={viewer.isSpectator ? viewer.p2Name : 'Opponent health'} />
+      ) : null}
       currentStatsContent={
         <>
           <div className="absolute bottom-0 right-[calc(50%+64px)] min-[1920px]:right-[calc(50%+80px)] pb-0 min-[1920px]:pb-[20px]" data-name="P1 Current Contributions">
@@ -624,14 +591,14 @@ export function BoardStage({
             <HealthTrigger
               health={displayedMyHealth}
               previous={myResolvedBreakdown}
-              netDelta={vm.myLastTurnNet}
+              netDelta={capturedDelta?.left ?? vm.myLastTurnNet}
               showDelta={showDeltas}
               deltaKey={myDeltaKey}
               animateDelta={shouldAnimateDeltas}
               align="right"
               hoverKey="my-health"
               hoverTrackable={healthBreakdown.hoverEligible}
-              ariaLabel={`Health ${displayedMyHealth}, maximum ${vm.myMaxHealth}, change ${healthBreakdown.my?.changeText ?? 'unavailable'}. ${myResolvedBreakdown ? `${myResolvedBreakdown.heading}: ${myResolvedBreakdown.damage.label} ${myResolvedBreakdown.damage.totalText}, ${myResolvedBreakdown.healing.label} ${myResolvedBreakdown.healing.totalText}. Down arrow to inspect.` : 'Resolved breakdown unavailable.'}`}
+              ariaLabel={`Health ${displayedMyHealth}, maximum ${desktopHealthPresentation?.scale.leftCap.value ?? 'unknown'}, change ${myChangeText}. ${myResolvedBreakdown ? `${myResolvedBreakdown.heading}: ${myResolvedBreakdown.damage.label} ${myResolvedBreakdown.damage.totalText}, ${myResolvedBreakdown.healing.label} ${myResolvedBreakdown.healing.totalText}. Down arrow to inspect.` : 'Resolved breakdown unavailable.'}`}
               isActive={statHover.state.activeKey === 'my-health'}
               onHoverEnter={statHover.onEnter}
               onHoverLeave={statHover.onLeave}
@@ -643,14 +610,14 @@ export function BoardStage({
             <HealthTrigger
               health={displayedOpponentHealth}
               previous={opponentResolvedBreakdown}
-              netDelta={vm.opponentLastTurnNet}
+              netDelta={capturedDelta?.right ?? vm.opponentLastTurnNet}
               showDelta={showDeltas}
               deltaKey={opponentDeltaKey}
               animateDelta={shouldAnimateDeltas}
               align="left"
               hoverKey="opponent-health"
               hoverTrackable={healthBreakdown.hoverEligible}
-              ariaLabel={`Health ${displayedOpponentHealth}, maximum ${vm.opponentMaxHealth}, change ${healthBreakdown.opponent?.changeText ?? 'unavailable'}. ${opponentResolvedBreakdown ? `${opponentResolvedBreakdown.heading}: ${opponentResolvedBreakdown.damage.label} ${opponentResolvedBreakdown.damage.totalText}, ${opponentResolvedBreakdown.healing.label} ${opponentResolvedBreakdown.healing.totalText}. Down arrow to inspect.` : 'Resolved breakdown unavailable.'}`}
+              ariaLabel={`Health ${displayedOpponentHealth}, maximum ${desktopHealthPresentation?.scale.rightCap.value ?? 'unknown'}, change ${opponentChangeText}. ${opponentResolvedBreakdown ? `${opponentResolvedBreakdown.heading}: ${opponentResolvedBreakdown.damage.label} ${opponentResolvedBreakdown.damage.totalText}, ${opponentResolvedBreakdown.healing.label} ${opponentResolvedBreakdown.healing.totalText}. Down arrow to inspect.` : 'Resolved breakdown unavailable.'}`}
               isActive={statHover.state.activeKey === 'opponent-health'}
               onHoverEnter={statHover.onEnter}
               onHoverLeave={statHover.onLeave}

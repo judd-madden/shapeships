@@ -126,6 +126,32 @@ function ids(slots: ReturnType<typeof helpers>) {
   };
 }
 
+describe('terminal health-bar handoff isolation', () => {
+  it('defers finished-panel redirection without changing the canonical finished result', () => {
+    const args = mapperArgs({ isFinished: true, resultReason: 'decisive', winnerPlayerId: 'p1',
+      terminalHealthBarPresentationPending: true,
+      tabs: [{ tabId: 'tab.menu', label: 'Menu', visible: true, targetPanelId: 'ap.menu.root' }] });
+    const pending = mapGameSessionVm(args);
+    expect(pending.actionPanel.activePanelId).toBe('ap.menu.root');
+    expect(pending.actionPanel.tabs[0].targetPanelId).toBe('ap.menu.root');
+    expect(pending.actionPanel.endOfGame).toBeDefined();
+    const completed = mapGameSessionVm({ ...args, terminalHealthBarPresentationPending: false });
+    expect(completed.actionPanel.activePanelId).toBe('ap.end_of_game.result');
+    expect(completed.actionPanel.tabs[0].targetPanelId).toBe('ap.end_of_game.result');
+    expect(completed.actionPanel.endOfGame).toEqual(pending.actionPanel.endOfGame);
+  });
+
+  it('does not extend next-turn Ready locking or alter published dice/helpers', () => {
+    const args = mapperArgs();
+    const ordinary = mapGameSessionVm(args);
+    const pending = mapGameSessionVm({ ...args, terminalHealthBarPresentationPending: true });
+    expect(pending.bottomActionRail).toEqual(ordinary.bottomActionRail);
+    expect(pending.leftRail).toEqual(ordinary.leftRail);
+    expect(pending.bottomActionRail.readyDisabled).toBe(false);
+    expect(pending.actionPanel.tabInteractionLocked).toBe(false);
+  });
+});
+
 describe('desktop dice helper ownership and collections', () => {
   it('returns empty arrays without authoritative fleets or displayed players', () => {
     expect(helpers()).toEqual({ left: [], right: [] });
