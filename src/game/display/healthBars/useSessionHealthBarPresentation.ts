@@ -7,7 +7,7 @@ import {
   createHealthBarAnimationController, type HealthBarAnimationController,
   type HealthBarAnimationScheduler, type HealthBarPlaybackState,
 } from './healthBarAnimationController';
-import { prepareHealthBarScale, type PreparedHealthBarScale } from './healthBarScale';
+import { prepareHealthBarScale, type HealthBarOrientation, type PreparedHealthBarScale } from './healthBarScale';
 import { settledHealthBarState } from './healthBarSequence';
 import type { HealthBarPresentationState } from './healthBarPresentation';
 import {
@@ -65,6 +65,7 @@ export function selectSessionHealthBarPresentation(
   playback: HealthBarPlaybackState,
   presentation: ResolvedHealthPresentation | null | undefined,
   session: ResolvedHealthSessionPresentation | null | undefined,
+  orientation: HealthBarOrientation = 'desktop',
 ): SessionHealthBarPresentation | null {
   if (!session) return null;
   const snapshot = playback.sequence?.snapshot;
@@ -80,13 +81,13 @@ export function selectSessionHealthBarPresentation(
   } : null;
   if (current && playback.frame && (!playback.presentationCompletion || retainsCompleted || settledMatchesPlayback(playback, session))) {
     return {
-      scale: playback.frame.scales.desktop, left: playback.frame.left, right: playback.frame.right,
+      scale: playback.frame.scales[orientation], left: playback.frame.left, right: playback.frame.right,
       sequence: playback.sequence, scaleProgress: playback.frame.scaleProgress,
       delta, numbers: playback.numbers!, presentationComplete: playback.presentationCompletion !== null,
     };
   }
   const settled = session.settled;
-  const scale = settled && prepareHealthBarScale(settled, session, { orientation: 'desktop' });
+  const scale = settled && prepareHealthBarScale(settled, session, { orientation });
   return settled && scale ? {
     scale, left: settledHealthBarState(settled.left.health), right: settledHealthBarState(settled.right.health),
     sequence: null, scaleProgress: 1, delta,
@@ -132,6 +133,7 @@ export function useSessionHealthBarPresentation(input: {
   canAccept: boolean;
   onComplete: (completion: ResolvedHealthCompletionIdentity) => void;
   scheduler?: HealthBarAnimationScheduler;
+  orientation?: HealthBarOrientation;
 }) {
   const [controller] = useState(() => createHealthBarAnimationController({
     scheduler: input.scheduler, animateSettledNumbers: true,
@@ -166,29 +168,43 @@ export function useSessionHealthBarPresentation(input: {
       completion.resolvedTurnNumber >= (input.session.observedResolvedTurnNumber ?? 0)) onComplete.current(completion);
   }, [controller, playback.presentationCompletion, input.session]);
 
-  return selectSessionHealthBarPresentation(playback, input.presentation, input.session);
+  return selectSessionHealthBarPresentation(playback, input.presentation, input.session, input.orientation);
 }
 
-export function useDesktopHealthBarAxisLength(regionRef: RefObject<HTMLDivElement | null>) {
+function useHealthBarAxisLength(regionRef: RefObject<HTMLDivElement | null>, orientation: HealthBarOrientation) {
   const [length, setLength] = useState(0);
   useLayoutEffect(() => {
     const region = regionRef.current;
     if (!region) return;
-    const measure = () => setLength(Math.max(0, region.getBoundingClientRect().height - 4));
+    const measure = () => setLength(Math.max(0, region.getBoundingClientRect()[orientation === 'desktop' ? 'height' : 'width'] - 4));
     measure();
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
     observer?.observe(region);
     window.addEventListener('resize', measure);
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure); };
-  }, [regionRef]);
+  }, [regionRef, orientation]);
   return length;
 }
 
-export function useDesktopHealthBarLegend(presentation: SessionHealthBarPresentation | null, length: number) {
+export function useDesktopHealthBarAxisLength(regionRef: RefObject<HTMLDivElement | null>) {
+  return useHealthBarAxisLength(regionRef, 'desktop');
+}
+
+export function useMobileHealthBarAxisLength(regionRef: RefObject<HTMLDivElement | null>) {
+  return useHealthBarAxisLength(regionRef, 'mobile');
+}
+
+export function useHealthBarLegend(
+  presentation: SessionHealthBarPresentation | null, length: number, orientation: HealthBarOrientation = 'desktop',
+) {
   const sequence = presentation?.sequence;
   const transition = useMemo(() => sequence ? prepareHealthBarLegendTransition(
-    sequence.previousScales.desktop, sequence.scales.desktop, 'desktop', length,
-  ) : null, [sequence, length]);
+    sequence.previousScales[orientation], sequence.scales[orientation], orientation, length,
+  ) : null, [sequence, length, orientation]);
   return transition && presentation
     ? sampleHealthBarLegendTransition(transition, presentation.scale, presentation.scaleProgress) : undefined;
+}
+
+export function useDesktopHealthBarLegend(presentation: SessionHealthBarPresentation | null, length: number) {
+  return useHealthBarLegend(presentation, length, 'desktop');
 }

@@ -6,7 +6,8 @@ import { useEndOfTurnPresentation } from '../../client/gameSession/clienteffects
 import GameScreen from '../GameScreen';
 import { HEALTH_BAR_ANIMATION_CONFIG } from '../healthBars/healthBarAnimationConfig';
 import {
-  useDesktopHealthBarAxisLength, useDesktopHealthBarLegend, useSessionHealthBarPresentation,
+  useDesktopHealthBarAxisLength, useDesktopHealthBarLegend, useHealthBarLegend,
+  useMobileHealthBarAxisLength, useSessionHealthBarPresentation,
 } from '../healthBars/useSessionHealthBarPresentation';
 
 // Existing repo approach: execute production hook lifecycles with element/media doubles.
@@ -207,23 +208,81 @@ describe('session health presentation hooks and entry wiring', () => {
     expect(complete).toHaveBeenCalledWith(expect.objectContaining({ resolvedTurnNumber: 3 }));
   });
 
-  it('keeps the actual session owner above desktop/mobile switches with no mobile presentation prop', () => {
+  it('keeps one live owner and terminal gate across desktop/mobile switches, including the number tail', () => {
+    const input = runtime.vm!;
+    if (input.resolvedHealth?.mode !== 'live') throw new Error('Expected live facts');
+    input.resolvedHealth = { mode: 'live', snapshot: { ...input.resolvedHealth.snapshot,
+      outcome: { isTerminal: true, winnerPlayerId: 'p1', resultReason: 'decisive' } } };
     const screen = () => render(() => GameScreen({ gameId: 'g', playerName: 'Player', onBack: () => {} }));
     screen();
     let tree = screen();
     const desktop = () => elements(tree).find((element) => 'desktopHealthPresentation' in element.props)!;
     const sequence = desktop().props.desktopHealthPresentation.sequence;
+    const mobile = () => elements(tree).find((element) => 'healthBarPresentation' in element.props)!;
     advance(250);
     runtime.mobile = true; tree = screen();
-    expect(runtime.options.desktopHealthBarsEnabled).toBe(false);
+    expect(runtime.options.healthBarsEnabled).toBe(true);
     expect(elements(tree).some((element) => 'desktopHealthPresentation' in element.props)).toBe(false);
-    const mobile = elements(tree).find((element) => element.props.boardVm === runtime.vm?.board)!;
-    expect(mobile.props.boardVm).toBe(runtime.vm!.board);
+    expect(mobile().props.boardVm).toBe(runtime.vm!.board);
+    expect(mobile().props.healthBarPresentation.sequence).toBe(sequence);
+    expect(mobile().props.healthBarPresentation.scale.orientation).toBe('mobile');
+    const moving = mobile().props.healthBarPresentation;
     runtime.mobile = false; tree = screen();
-    expect(runtime.options.desktopHealthBarsEnabled).toBe(true);
+    expect(runtime.options.healthBarsEnabled).toBe(true);
     expect(desktop().props.desktopHealthPresentation.sequence).toBe(sequence);
+    expect(desktop().props.desktopHealthPresentation.left).toBe(moving.left);
+    expect(desktop().props.desktopHealthPresentation.numbers).toBe(moving.numbers);
     expect(frames.size).toBe(1);
     expect(desktop().props.desktopHealthPresentation.left.health).toBeLessThan(30);
+    advance(sequence.durationMs - 250);
+    tree = screen();
+    expect(desktop().props.desktopHealthPresentation.delta.visible).toBe(true);
+    expect(runtime.options.healthBarCompletion).toBeNull();
+    advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 2);
+    runtime.mobile = true; tree = screen();
+    expect(mobile().props.healthBarPresentation.numbers.left).toBeCloseTo(25);
+    expect(mobile().props.healthBarPresentation.sequence).toBe(sequence);
+    expect(runtime.options.healthBarCompletion).toBeNull();
+    runtime.mobile = false; tree = screen();
+    expect(desktop().props.desktopHealthPresentation.numbers.left).toBeCloseTo(25);
+    runtime.mobile = true; tree = screen();
+    advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 2);
+    tree = screen(); tree = screen();
+    expect(mobile().props.healthBarPresentation.numbers).toEqual({ left: 20, right: 20 });
+    expect(mobile().props.healthBarPresentation.presentationComplete).toBe(true);
+    expect(runtime.options.healthBarCompletion).toMatchObject({ presentationKey: sequence.snapshot.presentationKey });
+    expect(isTerminalHealthBarPresentationPending({ enabled: runtime.options.healthBarsEnabled,
+      continuityKey: sequence.snapshot.continuityKey, snapshot: sequence.snapshot,
+      completion: runtime.options.healthBarCompletion })).toBe(false);
+    expect(frames.size).toBe(0);
+  });
+
+  it('rejects a stale terminal receipt after a newer mobile resolution or recovery', () => {
+    runtime.mobile = true;
+    const input = runtime.vm!;
+    if (input.resolvedHealth?.mode !== 'live') throw new Error('Expected live facts');
+    const terminal = { ...input.resolvedHealth.snapshot,
+      outcome: { isTerminal: true, winnerPlayerId: 'p1', resultReason: 'decisive' } };
+    input.resolvedHealth = { mode: 'live', snapshot: terminal };
+    const screen = () => render(() => GameScreen({ gameId: 'g', playerName: 'Player', onBack: () => {} }));
+    screen(); screen(); advance(100000); screen(); screen();
+    const oldReceipt = runtime.options.healthBarCompletion;
+    const newer = { ...terminal, resolvedTurnNumber: 4, presentationKey: 'g::health::4' };
+    input.resolvedHealth = { mode: 'live', snapshot: newer };
+    input.resolvedHealthSession = { ...input.resolvedHealthSession!, observedResolvedTurnNumber: 4 };
+    screen(); screen();
+    expect(isTerminalHealthBarPresentationPending({ enabled: true, continuityKey: newer.continuityKey,
+      snapshot: newer, completion: oldReceipt })).toBe(true);
+    const recovered = { ...newer, continuityKey: 'recovered' };
+    expect(isTerminalHealthBarPresentationPending({ enabled: true, continuityKey: 'recovered',
+      snapshot: recovered, completion: oldReceipt })).toBe(true);
+    input.resolvedHealth = input.resolvedHealthSession.settled;
+    input.resolvedHealthSession = { ...input.resolvedHealthSession, continuityKey: 'recovered' };
+    const tree = screen();
+    const view = elements(tree).find((element) => 'healthBarPresentation' in element.props)!.props.healthBarPresentation;
+    expect(view.sequence).toBeNull();
+    expect(view.numbers).toEqual({ left: 20, right: 20 });
+    expect(frames.size).toBe(0);
   });
 
   it('observes the existing outer region, subtracts padding and disconnects without changing playback', () => {
@@ -236,6 +295,35 @@ describe('session health presentation hooks and entry wiring', () => {
     expect(observer.observe).toHaveBeenCalledWith(region);
     height = 504; observer.notify(); expect(measure()).toBe(500);
     height = 2; observer.notify(); expect(measure()).toBe(0);
+    hooks.unmount(); expect(observer.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('measures the mobile left column width and thins its legend without altering playback', () => {
+    let width = 260;
+    const region = { getBoundingClientRect: () => ({ width, height: 38 }) };
+    const ref = { current: region as unknown as HTMLDivElement };
+    const input = runtime.vm!;
+    const read = () => render(() => {
+      const view = useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
+        session: input.resolvedHealthSession, canAccept: true, orientation: 'mobile', onComplete: () => {} });
+      const length = useMobileHealthBarAxisLength(ref);
+      return { view, length, labels: useHealthBarLegend(view, length, 'mobile') };
+    });
+    read(); let current = read();
+    const sequence = current.view!.sequence;
+    const observer = ObserverDouble.instances[0];
+    expect(observer.observe).toHaveBeenCalledWith(region);
+    expect(current.length).toBe(256);
+    const dense = current.labels!.length;
+    advance(200); current = read(); const frame = current.view!.left;
+    width = 54; observer.notify(); current = read();
+    expect(current.length).toBe(50);
+    expect(current.labels!.length).toBeLessThan(dense);
+    expect(current.labels!.some((label) => label.value === 0)).toBe(true);
+    expect(current.view!.sequence).toBe(sequence);
+    expect(current.view!.left).toBe(frame);
+    expect(frames.size).toBe(1);
+    width = 2; observer.notify(); expect(read().length).toBe(0);
     hooks.unmount(); expect(observer.disconnect).toHaveBeenCalledOnce();
   });
 

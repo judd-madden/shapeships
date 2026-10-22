@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Dice } from '../../../components/ui/primitives';
 import type {
   BoardViewModel,
@@ -10,6 +10,10 @@ import type {
 import { MobileDiceModifierSlots } from './MobileDiceModifierSlots';
 import { ClockWithIncrement } from '../shared/ClockWithIncrement';
 import { formatHealthChange } from '../layout/boardStage/healthBreakdownPresentation';
+import { HealthBar, HealthBarLegend } from '../healthBars/HealthBar';
+import {
+  useHealthBarLegend, useMobileHealthBarAxisLength, type SessionHealthBarPresentation,
+} from '../healthBars/useSessionHealthBarPresentation';
 import {
   buildMobileHealthPoolMetrics,
   MOBILE_STATUS_STAT_ORDER,
@@ -20,6 +24,7 @@ type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 type MobileRowPosition = 'top' | 'bottom';
 
 interface MobileStatusRailProps {
+  healthBarPresentation: SessionHealthBarPresentation | null;
   topRowRef?: RefObject<HTMLDivElement | null>;
   bottomRowRef?: RefObject<HTMLDivElement | null>;
   hudVm: HudViewModel;
@@ -45,6 +50,8 @@ export interface MobileStatusRailRowData {
   statusTone: HudStatusTone;
   isOnline: boolean;
   health?: number;
+  maxHealth?: number | null;
+  healthNumberCharacters?: number;
   netDelta?: number;
   healing?: MobileHudMetricPairVm;
   damage?: MobileHudMetricPairVm;
@@ -65,7 +72,8 @@ interface MobileStatusRailFrameProps {
   clockIncrementTurnNumber?: number | null;
   diceValue: LeftRailViewModel['diceValue'];
   diceAnimateKey: number;
-  showHealthBarPlaceholders?: boolean;
+  healthBars?: ReactNode;
+  statusColumnRef?: RefObject<HTMLDivElement | null>;
   mobileDiceModifierSlots?: MobileBoardViewModel['mobileDiceModifierSlots'];
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
@@ -89,6 +97,7 @@ const FIRST_TURN_BUILD_HELPER_SHOW_DELAY_MS = 500;
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 
 export function MobileStatusRail({
+  healthBarPresentation,
   topRowRef,
   bottomRowRef,
   hudVm,
@@ -107,6 +116,15 @@ export function MobileStatusRail({
   popoverExpanded = false,
   onPopoverToggle,
 }: MobileStatusRailProps) {
+  const statusColumnRef = useRef<HTMLDivElement | null>(null);
+  const axisLength = useMobileHealthBarAxisLength(statusColumnRef);
+  const legendLabels = useHealthBarLegend(healthBarPresentation, axisLength, 'mobile');
+  const capturedDelta = healthBarPresentation?.delta;
+  const numberCharacters = (side: 'left' | 'right') => {
+    const captured = healthBarPresentation?.sequence?.snapshot[side];
+    return captured ? Math.max(String(Math.round(captured.startHealth)).length,
+      String(Math.round(captured.finalHealth)).length) : undefined;
+  };
   const opponentDisplayedBonus = boardVm.opponentBonusLines;
   const myDisplayedBonus = boardVm.myBonusLines;
 
@@ -115,8 +133,10 @@ export function MobileStatusRail({
     statusText: hudVm.p2StatusText ?? '',
     statusTone: hudVm.p2StatusTone,
     isOnline: hudVm.p2IsOnline,
-    health: boardVm.opponentHealth,
-    netDelta: boardVm.opponentLastTurnNet,
+    health: Math.round(healthBarPresentation?.numbers.right ?? boardVm.opponentHealth),
+    maxHealth: healthBarPresentation?.scale.rightCap.value,
+    healthNumberCharacters: numberCharacters('right'),
+    netDelta: capturedDelta?.right ?? boardVm.opponentLastTurnNet,
     ...buildMobileHealthPoolMetrics(thisTurn, 'opponent'),
     bonus: boardVm.showTurnStartEconomyPresentation
       ? opponentDisplayedBonus
@@ -137,8 +157,10 @@ export function MobileStatusRail({
     statusText: hudVm.p1StatusText ?? '',
     statusTone: hudVm.p1StatusTone,
     isOnline: hudVm.p1IsOnline,
-    health: boardVm.myHealth,
-    netDelta: boardVm.myLastTurnNet,
+    health: Math.round(healthBarPresentation?.numbers.left ?? boardVm.myHealth),
+    maxHealth: healthBarPresentation?.scale.leftCap.value,
+    healthNumberCharacters: numberCharacters('left'),
+    netDelta: capturedDelta?.left ?? boardVm.myLastTurnNet,
     ...buildMobileHealthPoolMetrics(thisTurn, 'me'),
     bonus: boardVm.showTurnStartEconomyPresentation
       ? myDisplayedBonus
@@ -153,8 +175,29 @@ export function MobileStatusRail({
       ? boardVm.myDisplayedSavedJoiningLines
       : undefined,
   };
-  const showDeltas = healthDeltaVisible ??
+  const showDeltas = capturedDelta ? capturedDelta.visible : healthDeltaVisible ??
     (boardVm.turnNumber > 1 || boardVm.healthDeltaPresentationKey != null);
+  // Keep logical player/cap ownership intact; only the visual row order is reversed.
+  const healthBars = (
+    <div data-health-pair="mobile" className="pointer-events-none flex h-[42px] gap-[2px] w-full shrink-0 flex-col items-start overflow-visible">
+      {healthBarPresentation ? (
+        <>
+          <HealthBar scale={healthBarPresentation.scale} orientation="mobile" axisLength={axisLength}
+            side="right" state={healthBarPresentation.right} label={`${opponentStatus.name} health`} mobileMarkerEdge="top" />
+          <HealthBarLegend scale={healthBarPresentation.scale} orientation="mobile" axisLength={axisLength}
+            legendLabels={legendLabels} compactMobile />
+          <HealthBar scale={healthBarPresentation.scale} orientation="mobile" axisLength={axisLength}
+            side="left" state={healthBarPresentation.left} label={`${currentPlayerStatus.name} health`} mobileMarkerEdge="bottom" />
+        </>
+      ) : (
+        <div aria-hidden="true" className="flex w-full flex-col">
+          <div className="h-[14px] w-full shrink-0 bg-[var(--shapeships-grey-90)]" />
+          <div className="h-[10px] w-full shrink-0" />
+          <div className="h-[14px] w-full shrink-0 bg-[var(--shapeships-grey-90)]" />
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <MobileStatusRailFrame
@@ -170,7 +213,8 @@ export function MobileStatusRail({
       clockIncrementTurnNumber={hudVm.clockIncrementTurnNumber}
       diceValue={leftRailVm.diceValue}
       diceAnimateKey={leftRailVm.diceAnimateKey}
-      showHealthBarPlaceholders
+      healthBars={healthBars}
+      statusColumnRef={statusColumnRef}
       mobileDiceModifierSlots={mobileDiceModifierSlots}
       firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
       firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
@@ -196,7 +240,8 @@ export function MobileStatusRailFrame({
   clockIncrementTurnNumber = null,
   diceValue,
   diceAnimateKey,
-  showHealthBarPlaceholders = false,
+  healthBars,
+  statusColumnRef,
   mobileDiceModifierSlots = EMPTY_MOBILE_DICE_MODIFIER_SLOTS,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
@@ -324,7 +369,7 @@ export function MobileStatusRailFrame({
     <div className="relative shrink-0 w-full py-[2px]">
       <MobileDiceModifierSlots slots={mobileDiceModifierSlots} />
       <div className="flex items-stretch gap-[12px] px-[14px] w-full">
-        <div className="flex-1 min-w-0 flex flex-col gap-[3px]">
+        <div ref={statusColumnRef} className="flex-1 min-w-0 flex flex-col gap-[3px]">
           <MobilePlayerStatusRow
             rowRef={topRowRef}
             healthAnchorRef={topHealthAnchorRef}
@@ -335,14 +380,7 @@ export function MobileStatusRailFrame({
             popoverExpanded={popoverExpanded}
             onPopoverToggle={onPopoverToggle}
           />
-          {showHealthBarPlaceholders ? (
-            // Phase 20B replaces this decorative interior with active bars/legend.
-            <div aria-hidden="true" className="pointer-events-none flex w-full shrink-0 flex-col">
-              <div className="h-[12px] w-full shrink-0 bg-[var(--shapeships-grey-90)]" />
-              <div className="h-[12px] w-full shrink-0" />
-              <div className="h-[12px] w-full shrink-0 bg-[var(--shapeships-grey-90)]" />
-            </div>
-          ) : (
+          {healthBars ?? (
             <div className="h-px w-full bg-gradient-to-r from-transparent via-white to-transparent opacity-70" />
           )}
           <MobilePlayerStatusRow
@@ -465,14 +503,16 @@ function MobilePlayerStatusRow({
             type="button"
             disabled={!interactive}
             aria-expanded={interactive ? popoverExpanded : undefined}
-            aria-label={`Show health breakdown for ${row.name}`}
+            aria-label={`Show health breakdown for ${row.name}${hasHealth
+              ? `. Health ${health}, maximum ${row.maxHealth ?? 'unknown'}, change ${shouldShowNetDelta ? formatHealthChange(netDelta) : 'pending'}` : ''}`}
             onClick={interactive ? onPopoverToggle : undefined}
-            className="flex min-w-[38px] shrink-0 touch-manipulation flex-col items-center bg-transparent p-0 text-center font-bold whitespace-nowrap disabled:cursor-default"
+            className="flex min-w-[38px] shrink-0 touch-manipulation flex-col items-center bg-transparent p-0 text-center font-bold tabular-nums whitespace-nowrap disabled:cursor-default"
           >
-            <span className={`text-[26px] leading-[26px] ${hasHealth ? 'text-white' : 'text-transparent'}`}>
+            <span className={`text-[26px] leading-[26px] ${hasHealth ? 'text-white' : 'text-transparent'}`}
+              style={row.healthNumberCharacters ? { minWidth: `${row.healthNumberCharacters}ch` } : undefined}>
               {hasHealth ? health : 0}
             </span>
-            <span className={`text-[15px] leading-[16px] ${shouldShowNetDelta ? getNetDeltaClassName(netDelta) : 'text-transparent'}`}>
+            <span aria-hidden={!shouldShowNetDelta} className={`min-h-[16px] text-[15px] leading-[16px] ${shouldShowNetDelta ? getNetDeltaClassName(netDelta) : 'text-transparent'}`}>
               {hasNetDelta ? formatHealthChange(netDelta) : 0}
             </span>
           </button>

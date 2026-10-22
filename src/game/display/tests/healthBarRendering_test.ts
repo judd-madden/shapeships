@@ -100,6 +100,40 @@ describe('health-bar production geometry', () => {
 });
 
 describe('health-bar rendered structure', () => {
+  it('fits the live mobile pair in 38px while keeping logical caps and outward markers', () => {
+    const prepared = scale(-300, 35, 45, 'mobile');
+    const upper = HealthBar({ scale: prepared, orientation: 'mobile', axisLength: 256,
+      side: 'right', state: { health: 21 }, label: 'Upper player', mobileMarkerEdge: 'top' });
+    const lower = HealthBar({ scale: prepared, orientation: 'mobile', axisLength: 256,
+      side: 'left', state: { health: -12, red: { from: -12, to: 0 } }, label: 'Lower player', mobileMarkerEdge: 'bottom' });
+    const legend = HealthBarLegend({ scale: prepared, orientation: 'mobile', axisLength: 256, compactMobile: true });
+    expect(upper.props.style.height + legend.props.style.height + lower.props.style.height).toBe(38);
+    for (const track of [upper, lower]) {
+      expect(track.props.style.width).toBe(260);
+      expect(track.props.style.background).toBe('var(--shapeships-grey-90)');
+    }
+    expect(upper.props['aria-label']).toContain('Upper player: displayed health 21; maximum 45');
+    expect(lower.props['aria-label']).toContain('Lower player: displayed health -12; maximum 35');
+    const markers = (tree: Element) => elements(tree).filter((node) =>
+      ['cap', 'compression'].includes(node.props['data-health-marker']));
+    expect(markers(upper).every((marker) => marker.props.style.top < 0)).toBe(true);
+    expect(markers(lower).every((marker) => marker.props.style.top === 16)).toBe(true);
+    const lowerCap = markers(lower).find((marker) => marker.props['data-health-marker'] === 'cap')!;
+    expect(lowerCap.props.style.left + 2).toBe(healthBarValuePosition(prepared, 35, 'mobile', 256));
+    const zeros = [upper, lower].map((tree) => elements(tree).find((node) => node.props['data-health-marker'] === 'zero')!);
+    expect(zeros[0].props.style).toEqual(zeros[1].props.style);
+    expect(zeros[0].props.style.width).toBe(3);
+    expect(zeros[0].props.style.height).toBe(10);
+    expect(legend.props.style).toMatchObject({ width: 260, height: 10, fontSize: 10 });
+    for (const tick of elements(legend).filter((node) => node.props['data-health-tick'] !== undefined)) {
+      expect(tick.props.className).not.toContain('py-');
+      expect(tick.props.style.left).toBe(healthBarValuePosition(prepared, tick.props['data-health-tick'], 'mobile', 256));
+    }
+    const ordinary = HealthBarLegend({ scale: prepared, orientation: 'mobile', axisLength: 256 });
+    expect(ordinary.props.style.height).toBe(18);
+    expect(elements(ordinary).some((node) => node.props.className?.includes('py-[2px]'))).toBe(true);
+  });
+
   it('keeps independent red/green layers in order with the zero marker last', () => {
     const prepared = scale(-300);
     const state: HealthBarPresentationState = { health: 12, red: { from: -60, to: 0 }, green: { from: -60, to: 12 } };

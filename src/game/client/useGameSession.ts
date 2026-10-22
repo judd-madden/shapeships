@@ -371,7 +371,7 @@ import {
 
 interface UseGameSessionOptions {
   boardFlashEnabled?: boolean;
-  desktopHealthBarsEnabled?: boolean;
+  healthBarsEnabled?: boolean;
   healthBarCompletion?: ResolvedHealthCompletionIdentity | null;
   onNavigateToGame?: (gameId: string) => void;
 }
@@ -5435,7 +5435,7 @@ useEffect(() => {
   const terminalHealthBarCandidate = resolvedHealthSnapshot ?? resolvedHealthCandidate ?? terminalHealthBarCandidateRef.current;
   function terminalHealthBarPending(): boolean {
     return isTerminalHealthBarPresentationPending({
-      enabled: options.desktopHealthBarsEnabled === true && isOrdinaryFinished &&
+      enabled: options.healthBarsEnabled === true && isOrdinaryFinished &&
         ['decisive', 'narrow', 'mutual_destruction'].includes(terminalResultReason),
       continuityKey: resolvedHealthContinuityKey,
       snapshot: terminalHealthBarCandidateRef.current?.continuityKey === resolvedHealthContinuityKey

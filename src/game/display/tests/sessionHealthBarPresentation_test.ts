@@ -10,6 +10,7 @@ import { createHealthBarAnimationController, type HealthBarAnimationScheduler } 
 import { HealthBarPair } from '../healthBars/HealthBar';
 import { calculateHealthBarGeometry } from '../healthBars/healthBarPresentation';
 import { HEALTH_BAR_ANIMATION_CONFIG } from '../healthBars/healthBarAnimationConfig';
+import type { HealthBarOrientation } from '../healthBars/healthBarScale';
 import { prepareHealthBarLegendTransition, sampleHealthBarLegendTransition } from '../healthBars/healthBarScaleTransition';
 import {
   attachSessionHealthBarController, selectSessionHealthBarPresentation, syncSessionHealthBarController,
@@ -45,7 +46,7 @@ function session(snapshot = facts()): ResolvedHealthSessionPresentation {
       left: { playerId: snapshot.left.playerId, health: snapshot.left.finalHealth, maxHealth: snapshot.left.maxHealth },
       right: { playerId: snapshot.right.playerId, health: snapshot.right.finalHealth, maxHealth: snapshot.right.maxHealth } } };
 }
-function setup(snapshot = facts()) {
+function setupForOrientation(snapshot: ResolvedHealthSnapshot, orientation: HealthBarOrientation) {
   const time = clock();
   const controller = createHealthBarAnimationController({ scheduler: time.scheduler, animateSettledNumbers: true });
   const context = session(snapshot);
@@ -53,11 +54,12 @@ function setup(snapshot = facts()) {
   const sync = (presentation = live as typeof live | typeof context.settled, current = context) =>
     syncSessionHealthBarController(controller, presentation, current);
   const view = (presentation = live as typeof live | typeof context.settled, current = context) =>
-    selectSessionHealthBarPresentation(controller.getSnapshot(), presentation, current);
+    selectSessionHealthBarPresentation(controller.getSnapshot(), presentation, current, orientation);
   return { time, controller, context, live, sync, view };
 }
 
-describe('live session health-bar integration', () => {
+describe.each(['desktop', 'mobile'] as const)('live %s session health-bar integration', (orientation) => {
+  const setup = (snapshot = facts()) => setupForOrientation(snapshot, orientation);
   it('captures an advanced bot response without history and runs through next-turn dice, Drawing and Ready DTOs', () => {
     const expected = facts();
     const response = { ok: true, events: [
@@ -170,17 +172,18 @@ describe('live session health-bar integration', () => {
       const frame = s.controller.getSnapshot().frame!;
       expect(view.left).toBe(frame.left);
       expect(view.right).toBe(frame.right);
-      expect(view.scale).toBe(frame.scales.desktop);
+      expect(view.scale).toBe(frame.scales[orientation]);
       expect(view.numbers).toEqual({ left: snapshot.left.startHealth, right: snapshot.right.startHealth });
       if (stage.name === 'scale') expect(view.left.health).toBe(sequence.snapshot.left.startHealth);
       if (stage.name.startsWith('surplus')) expect(view.left.health).toBe(35);
       expect(view.delta?.visible).toBe(false);
       const markup = renderToStaticMarkup(createElement(HealthBarPair, {
-        scale: view.scale, left: view.left, right: view.right, orientation: 'desktop', axisLength: 196,
+        scale: view.scale, left: view.left, right: view.right, orientation, axisLength: 196,
         leftLabel: 'P2', rightLabel: 'P1',
       }));
       expect(markup).toContain(`displayed health ${frame.left.health}`);
-      expect(calculateHealthBarGeometry(view.scale, 'left', view.left, 'desktop', 196).height).toBe(200);
+      const geometry = calculateHealthBarGeometry(view.scale, 'left', view.left, orientation, 196);
+      expect(orientation === 'desktop' ? geometry.height : geometry.width).toBe(200);
     }
     s.time.advance(sequence.durationMs - elapsed);
     expect(s.view()?.left.health).toBe(35);
@@ -306,10 +309,10 @@ describe('live session health-bar integration', () => {
     const frame = s.controller.getSnapshot().frame!;
     for (const axisLength of [50, 320, 80, 500]) {
       const view = s.view()!;
-      const transition = prepareHealthBarLegendTransition(sequence.previousScales.desktop, sequence.scales.desktop, 'desktop', axisLength);
+      const transition = prepareHealthBarLegendTransition(sequence.previousScales[orientation], sequence.scales[orientation], orientation, axisLength);
       const legendLabels = sampleHealthBarLegendTransition(transition, view.scale, view.scaleProgress);
       renderToStaticMarkup(createElement(HealthBarPair, { scale: view.scale, left: view.left, right: view.right,
-        orientation: 'desktop', axisLength, legendLabels, leftLabel: 'P2', rightLabel: 'P1' }));
+        orientation, axisLength, legendLabels, leftLabel: 'P2', rightLabel: 'P1' }));
       s.sync();
       expect(s.controller.getSnapshot().sequence).toBe(sequence);
       expect(s.controller.getSnapshot().frame).toBe(frame);

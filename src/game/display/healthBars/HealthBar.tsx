@@ -17,15 +17,19 @@ interface HealthBarSharedProps {
   readonly axisLength: number;
   /** Prepared transition ticks; static callers keep the existing automatic legend. */
   readonly legendLabels?: readonly HealthBarTransitionLabel[];
+  /** Live mobile's 10px legend lane; gallery and desktop defaults stay unchanged. */
+  readonly compactMobile?: boolean;
 }
 
 export interface HealthBarProps extends HealthBarSharedProps {
   readonly side: HealthBarSide;
   readonly state: HealthBarPresentationState;
   readonly label: string;
+  /** Physical mobile edge, independent of the logical side used to select the cap. */
+  readonly mobileMarkerEdge?: 'top' | 'bottom';
 }
 
-export function HealthBar({ scale, side, state, orientation, axisLength, label }: HealthBarProps) {
+export function HealthBar({ scale, side, state, orientation, axisLength, label, mobileMarkerEdge }: HealthBarProps) {
   const geometry = calculateHealthBarGeometry(scale, side, state, orientation, axisLength);
   const desktop = orientation === 'desktop';
   const cap = side === 'left' ? scale.leftCap : scale.rightCap;
@@ -37,7 +41,8 @@ export function HealthBar({ scale, side, state, orientation, axisLength, label }
   ].filter(Boolean).join('; ');
   const markerStyle = (position: number, size: number): CSSProperties => desktop
     ? { left: side === 'left' ? 30 : -2 - size, top: position - size / 2, width: size, height: size }
-    : { left: position - size / 2, top: side === 'left' ? -2 - size : 16, width: size, height: size };
+    : { left: position - size / 2, top: (mobileMarkerEdge ?? (side === 'left' ? 'top' : 'bottom')) === 'top'
+      ? -2 - size : 16, width: size, height: size };
 
   return (
     <div role="img" aria-label={description} data-health-bar={side} data-orientation={orientation}
@@ -69,8 +74,9 @@ export function HealthBar({ scale, side, state, orientation, axisLength, label }
   );
 }
 
-export function HealthBarLegend({ scale, orientation, axisLength, legendLabels }: HealthBarSharedProps) {
+export function HealthBarLegend({ scale, orientation, axisLength, legendLabels, compactMobile = false }: HealthBarSharedProps) {
   const desktop = orientation === 'desktop';
+  const compact = !desktop && compactMobile;
   const length = healthBarAxisLength(axisLength);
   const labels = legendLabels ?? calculateHealthBarLegend(scale, { orientation, axisLength: length });
   return (
@@ -82,12 +88,12 @@ export function HealthBarLegend({ scale, orientation, axisLength, legendLabels }
         }`}
         style={{
           ...(!desktop ? { width: length + 4 } : {}),
-          height: desktop ? length + 4 : 18,
+          height: desktop ? length + 4 : compact ? 10 : 18,
           fontSize: desktop ? 12 : 10,
         }}
       >
       {labels.map((tick) => (
-        <span key={tick.value} data-health-tick={tick.value} className="absolute whitespace-nowrap bg-black py-[2px]"
+        <span key={tick.value} data-health-tick={tick.value} className={`absolute whitespace-nowrap bg-black${compact ? '' : ' py-[2px]'}`}
           style={{ opacity: 'opacity' in tick && typeof tick.opacity === 'number' ? tick.opacity : 1, ...(desktop
             ? { top: healthBarValuePosition(scale, tick.value, orientation, length)!, left: '50%', transform: 'translate(-50%, -50%)' }
             : { left: healthBarValuePosition(scale, tick.value, orientation, length)!, top: '50%', transform: 'translate(-50%, -50%)' }) }}>

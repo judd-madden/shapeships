@@ -16,6 +16,7 @@ import { MobileEndOfGameActionPanel } from './MobileEndOfGameActionPanel';
 import { CubeDiceChoicePanel } from '../../actionPanel/panels/CubeDiceChoicePanel';
 
 interface MobileActionPanelProps {
+  terminalHealthBarPresentationPending?: boolean;
   vm: ActionPanelViewModel;
   actions: GameSessionActions;
   onShipInspect?: (shipId: ShipDefId) => void;
@@ -114,6 +115,7 @@ function MobileActionPanelWrapper({
 }
 
 export function MobileActionPanel({
+  terminalHealthBarPresentationPending = false,
   vm,
   actions,
   onShipInspect,
@@ -221,7 +223,7 @@ export function MobileActionPanel({
     );
   }
 
-  if (vm.endOfGame != null || vm.activePanelId === 'ap.end_of_game.result') {
+  if ((!terminalHealthBarPresentationPending && vm.endOfGame != null) || vm.activePanelId === 'ap.end_of_game.result') {
     return renderWithHealthOverlay(
       <MobileEndOfGameActionPanel
         endOfGame={vm.endOfGame ?? END_OF_GAME_FALLBACK}

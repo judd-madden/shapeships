@@ -1,23 +1,71 @@
 import { Children, createElement, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
-import type { BoardViewModel, ThisTurnMetricVm, ThisTurnPresentationVm } from '../../../client/gameSession/types';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { BoardViewModel, ResolvedHealthSnapshot, ThisTurnMetricVm, ThisTurnPresentationVm } from '../../../client/gameSession/types';
 import { MobileStatBreakdownPopovers } from '../../mobile/MobileStatBreakdownPopovers';
-import { MobileStatusRailFrame } from '../../mobile/MobileStatusRail';
+import { MobileStatusRail, MobileStatusRailFrame } from '../../mobile/MobileStatusRail';
+import { MobileGameLayout } from '../../mobile/MobileGameLayout';
+import { MobileBoardView } from '../../mobile/MobileBoardView';
+import { MobileTopNav } from '../../mobile/MobileTopNav';
+import { MobileActionPanel } from '../../mobile/actionPanel/MobileActionPanel';
+import { MobileEndOfGameActionPanel } from '../../mobile/actionPanel/MobileEndOfGameActionPanel';
+import { MobileEndOfGameMenuTakeover } from '../../mobile/takeovers/MobileEndOfGameMenuTakeover';
+import { MissionChallengeOverlay } from '../../mission/MissionChallengeOverlay';
+import { HealthBar, HealthBarLegend } from '../../healthBars/HealthBar';
+import { createHealthBarAnimationController } from '../../healthBars/healthBarAnimationController';
+import { HEALTH_BAR_ANIMATION_CONFIG } from '../../healthBars/healthBarAnimationConfig';
+import { selectSessionHealthBarPresentation, syncSessionHealthBarController } from '../../healthBars/useSessionHealthBarPresentation';
 import type { WinStreakGameViewModel } from '../../../client/winStreak/types';
 
-// Exercise the actual returned event handlers without adding a browser/test-renderer dependency.
-// Lifecycle transitions are covered separately by the period-selection tests.
-vi.mock('react', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react')>();
+// Existing direct-element tests remain stateless; opt into lifecycle cells for mobile integration.
+const lifecycle = vi.hoisted(() => {
+  type Cell = { value?: any; deps?: readonly unknown[]; cleanup?: () => void };
+  const cells: Cell[] = []; const effects: Array<() => void> = [];
+  let active = false; let index = 0;
+  const cell = () => cells[index++] ?? (cells[index - 1] = {});
+  const changed = (a?: readonly unknown[], b?: readonly unknown[]) =>
+    !a || !b || a.length !== b.length || b.some((value, i) => !Object.is(value, a[i]));
+  const memo = (compute: () => unknown, deps: readonly unknown[]) => {
+    if (!active) return compute();
+    const entry = cell();
+    if (changed(entry.deps, deps)) { entry.value = compute(); entry.deps = deps; }
+    return entry.value;
+  };
+  const effect = (setup: () => void | (() => void), deps?: readonly unknown[]) => {
+    if (!active) return;
+    const entry = cell(); if (!changed(entry.deps, deps)) return;
+    entry.deps = deps;
+    effects.push(() => { entry.cleanup?.(); entry.cleanup = setup() || undefined; });
+  };
   return {
-    ...actual,
-    useRef: (current: unknown) => ({ current }),
-    useState: (initial: unknown) => [initial, vi.fn()],
-    useCallback: (callback: unknown) => callback,
-    useEffect: () => {},
+    begin: () => { active = true; index = 0; },
+    flush: () => { active = false; effects.splice(0).forEach((run) => run()); },
+    reset: () => { cells.forEach((entry) => entry.cleanup?.()); cells.length = 0; effects.length = 0; active = false; },
+    useState: (initial: any) => {
+      const value = () => typeof initial === 'function' ? initial() : initial;
+      if (!active) return [value(), vi.fn()];
+      const entry = cell(); if (!('value' in entry)) entry.value = value();
+      return [entry.value, (next: any) => { entry.value = typeof next === 'function' ? next(entry.value) : next; }];
+    },
+    useRef: (initial: unknown) => {
+      if (!active) return { current: initial };
+      const entry = cell(); return entry.value ?? (entry.value = { current: initial });
+    },
+    useMemo: memo,
+    useCallback: (callback: unknown, deps: readonly unknown[]) => memo(() => callback, deps),
+    useEffect: effect, useLayoutEffect: effect,
   };
 });
+vi.mock('react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react')>();
+  return { ...actual, ...lifecycle };
+});
+
+afterEach(() => { lifecycle.reset(); vi.unstubAllGlobals(); });
+
+function render<T>(component: () => T, commit?: (tree: T) => void) {
+  lifecycle.begin(); const tree = component(); commit?.(tree); lifecycle.flush(); return tree;
+}
 
 type Element = ReactElement<any>;
 
@@ -82,6 +130,217 @@ function frames(input = props()): Element[] {
 function pointer(clientX: number, clientY: number, pointerId = 1, isPrimary = true) {
   return { clientX, clientY, pointerId, isPrimary, stopPropagation: vi.fn(), preventDefault: vi.fn() };
 }
+
+function liveHealth(leftPlayerId = 'one', rightPlayerId = 'two', spectator = false, terminal = false) {
+  const identity = { gameId: 'g', viewerId: spectator ? 'watcher' : leftPlayerId,
+    viewerRole: spectator ? 'spectator' as const : 'player' as const, leftPlayerId, rightPlayerId };
+  const snapshot: ResolvedHealthSnapshot = { identity, continuityKey: 'ctx', presentationKey: 'g::health::3',
+    resolvedTurnNumber: 3, eligibility: 'live', source: 'poll',
+    outcome: { isTerminal: terminal, winnerPlayerId: terminal ? rightPlayerId : null, resultReason: terminal ? 'decisive' : null },
+    left: { playerId: leftPlayerId, startHealth: 22, damageTaken: 33, damageStageHealth: -11,
+      grossHealingReceived: 8, finalHealth: -3, actualNetDelta: -25, maxHealth: 35 },
+    right: { playerId: rightPlayerId, startHealth: 20, damageTaken: 2, damageStageHealth: 18,
+      grossHealingReceived: 6, finalHealth: 24, actualNetDelta: 4, maxHealth: 47 } };
+  const source = { mode: 'live' as const, snapshot };
+  const session = { identity, continuityKey: 'ctx', observedResolvedTurnNumber: 3,
+    settled: { mode: 'settled' as const, identity, outcome: snapshot.outcome,
+      left: { playerId: leftPlayerId, health: -3, maxHealth: 35 },
+      right: { playerId: rightPlayerId, health: 24, maxHealth: 47 } } };
+  let now = 0; let id = 0; const pending = new Map<number, () => void>();
+  const controller = createHealthBarAnimationController({ animateSettledNumbers: true,
+    scheduler: { now: () => now, request: (callback) => { pending.set(++id, callback); return id; },
+      cancel: (key) => { pending.delete(key); } } });
+  syncSessionHealthBarController(controller, source, session);
+  return { snapshot, controller, pending,
+    view: () => selectSessionHealthBarPresentation(controller.getSnapshot(), source, session, 'mobile')!,
+    advance: (ms: number) => { now += ms; const work = [...pending.values()]; pending.clear(); work.forEach((run) => run()); } };
+}
+
+describe('mobile live health ownership', () => {
+  it.each([
+    ['one', 'two', false], ['two', 'one', false], ['one', 'two', true],
+  ] as const)('keeps complete upper/lower bundles for %s/%s (spectator: %s)', (leftId, rightId, spectator) => {
+    vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    const playback = liveHealth(leftId, rightId, spectator);
+    const names: Record<string, string> = { one: 'Alpha', two: 'Beta' };
+    const input = { boardVm: { ...board, turnNumber: 4, myHealth: -3, opponentHealth: 24,
+      myLastTurnNet: -25, opponentLastTurnNet: 4 },
+      hudVm: { p1Name: names[leftId], p2Name: names[rightId], p1Clock: '1:00', p2Clock: '2:00' },
+      leftRailVm: { diceValue: 3, diceAnimateKey: 7 }, thisTurn: presentation,
+      mobileDiceModifierSlots: { top: null, bottom: null }, healthDeltaVisible: true,
+      topHealthAnchorRef: { current: null }, bottomHealthAnchorRef: { current: null },
+      topStatsAnchorRef: { current: null }, bottomStatsAnchorRef: { current: null }, onPopoverToggle: vi.fn(),
+    } as unknown as Omit<Parameters<typeof MobileStatusRail>[0], 'healthBarPresentation'>;
+    const column = { getBoundingClientRect: () => ({ width: 260 }) };
+    const read = () => render(() => MobileStatusRail({ ...input, healthBarPresentation: playback.view() }),
+      (tree) => { tree.props.statusColumnRef.current = column; });
+    read(); let rail = read();
+    expect(rail.props.topRow).toMatchObject({ name: names[rightId], health: 20, maxHealth: 47, netDelta: 4 });
+    expect(rail.props.bottomRow).toMatchObject({ name: names[leftId], health: 22, maxHealth: 35, netDelta: -25 });
+    expect(rail.props.showDeltas).toBe(false);
+    expect(rail.props.topClock).toBe('2:00'); expect(rail.props.bottomClock).toBe('1:00');
+    const bars = elements(rail.props.healthBars).filter((node) => node.type === HealthBar);
+    const legend = elements(rail.props.healthBars).find((node) => node.type === HealthBarLegend)!;
+    expect(bars.map((bar) => bar.props.side)).toEqual(['right', 'left']);
+    expect(bars.map((bar) => bar.props.mobileMarkerEdge)).toEqual(['top', 'bottom']);
+    expect(bars.map((bar) => bar.props.label)).toEqual([`${names[rightId]} health`, `${names[leftId]} health`]);
+    for (const node of [...bars, legend]) {
+      expect(node.props.scale).toBe(playback.view().scale); expect(node.props.axisLength).toBe(256);
+    }
+    expect(legend.props.compactMobile).toBe(true);
+    expect(legend.props.scale.domainMin).toBe(-15); expect(legend.props.scale.domainMax).toBe(50);
+    expect(playback.snapshot.identity.leftPlayerId).toBe(leftId);
+    expect(playback.snapshot.left.playerId).toBe(leftId);
+    expect(rail.props.healthBars.props.className).toContain('pointer-events-none');
+    const frame = MobileStatusRailFrame(rail.props);
+    const rows = elements(frame).filter((node) => node.props.position === 'top' || node.props.position === 'bottom');
+    expect(rows.map((row) => row.props.healthAnchorRef)).toEqual([input.topHealthAnchorRef, input.bottomHealthAnchorRef]);
+    expect(rows.map((row) => row.props.statsAnchorRef)).toEqual([input.topStatsAnchorRef, input.bottomStatsAnchorRef]);
+    const hiddenHealth = elements(invoke(rows[1])).find((node) => node.type === 'button')!;
+    expect(hiddenHealth.props['aria-label']).toContain(`Health 22, maximum 35, change pending`);
+    expect(elements(hiddenHealth).find((node) => node.props['aria-hidden'] === true)!.props.className).toContain('min-h-[16px]');
+    const duration = playback.controller.getSnapshot().sequence!.durationMs;
+    playback.advance(duration);
+    rail = read();
+    expect(rail.props.showDeltas).toBe(true);
+    expect(rail.props.topRow.health).toBe(20); expect(rail.props.bottomRow.health).toBe(22);
+    playback.advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 2);
+    rail = read();
+    expect(rail.props.bottomRow.health).toBe(Math.round(playback.view().numbers.left));
+    expect(playback.view().numbers.left).toBeCloseTo(9.5);
+    expect(rail.props.topRow.health).toBe(22);
+    const movingBars = elements(rail.props.healthBars).filter((node) => node.type === HealthBar);
+    expect(movingBars[1].props.state).toEqual({ health: -3, red: { from: -3, to: 0 } });
+    playback.advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 2);
+    rail = read();
+    expect(rail.props.topRow.health).toBe(24); expect(rail.props.bottomRow.health).toBe(-3);
+    expect(rail.props.topRow.netDelta).toBe(4); expect(rail.props.bottomRow.netDelta).toBe(-25);
+    expect(playback.pending.size).toBe(0);
+  });
+
+  it('keeps the neutral live footprint separate from the species-selection divider', () => {
+    const input = { healthBarPresentation: null, hudVm: {}, boardVm: { ...board, myHealth: 25, opponentHealth: 25 },
+      leftRailVm: {}, thisTurn: null, mobileDiceModifierSlots: { top: null, bottom: null } } as unknown as Parameters<typeof MobileStatusRail>[0];
+    const rail = MobileStatusRail(input);
+    expect(rail.props.healthBars.props.className).toContain('h-[38px]');
+    expect(elements(rail.props.healthBars).some((node) => node.type === HealthBar)).toBe(false);
+    const species = MobileStatusRailFrame({ topRow: { name: 'A' }, bottomRow: { name: 'B' },
+      topClock: '1:00', bottomClock: '1:00', diceValue: 1, diceAnimateKey: 0 } as Parameters<typeof MobileStatusRailFrame>[0]);
+    expect(elements(species).some((node) => node.props.className?.includes('bg-gradient-to-r'))).toBe(true);
+  });
+});
+
+describe('mobile health playback and interaction integration', () => {
+  function input(playback: ReturnType<typeof liveHealth>) {
+    return {
+      gameId: 'g', healthBarPresentation: playback.view(), hudVm: {},
+      boardVm: { ...board, turnNumber: 4, myHealth: -3, opponentHealth: 24,
+        myVoidFleet: [], opponentVoidFleet: [], myFleet: [], opponentFleet: [], fleetAnim: { my: [], opponent: [] } },
+      leftRailVm: { gameCode: 'g', chatMessages: [], turn: 4 }, turnPhasesVm: {}, turnPhasePresentation: {},
+      bottomActionRailVm: {}, actionPanelVm: { activePanelId: 'ap.menu.root',
+        menu: { phaseKey: 'build.drawing', turnNumber: 4 }, tabs: [] },
+      thisTurn: presentation, presentedThisTurnStats: presentation, gameStats: null,
+      viewer: props().viewer, missionChallenge: null, winStreak, matchupIntro: null,
+      actions: { onReadyToggle: vi.fn(), onActionPanelTabClick: vi.fn() },
+    } as unknown as Parameters<typeof MobileGameLayout>[0];
+  }
+  function globals() {
+    vi.stubGlobal('document', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  }
+  const find = (tree: ReactNode, type: unknown) => elements(tree).find((node) => node.type === type)!;
+
+  it('keeps paired popovers, takeover callbacks and authoritative inputs while the accepted sequence advances', () => {
+    globals();
+    const playback = liveHealth(); const config = input(playback);
+    const sequence = playback.controller.getSnapshot().sequence;
+    const element = (left: number, top: number) => ({ getBoundingClientRect: () =>
+      ({ left, top, width: 260, height: 42, right: left + 260, bottom: top + 42 }) });
+    const read = () => render(() => MobileGameLayout({ ...config, healthBarPresentation: playback.view() }), (tree) => {
+      const boardView = find(tree, MobileBoardView);
+      boardView.props.boardRef.current = element(0, 0);
+      boardView.props.topRowRef.current = element(14, 250);
+      boardView.props.bottomRowRef.current = element(14, 334);
+    });
+    read(); let tree = read();
+    const boardView = find(tree, MobileBoardView);
+    // The actual board forwards this presentation and every explicit anchor unchanged.
+    const rail = find(MobileBoardView(boardView.props), MobileStatusRail);
+    expect(rail.props.healthBarPresentation).toBe(boardView.props.healthBarPresentation);
+    expect(rail.props.topHealthAnchorRef).toBe(boardView.props.topHealthAnchorRef);
+    expect(rail.props.bottomStatsAnchorRef).toBe(boardView.props.bottomStatsAnchorRef);
+    boardView.props.onPopoverToggle(); tree = read();
+    const popovers = find(tree, MobileStatBreakdownPopovers);
+    expect(popovers.props.boardVm).toBe(config.boardVm);
+    expect(popovers.props.thisTurn).toBe(config.presentedThisTurnStats);
+    expect(popovers.props.topAnchorRect.top).toBe(250);
+    expect(popovers.props.bottomAnchorRect.top).toBe(334);
+    popovers.props.onPeriodChange('last'); tree = read();
+    expect(find(tree, MobileStatBreakdownPopovers).props.period).toBe('last');
+    const damage = sequence!.stages.find((stage) => stage.name === 'damage')!;
+    playback.advance(damage.startMs + damage.durationMs / 2); tree = read();
+    const frame = playback.controller.getSnapshot().frame;
+    for (const [callback, takeover] of [['onOpenChat', 'chat'], ['onOpenBattleLog', 'battleLog'], ['onOpenMenu', 'menu']] as const) {
+      find(tree, MobileTopNav).props[callback](); tree = read();
+      expect(find(tree, MobileTopNav).props.activeTakeover).toBe(takeover);
+      expect(find(tree, MobileStatBreakdownPopovers)).toBeUndefined();
+      expect(find(tree, MobileBoardView).props.healthBarPresentation.sequence).toBe(sequence);
+      expect(playback.controller.getSnapshot().frame).toBe(frame);
+      expect(playback.pending.size).toBe(1);
+      find(tree, MobileTopNav).props.onReturnToBoard(); tree = read();
+      expect(find(tree, MobileTopNav).props.activeTakeover).toBeNull();
+    }
+    find(tree, MobileBoardView).props.onPopoverToggle(); tree = read();
+    expect(find(tree, MobileStatBreakdownPopovers).props.period).toBe('last');
+    find(tree, MobileActionPanel).props.actions.onReadyToggle(); tree = read();
+    expect(config.actions.onReadyToggle).toHaveBeenCalledOnce();
+    expect(find(tree, MobileStatBreakdownPopovers)).toBeUndefined();
+    expect(playback.controller.getSnapshot().sequence).toBe(sequence);
+    playback.advance(sequence!.durationMs);
+    tree = read();
+    expect(find(tree, MobileBoardView).props.healthBarPresentation.delta.visible).toBe(true);
+    playback.controller.dispose();
+  });
+
+  it('defers mobile finished-panel fallback through the number tail and keeps Missions manual', () => {
+    globals();
+    const playback = liveHealth('one', 'two', false, true); const config = input(playback);
+    config.actionPanelVm = { ...config.actionPanelVm, endOfGame: {
+      bannerText: 'Game Over', bannerBgCssVar: 'var(--shapeships-grey-50)',
+      metaLeftText: '', metaRightText: '', rematchHelperText: '',
+    } };
+    config.missionChallenge = { mission: { id: 'm' }, isFinished: true, introPending: false,
+      shouldPresentInitialIntro: false, result: { missionSucceeded: true, fleetConditionMet: true, challengeSucceeded: true },
+    } as Parameters<typeof MobileGameLayout>[0]['missionChallenge'];
+    const read = () => render(() => MobileGameLayout({ ...config, healthBarPresentation: playback.view() }));
+    read(); let tree = read();
+    expect(find(tree, MobileTopNav).props.isGameOver).toBe(true);
+    expect(find(tree, MobileActionPanel).props.terminalHealthBarPresentationPending).toBe(true);
+    expect(find(MobileActionPanel(find(tree, MobileActionPanel).props), MobileEndOfGameActionPanel)).toBeUndefined();
+    expect(find(tree, MissionChallengeOverlay)).toBeUndefined();
+    const sequence = playback.controller.getSnapshot().sequence!;
+    playback.advance(sequence.durationMs); tree = read();
+    expect(playback.view().delta?.visible).toBe(true);
+    expect(find(tree, MobileActionPanel).props.terminalHealthBarPresentationPending).toBe(true);
+    playback.advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 2); tree = read();
+    expect(find(tree, MobileActionPanel).props.terminalHealthBarPresentationPending).toBe(true);
+    expect(find(MobileActionPanel(find(tree, MobileActionPanel).props), MobileEndOfGameActionPanel)).toBeUndefined();
+    playback.advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 2); tree = read();
+    expect(find(tree, MobileActionPanel).props.terminalHealthBarPresentationPending).toBe(false);
+    expect(find(MobileActionPanel(find(tree, MobileActionPanel).props), MobileEndOfGameActionPanel)).toBeDefined();
+    expect(find(tree, MissionChallengeOverlay)).toBeUndefined();
+    find(tree, MobileTopNav).props.onOpenMenu(); tree = read();
+    const menu = find(tree, MobileEndOfGameMenuTakeover);
+    expect(menu.props.showChallengeAction).toBe(true);
+    expect(find(tree, MissionChallengeOverlay)).toBeUndefined();
+    menu.props.onOpenChallenge(); tree = read();
+    expect(find(tree, MissionChallengeOverlay).props.mode).toBe('result');
+    find(tree, MobileTopNav).props.onReturnToBoard(); tree = read();
+    expect(find(tree, MissionChallengeOverlay)).toBeUndefined();
+    expect(playback.controller.getSnapshot().sequence).toBe(sequence);
+    expect(playback.pending.size).toBe(0);
+  });
+});
 
 describe('paired mobile inspection', () => {
   it('keeps economy identical across tabs, including Fleet, joining, even-zero and streak explanations', () => {

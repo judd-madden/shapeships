@@ -70,7 +70,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
   const { vm, actions } = useGameSession(gameId, playerName, {
     boardFlashEnabled,
     onNavigateToGame,
-    desktopHealthBarsEnabled: !isMobileGameLayout,
+    healthBarsEnabled: true,
     healthBarCompletion,
   });
   const isMobileLandscapeBlocked = useMobileLandscapeBlocker();
@@ -80,8 +80,9 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
     authoritativeMatchupIntro: vm.matchupIntro,
     isFinished,
   });
-  const desktopHealthPresentation = useSessionHealthBarPresentation({
+  const healthBarPresentation = useSessionHealthBarPresentation({
     presentation: vm.resolvedHealth, session: vm.resolvedHealthSession,
+    orientation: isMobileGameLayout ? 'mobile' : 'desktop',
     canAccept: !vm.isBootstrapping && vm.board.mode === 'board' && !presentedMatchupIntro &&
       vm.missionChallenge?.introPending !== true,
     onComplete: setHealthBarCompletion,
@@ -204,6 +205,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
         <div className="relative z-10 w-full h-full min-h-0">
           <MobileGameLayout
             gameId={gameId}
+            healthBarPresentation={healthBarPresentation}
             hudVm={vm.hud}
             boardVm={mobileBoardVm}
             leftRailVm={vm.leftRail}
@@ -253,7 +255,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
 
           {/* Main Stage - fills remaining width */}
           <MainStage
-            desktopHealthPresentation={desktopHealthPresentation}
+            desktopHealthPresentation={healthBarPresentation}
             desktopDicePresentation={{
               diceValue: vm.leftRail.diceValue,
               diceAnimateKey: vm.leftRail.diceAnimateKey,

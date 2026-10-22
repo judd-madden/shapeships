@@ -15,6 +15,7 @@ import { SHIP_DEFINITIONS_MAP } from '../../data/ShipDefinitionsUI';
 import type { ImplementedAncientManualSolarPowerId } from '../../client/gameSession/ancient/ancientChargeDeclaration';
 import { FleetShipHoverCard } from '../layout/boardStage/FleetShipHoverCard';
 import { MobileBoardView } from './MobileBoardView';
+import type { SessionHealthBarPresentation } from '../healthBars/useSessionHealthBarPresentation';
 import { MobileBottomPhase } from './MobileBottomPhase';
 import { MobileBottomTabs } from './MobileBottomTabs';
 import {
@@ -49,6 +50,7 @@ import {
 } from '../mission/missionChallengePresentation';
 
 interface MobileGameLayoutProps {
+  healthBarPresentation: SessionHealthBarPresentation | null;
   gameId: string;
   hudVm: HudViewModel;
   boardVm: BoardViewModel;
@@ -111,6 +113,7 @@ const CATALOGUE_PANEL_IDS = new Set<ActionPanelViewModel['activePanelId']>([
 ]);
 
 export function MobileGameLayout({
+  healthBarPresentation,
   gameId,
   hudVm,
   boardVm,
@@ -192,7 +195,10 @@ export function MobileGameLayout({
       ? 'declaration'
       : 'reference';
   const simulacrumSpecies = resolveAncientSimulacrumSpecies(boardVm);
-  const isEndGamePanel = actionPanelVm.activePanelId === 'ap.end_of_game.result' || actionPanelVm.endOfGame != null;
+  const terminalHealthBarPresentationPending = healthBarPresentation?.sequence?.snapshot.outcome.isTerminal === true &&
+    !healthBarPresentation.presentationComplete;
+  const isEndGamePanel = actionPanelVm.activePanelId === 'ap.end_of_game.result' ||
+    (actionPanelVm.endOfGame != null && !terminalHealthBarPresentationPending);
   const isGameOver = actionPanelVm.endOfGame != null;
   const isMissionIntroPending = missionChallenge?.introPending === true;
   const shouldShowInitialMission = Boolean(
@@ -219,6 +225,7 @@ export function MobileGameLayout({
     });
   const shouldShowPostgameMission = Boolean(
     boardVm.mode === 'board' &&
+    !terminalHealthBarPresentationPending &&
     canShowPostgameMissionChallengeAction &&
     isPostgameMissionOpen
   );
@@ -862,6 +869,7 @@ export function MobileGameLayout({
         >
           {boardVm.mode === 'board' ? (
             <MobileBoardView
+              healthBarPresentation={healthBarPresentation}
               boardRef={boardRef}
               topRowRef={topRowRef}
               bottomRowRef={bottomRowRef}
@@ -923,6 +931,7 @@ export function MobileGameLayout({
               ) : (
                 <MobileActionPanel
                   vm={actionPanelVm}
+                  terminalHealthBarPresentationPending={terminalHealthBarPresentationPending}
                   actions={mobileActions}
                   onShipInspect={handleCatalogueShipInspect}
                   onSolarPowerInspect={handleSolarPowerInspect}

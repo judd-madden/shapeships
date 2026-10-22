@@ -18,10 +18,12 @@ import {
 import { usePresentedFleetRevealPulse } from '../layout/boardStage/usePresentedFleetRevealPulse';
 import { TurnPhaseStatusStrip } from '../shared/TurnPhaseStatusStrip';
 import { MobileStatusRail } from './MobileStatusRail';
+import type { SessionHealthBarPresentation } from '../healthBars/useSessionHealthBarPresentation';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 
 interface MobileBoardViewProps {
+  healthBarPresentation: SessionHealthBarPresentation | null;
   boardRef?: RefObject<HTMLDivElement | null>;
   topRowRef?: RefObject<HTMLDivElement | null>;
   bottomRowRef?: RefObject<HTMLDivElement | null>;
@@ -58,6 +60,7 @@ const MOBILE_FLEET_ROW_OVERRIDES = {
 } satisfies Partial<Record<ShipDefId, 1 | 2 | 3 | 4>>;
 
 export function MobileBoardView({
+  healthBarPresentation,
   boardRef,
   topRowRef,
   bottomRowRef,
@@ -146,6 +149,7 @@ export function MobileBoardView({
       </div>
       <div className="relative shrink-0 w-full">
         <MobileStatusRail
+          healthBarPresentation={healthBarPresentation}
           topRowRef={topRowRef}
           bottomRowRef={bottomRowRef}
           hudVm={hudVm}
