@@ -139,7 +139,7 @@ export function formatBoardStatMetric(
     case 'zero':
     case 'value':
       return `${metric.total}${
-        slot === 'current' && metric.chargeDeclarationUncertain ? ' ?' : ''
+        slot === 'current' && metric.chargeDeclarationUncertain ? '?' : ''
       }`;
   }
 }
@@ -174,7 +174,7 @@ export function buildBoardStatHoverSections(
         ? { estimateQualifierText: 'AUTOCAST ESTIMATE' as const }
         : {}),
       totalText: `${isEstimate ? '~' : ''}${current.total}${
-        current.chargeDeclarationUncertain ? ' ?' : ''
+        current.chargeDeclarationUncertain ? '?' : ''
       }`,
       rows: current.rows,
     });

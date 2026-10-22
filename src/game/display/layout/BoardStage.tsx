@@ -377,7 +377,7 @@ function HealthTrigger({
         {health}
       </span>
       <span
-        className={cx('row-start-2 justify-self-center text-[16px] leading-none min-[1400px]:text-[24px] min-[1920px]:text-[28px]', isRight ? 'col-start-2' : 'col-start-1')}
+        className={cx('row-start-2 min-h-[1em] justify-self-center text-[16px] leading-none min-[1400px]:text-[24px] min-[1920px]:text-[28px]', isRight ? 'col-start-2' : 'col-start-1')}
         style={{
           color: netDelta > 0
             ? 'var(--shapeships-pastel-green)'

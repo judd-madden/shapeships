@@ -1653,7 +1653,7 @@ Deno.test('all unresolved phases share public totals, uncertainty, and desktop/m
           mePlayerId: reversed ? 'p2' : 'p1', opponentPlayerId: reversed ? 'p1' : 'p2',
           publicThisTurn: publicBaselineDto(phase),
         });
-        const expected = reversed ? '3 ?' : '1 ?';
+        const expected = reversed ? '3?' : '1?';
         assert(formatBoardStatMetric(vm.opponent.damage.current, 'current') === expected);
         assert(buildMobileHudMetricPair(vm.opponent.damage).currentText === expected);
         const sections = buildBoardStatHoverSections(vm.opponent.damage);
@@ -1661,9 +1661,9 @@ Deno.test('all unresolved phases share public totals, uncertainty, and desktop/m
         assert(vm.opponent.damage.current.state === 'value');
         assert(JSON.stringify(sections[0].rows) === JSON.stringify(vm.opponent.damage.current.rows));
         assert(vm.mobile.opponentDetail === 'this_turn');
-        if (!reversed) assert(formatBoardStatMetric(vm.opponent.healing.current, 'current') === '0 ?');
+        if (!reversed) assert(formatBoardStatMetric(vm.opponent.healing.current, 'current') === '0?');
         if (viewerRole === 'spectator') {
-          assert(formatBoardStatMetric(vm.me.damage.current, 'current') === (reversed ? '1 ?' : '3 ?'));
+          assert(formatBoardStatMetric(vm.me.damage.current, 'current') === (reversed ? '1?' : '3?'));
           assert(vm.me.damage.current.state === 'value' && vm.me.damage.current.chargeDeclarationUncertain === true);
         } else if (phase === 'build.drawing') {
           assert(vm.me.damage.current.state === 'pending', 'public Base replaced a missing private Drawing estimate');
@@ -1693,7 +1693,7 @@ Deno.test('early own estimates select requester Autocast and never append public
     assert(formatBoardStatMetric(autocast.me.damage.current, 'current') === '8');
     assert(autocast.me.damage.current.state === 'value' && autocast.me.damage.current.estimateMode === 'with_autocast');
     assert(buildBoardStatHoverSections(autocast.me.damage)[0].estimateQualifierText === 'AUTOCAST ESTIMATE');
-    assert(formatBoardStatMetric(autocast.opponent.damage.current, 'current') === '1 ?');
+    assert(formatBoardStatMetric(autocast.opponent.damage.current, 'current') === '1?');
   }
 });
 

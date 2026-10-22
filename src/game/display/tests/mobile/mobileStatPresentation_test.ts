@@ -316,11 +316,11 @@ Deno.test('mobile HUD and breakdown retain public Charge uncertainty markers', (
   const vm = presentation();
   vm.opponent.damage.current = uncertain;
   vm.mobile.opponentDetail = 'this_turn';
-  assertEquals(buildMobileHudMetricPair(vm.opponent.damage).currentText, '13 ?');
-  assertEquals(buildMobileHealthPoolMetrics(vm, 'me').damage.currentText, '13 ?');
+  assertEquals(buildMobileHudMetricPair(vm.opponent.damage).currentText, '13?');
+  assertEquals(buildMobileHealthPoolMetrics(vm, 'me').damage.currentText, '13?');
   assertEquals(
     combat(vm, 'my').current.damage.totalText,
-    '~13 ?',
+    '~13?',
   );
 });
 
@@ -400,7 +400,7 @@ Deno.test('estimate headings preserve Autocast inputs, zeroes and uncertainty wi
       qualifier: source === 'held_actual' || source === 'final_actual' ? null : 'ESTIMATE',
     });
     assertEquals(card.damage.totalText, source === 'final_actual' ? '13' :
-      source === 'held_actual' ? '13 ?' : '~13 ?');
+      source === 'held_actual' ? '13?' : '~13?');
     assertEquals(card.damage.section?.rows, [shipRow]);
     assertEquals(card.healing.totalText, source === 'held_actual' || source === 'final_actual' ? '0' : '~0');
   }

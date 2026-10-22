@@ -93,10 +93,10 @@ Deno.test('public Charge uncertainty appends a marker without changing numeric t
     ...valueMetric(0, 'privacy_frozen', 4, []),
     chargeDeclarationUncertain: true,
   } as ThisTurnMetricVm;
-  assertEquals(formatBoardStatMetric(uncertain, 'current'), '13 ?');
-  assertEquals(formatBoardStatMetric(uncertainZero, 'current'), '0 ?');
+  assertEquals(formatBoardStatMetric(uncertain, 'current'), '13?');
+  assertEquals(formatBoardStatMetric(uncertainZero, 'current'), '0?');
   assertEquals(formatBoardStatMetric(uncertain, 'last'), '13');
-  assertEquals(buildBoardStatHoverSections(pair(uncertain))[0]?.totalText, '~13 ?');
+  assertEquals(buildBoardStatHoverSections(pair(uncertain))[0]?.totalText, '~13?');
   assertEquals(
     uncertain.state === 'value' || uncertain.state === 'zero' ? uncertain.total : null,
     13,
@@ -615,7 +615,7 @@ Deno.test('combined current inspection preserves the visible column when the oth
   });
   assertEquals([card.damage.totalText, card.damage.section, card.damage.unavailableText], ['?', null, 'Concealed']);
   assertEquals([card.healing.totalText, card.healing.section?.estimateQualifierText, card.healing.section?.rows],
-    ['~0 ?', 'AUTOCAST ESTIMATE', []]);
+    ['~0?', 'AUTOCAST ESTIMATE', []]);
 });
 
 Deno.test('combined current inspection never substitutes last-turn rows for unavailable current data', () => {
@@ -726,7 +726,7 @@ Deno.test('stacked combat rendering keeps one owner total per section and scopes
   assertEquals(healing.includes('Your Healing') && healing.includes('Healing source'), true);
   assertEquals(damage.includes('(AUTOCAST ESTIMATE)'), true);
   assertEquals(healing.includes('AUTOCAST'), false);
-  assertEquals(markup.split('~13 ?').length - 1, 1);
+  assertEquals(markup.split('~13?').length - 1, 1);
   assertEquals(markup.split('~5').length - 1, 1);
   assertEquals(markup.includes('>TOTAL<'), false);
 });

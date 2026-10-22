@@ -114,7 +114,7 @@ describe('paired mobile inspection', () => {
     expect(cards[0].indexOf('Your Damage')).toBeLessThan(cards[0].indexOf('Opponent Healing'));
     expect(cards[1].indexOf('Opponent Damage')).toBeLessThan(cards[1].indexOf('Your Healing'));
     expect(cards[0]).toContain('THIS TURN (ESTIMATE)');
-    expect(cards[0].match(/~13 \?/g)).toHaveLength(1);
+    expect(cards[0].match(/~13\?/g)).toHaveLength(1);
     expect(cards.join('')).not.toMatch(/AUTOCAST|TOTAL|Health Change/);
     const historical = renderToStaticMarkup(createElement(MobileStatBreakdownPopovers, props({ period: 'last' })));
     expect(historical).toContain('Previous source');
@@ -132,7 +132,7 @@ describe('paired mobile inspection', () => {
     expect(cards[0]).toContain('Alpha Damage');
     expect(cards[0]).toContain('Beta Healing');
     expect(cards[0]).toContain('Concealed');
-    expect(cards[0]).toContain('~13 ?');
+    expect(cards[0]).toContain('~13?');
     expect(cards[1]).toContain('Beta Damage');
     expect(cards[1]).toContain('Alpha Healing');
   });
