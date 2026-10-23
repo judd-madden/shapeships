@@ -246,6 +246,54 @@ describe('session-owned terminal outcome reveal', () => {
     expect(read().outcome?.opacity).toBe(1); expect(frames.size).toBe(0);
   });
 
+  it('settles a terminal number tail on reduced motion without stale callbacks or a replay on re-enabling', () => {
+    const input = terminalHealthInput();
+    const complete = vi.fn();
+    const read = () => render(() => useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
+      session: input.resolvedHealthSession, canAccept: true, onComplete: complete }))!;
+    read(); const sequence = read().sequence!;
+    const pending = { enabled: true, continuityKey: sequence.snapshot.continuityKey,
+      snapshot: sequence.snapshot, completion: null };
+    advance(sequence.durationMs);
+    expect(read().delta?.visible).toBe(true);
+    expect(read().presentationComplete).toBe(false);
+    input.resolvedHealth = input.resolvedHealthSession!.settled;
+    advance(HEALTH_BAR_ANIMATION_CONFIG.settledNumberTweenMs / 2);
+    const moving = read();
+    expect(moving.numbers.left).toBeGreaterThan(sequence.snapshot.left.finalHealth);
+    expect(moving.numbers.left).toBeLessThan(sequence.snapshot.left.startHealth);
+    expect(moving.outcome).toBeNull();
+    expect(complete).not.toHaveBeenCalled();
+    expect(isTerminalHealthBarPresentationPending(pending)).toBe(true);
+    const stale = [...frames.values()];
+    expect(stale).toHaveLength(1);
+
+    media.matches = true; media.addEventListener.mock.calls[0][1]();
+    read(); const settled = read();
+    expect(settled.sequence).toBe(sequence);
+    expect(settled.numbers).toEqual({ left: sequence.snapshot.left.finalHealth, right: sequence.snapshot.right.finalHealth });
+    expect(settled.delta).toMatchObject({ left: sequence.snapshot.left.actualNetDelta,
+      right: sequence.snapshot.right.actualNetDelta, visible: true });
+    expect(settled.presentationComplete).toBe(true);
+    expect(settled.outcome).toMatchObject({ left: { letters: 'NL' }, right: { letters: 'NV' }, opacity: 1 });
+    expect(complete).toHaveBeenCalledOnce();
+    const receipt = complete.mock.calls[0][0];
+    expect(receipt.reason).toBe('motion-disabled');
+    expect(isTerminalHealthBarPresentationPending({ ...pending, completion: receipt })).toBe(false);
+    expect(frames.size).toBe(0);
+
+    stale.forEach((callback) => callback());
+    media.matches = false; media.addEventListener.mock.calls[0][1]();
+    advance(10000);
+    const retained = read();
+    expect(retained.sequence).toBe(sequence);
+    expect(retained.numbers).toBe(settled.numbers);
+    expect(retained.outcome?.opacity).toBe(1);
+    expect(complete).toHaveBeenCalledOnce();
+    expect(complete.mock.calls[0][0]).toBe(receipt);
+    expect(frames.size).toBe(0);
+  });
+
   it('shows reduced-motion terminal letters immediately even when motion is disabled on initial capture', () => {
     const input = terminalHealthInput(); media.matches = true;
     const read = () => render(() => useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
@@ -280,6 +328,50 @@ describe('session-owned terminal outcome reveal', () => {
 });
 
 describe('session health presentation hooks and entry wiring', () => {
+  it('rebuilds a fresh mounted game floor from current settled facts without replaying retained history', async () => {
+    const input = runtime.vm!;
+    if (input.resolvedHealth?.mode !== 'live') throw new Error('Expected live facts');
+    const original = input.resolvedHealth.snapshot;
+    input.resolvedHealth = { mode: 'live', snapshot: { ...original, left: { ...original.left,
+      damageTaken: 67, damageStageHealth: -37, grossHealingReceived: 57 } } };
+    let complete = vi.fn();
+    const read = () => render(() => useSessionHealthBarPresentation({ presentation: input.resolvedHealth,
+      session: input.resolvedHealthSession, canAccept: true, onComplete: complete }))!;
+    read(); expect(read().scale.domainMin).toBe(-40);
+    advance(200); read();
+    const stale = [...frames.values()];
+    expect(stale).toHaveLength(1);
+    advance(100000); read(); read();
+    const previous = input.resolvedHealthSession!;
+    const settled = { ...previous.settled!, left: { ...previous.settled!.left, health: 25, maxHealth: 50 } };
+    input.resolvedHealthSession = { ...previous, settled };
+    input.resolvedHealth = settled;
+    const retained = read();
+    expect(retained.sequence).toBeNull();
+    expect(retained.scale.domainMin).toBe(-40);
+    expect(retained.numbers).toEqual({ left: 25, right: 20 });
+
+    const previousComplete = complete;
+    previousComplete.mockClear();
+    hooks.unmount(); await Promise.resolve();
+    expect(frames.size).toBe(0);
+    hooks.reset(); complete = vi.fn();
+    read(); const fresh = read();
+    expect(fresh.scale.domainMin).toBe(0);
+    expect(fresh.scale.domainMax).toBe(50);
+    expect(fresh.numbers).toEqual(retained.numbers);
+    expect(fresh.sequence).toBeNull();
+    expect(fresh.delta).toBeNull();
+    expect(fresh.presentationComplete).toBe(true);
+    expect(fresh.outcome).toBeNull();
+    stale.forEach((callback) => callback());
+    advance(100000);
+    expect(read().scale).toEqual(fresh.scale);
+    expect(previousComplete).not.toHaveBeenCalled();
+    expect(complete).not.toHaveBeenCalled();
+    expect(frames.size).toBe(0);
+  });
+
   it('owns the game floor above layout changes and retains it through settled recovery without stale completion', () => {
     const input = runtime.vm!;
     if (input.resolvedHealth?.mode !== 'live') throw new Error('Expected live facts');

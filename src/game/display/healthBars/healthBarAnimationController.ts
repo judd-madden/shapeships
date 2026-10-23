@@ -24,7 +24,7 @@ export interface HealthBarCompletion {
 export interface HealthBarPlaybackState {
   readonly sequence: Readonly<HealthBarSequence> | null;
   readonly frame: HealthBarAnimationFrame | null;
-  /** Bar completion reveals deltas; overall completion also waits for desktop numbers. */
+  /** Bar completion reveals deltas; overall completion also waits for shared live numbers. */
   readonly completion: HealthBarCompletion | null;
   readonly numbers: Readonly<{ left: number; right: number }> | null;
   readonly presentationCompletion: HealthBarCompletion | null;
@@ -44,7 +44,7 @@ const contextKey = (context: HealthBarScaleContext) => JSON.stringify([
 export function createHealthBarAnimationController(options: {
   readonly scheduler?: HealthBarAnimationScheduler;
   readonly onComplete?: (completion: HealthBarCompletion) => void;
-  /** Production desktop only; gallery/bar completion keeps its existing timing. */
+  /** Shared live desktop/mobile numbers; gallery/bar completion keeps its existing timing. */
   readonly animateSettledNumbers?: boolean;
 } = {}) {
   const scheduler = options.scheduler ?? browserHealthBarScheduler;

@@ -36,7 +36,7 @@ function candidate(id = 'ordinary', turn = 1) {
   return { snapshot: source, scales: { desktop: prepare('desktop'), mobile: prepare('mobile') } };
 }
 
-describe('desktop settled-number tail', () => {
+describe('shared live settled-number tail', () => {
   for (const id of ['ordinary', 'negative-final', 'recovery', 'overheal', 'excess-healing']) {
     it(`${id}: counts monotonically to exact finals, skipping unchanged sides`, () => {
       const time = clock();

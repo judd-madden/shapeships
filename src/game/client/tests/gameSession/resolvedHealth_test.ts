@@ -114,7 +114,7 @@ Deno.test('terminal bars release only on matching presentation completion, indep
   ]) assert(isTerminalHealthBarPresentationPending({ ...input, completion: receipt }));
 });
 
-Deno.test('terminal bars never wait for mobile, recovery, unsupported sources or non-health finishes', () => {
+Deno.test('terminal bars never wait when disabled, recovered, unsupported or finished without health resolution', () => {
   const snapshot = capture({ ...state(30, 40), status: 'finished', resultReason: 'decisive', winnerPlayerId: 'p2' });
   assert(snapshot);
   const input = { enabled: true, continuityKey, snapshot, completion: null };

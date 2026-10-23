@@ -5,15 +5,63 @@
 - **Owner:** Judd Madden
 - **Status:** Approved direction; implementation details remain subject to owner review at each pass
 - **Prepared:** 2026-10-21
-- **Audited source:** supplied `1020.zip`
+- **Original planning source:** supplied `1020.zip`; 20B.7 reviewed baseline is `1023.zip`, with the live repository and subsequent owner changes preserved.
 - **Phase 20A:** Game UI Updates — implementation and automated validation complete through 20A.7; final owner visual acceptance pending
-- **Phase 20B:** 20B.1–20B.4 implemented; 20B.4 visually reviewed by the owner. 20B.5 desktop live integration, reliable-capture/cross-turn correction, final-to-final number refinements and responsive lower-row reservations are implemented; automated checks pass and owner browser review is pending. The static legend-width test follows the owner's responsive widths. 20B.6 compact mobile live integration is implemented and automated validation passes; owner visual acceptance is pending. Remaining 20B.7 work is incomplete.
+- **Phase 20B:** implementation and automated validation complete through 20B.7, including desktop/mobile live bars and terminal outcome letters; 20B.4 visually reviewed by the owner. Final owner visual acceptance remains pending.
 - **Architecture:** server-authoritative gameplay; client-owned presentation
 - **Suggested repository location:** `\src\documentation\plans\Phase 20 Game UI and Health Bars.md`
 
 > This is the main planning baseline, not permission to implement every pass in one operation. Judd will supply designs and review individual pass plans and implementations. At Judd's discretion, an approved individual pass plan may change the scope, sequence, measurements or behaviour proposed here. Further responsive requirements are expected. Preserve all existing behaviour unless a change is explicitly part of the approved pass.
 
-Implementation notes below are historical pass records. For the current Phase A contract, the 20A.4 refinements supersede the original bar-height cap, spacing and wide combat cards; 20A.6 supersedes interim mobile inspection; 20A.7 supersedes earlier desktop numeric typography and selector-based positioning notes. Earlier validation counts describe those passes only.
+## Current health-bar contract — 20B.7
+
+This is the current desktop/mobile specification, consolidated from live code and owner-adjusted values. Sections 11–13 supply supporting scale/stage/lifecycle details; historical records below and initial design references do not override this contract. Automated coverage does not establish visual fidelity or pacing; final owner acceptance is pending.
+
+### Geometry and typography
+
+| Element | Desktop | Live mobile |
+| --- | --- | --- |
+| Tracks | Vertical; 24px inner width, 2px padding on every side, 28px outer width. Flexible measured region supplies inner height `max(0, outerHeight − 4px)`. | Horizontal; 10px inner height, 2px padding on every side, 14px outer height. Inner axis is `max(0, leftStatusColumnWidth − 4px)`. |
+| Shared legend | Lane widths 36px below 1280px, 42px from 1280px, 52px from 1536px, 76px from 1920px. 12px regular grey-50 text, line-height 1, black label backgrounds and 2px vertical label padding. | 10px lane; 9px medium grey-50 text, line-height 1, no label background or compact vertical label padding. Endpoint overflow does not drive column width. |
+| Pair and ordering | Logical left/viewer and right/opponent, or canonical P1/P2 for spectators. Pair does not drive flexible region height. | **46px total:** 14px upper track + 3px gap + 10px legend + 3px gap + 14px lower track + 1px top/bottom padding. Upper is logical right/opponent/P2; lower is left/viewer/P1. The unavailable-presentation wrapper still reserves 46px. |
+| Track background | Full-opacity gradient: grey-90 at 0%, #101010 from 80% through 100%. | Flat grey-90. |
+| Health / net delta | Bold, line-height 1: 30/16px below 1400px, 40/24px from 1400px, 64/28px from 1920px. Existing endpoint-width and hidden-delta reservations remain. | Bold tabular health 26px/26px; delta 15px/16px with a reserved delta line. Playback reserves the larger captured endpoint width. |
+| Outcome letters | Bold 12px, centred across the interior and **8px above mapped zero**. | Bold 9px, centred across the interior and **8px right of mapped zero**. |
+
+White positive fill is capped by each known authoritative maximum; red and green remain independent intervals. A white 3px zero marker spans the full interior above colors and letters; only its rectangle shifts inward at an edge. Known caps below the shared top get external grey-50 ticks. A grey-50 double-slash cue appears near zero only for compressed negatives. Mobile auxiliary markers face outward from the pair. Light outcome glyphs over the track and dark copies clipped to the exact white fill preserve contrast; descriptions expose full meanings without live frame announcements.
+
+Geometry/legend rendering and outcome offsets live in `display/healthBars/HealthBar.tsx` and `healthBarPresentation.ts`; the separately tunable `HEALTH_BAR_OUTCOME_DESKTOP_ZERO_OFFSET_PX` and `HEALTH_BAR_OUTCOME_MOBILE_ZERO_OFFSET_PX` are both 8. Layout spacing remains owned by the existing desktop/mobile consumers. Graphics Test APIs, noncompact legend lanes and independent scenarios remain intentional.
+
+### Mapping and presentation order
+
+- Prepare one immutable paired capture from validated authoritative resolution-time finals/caps and aggregate contributions. Both bars, contribution rectangles, zero/cap markers and legend use one shared mapping, vertical on desktop and horizontal on mobile. Round domain extents outward in fives; positive extent includes baseline 35, represented positive health and available caps. Preserve exact values and unknown caps. Unused healing does not enlarge the domain.
+- Both orientations protect at least 35% positive space; compress negatives linearly only when the natural positive share would fall below that fraction. The mounted session retains the deepest rounded negative floor from complete accepted captures or valid selected settled fallbacks. Incoming, outgoing/start and settled preparation receive it. Positive maxima may contract with authoritative facts; animated frames, rejected candidates and hidden DTOs cannot deepen retention.
+- Legend limits are **9 mobile / 10 desktop**, including visible transition labels. Both use a 24px center-spacing estimate, readable regional increments, zero, exact positive top and useful negative context. Cached transition selections stage optional outgoing/incoming fades when their union exceeds budget; resizing changes density without restarting playback or changing prepared geometry.
+- Sequence: scale preparation/transition → damage and clearance → conditional empty-green handover → healing and clearance → zero-anchored surplus extension/return → settled bars and **paired actual-net delta reveal** → final-to-final numbers → eligible terminal letters. Skip absent movement. Negative red persists behind healing through target arrival; covered red trims at that boundary without a separate timed removal stage, while final-negative red remains continuously through clearance and settling.
+- Main numbers hold previous authoritative finals through all bar motion, including surplus return, then tween directly to captured next finals for 300ms. Round only displayed text; unchanged numbers skip motion. Bar completion reveals deltas; overall completion waits for the number tail. Reconcile later settled health/caps directly after completion; preserve cap-only deltas, but permanently suppress captured deltas after unrelated newer health so returning to old finals cannot revive them.
+- Canonical outcomes map `decisive`/`resignation`/`timeout` to `V/L`, `narrow` to `NV/NL`, and `mutual_destruction`/`agreement`/`timeout_draw` to `D/D`. Require valid player/result metadata; omitted scalar result envelopes remain compatible, explicit contradictions do not. Never infer letters from health. Eligible letters follow bars/numbers with a paired linear **400ms fade**, which is visual-only and never extends completion receipts or navigation gates.
+
+### Timing, continuity and effect ownership
+
+- `HEALTH_BAR_ANIMATION_CONFIG` in `display/healthBars/healthBarAnimationConfig.ts` owns movement clamp **700–1400ms** from maximum mapped endpoint travel, conditional handover **200ms**, scale transition **350ms**, extra final settle **0ms**, number tween **300ms**, and outcome fade **400ms**. Movement/number easing is `cubic-bezier(0.7, 0, 0.3, 1)` solved for elapsed time. Development-only completed replay hold is 1200ms. No timing is retuned by 20B.7.
+- `GameScreen` owns one session presentation controller above desktop/mobile branches. Client runtime captures from a live intent or adjacent poll before the existing next-turn dice-publication release seam. Source release, duplicate delivery, resizing and layout switches do not cancel or replay accepted work. Playback can continue through dice, Drawing, Ready, popovers and takeovers without changing gameplay timing, clocks or input restrictions.
+- Identity/continuity changes, unsupported newer resolutions and disposal invalidate stale frames/letters/receipts; eligible newer captures supersede without a queue. Development effect reattachment preserves the mounted controller. Terminal health handoff requires a matching identity/turn/key/continuity receipt after numbers; lettering opacity is independent. Canonical finished truth/manual navigation remain available; postgame Missions remain manual-only. Non-health finishes do not synthesize contributions.
+- Initial load, sparse/older inputs, refresh, skipped turns and background recovery settle from available authoritative facts without historical replay. Same-game recovery clears playback/receipts but retains the mounted negative floor; different games reset it. **A full reload/fresh mount rebuilds the floor from available current facts**, with no persistent storage or missed-resolution reconstruction.
+- Live bars observe the existing reduced-motion media preference: reduced motion reaches exact final bars/numbers, eligible settled letters and completion immediately, including when selected during playback; re-enabling motion does not replay. Health Flash remains separately controlled by its existing setting and lifecycle; the existing overlay, fleet effects, dice publication and sound owners remain independent. No new animation preference, renamed control or sound cue is introduced.
+- Compatibility/provenance: exact resolution-time metadata supports post-advance health/cap/fleet changes without a history race. Older next-turn inputs without that provenance settle; malformed explicit metadata cannot borrow current/history caps. Supported legacy finalized boundaries remain compatible. Persisted metadata or history alone cannot establish live eligibility; unavailable breakdown detail stays unavailable. Visual fit/pacing and server deployment provenance are not established by client automation.
+
+## Historical implementation records
+
+Records below describe each pass at its checkpoint, including then-pending work and old styling values. Preserve their validation results. For Phase A, 20A.4 refinements supersede the original bar-height cap, spacing and wide combat cards; 20A.6 supersedes interim mobile inspection; 20A.7 supersedes earlier desktop numeric typography and selector-based positioning notes. For current health bars, use the contract above rather than historical 38px mobile pairs, 4px outcome offsets or frame-following number policies.
+
+### 2026-10-23 — 20B.7 health-bar audit, cleanup and consolidation
+
+- **Pass type:** Client/UI. **Status:** implementation/audit complete after scoped cleanup and required automated checks. Final owner visual acceptance remains pending.
+- **Findings:** no production health-presentation defect demonstrated. Corrected desktop-only controller comments/test names and the obsolete mobile terminal-gate test title. Consolidated current geometry, timing, capture/release, reconciliation, recovery, effects and compatibility policies; superseded stale current-facing tables and deferred feature language without changing executable controller behavior, rendering, styling or settings.
+- **Coverage:** added session tests for reduced motion during the terminal number tail, matching completion/gate release, stale callbacks and motion re-enabling; and for negative-floor reset on a fresh mount with current settled facts and no replay/receipt. Existing lifecycle, mapping, effects and interaction coverage is retained.
+- **Validation:** `npm run typecheck`, `npm run test:client` (**736 passed, 50 files**) and `npm run build` pass. Focused lifecycle suite also passes (29 tests). The existing non-blocking >500kB chunk-size warning remains. Final diff review confirms only the five planned documentation/comment/test files changed; production executable behavior, styles and configuration are unchanged.
+- **Owner checklist:** normal resolution — damage/healing, full-health surplus, unequal/increased caps, negative recovery, paired deltas and number pacing; terminal outcomes — decisive/narrow wins, draws/non-health endings, letter placement/contrast/fade, finished navigation and manual-only Missions; continuity/interactions — desktop/mobile switching, dice/Drawing/Ready, inspection/popovers/takeovers, recovery/refresh and reduced motion.
+- **Not run — browser/Vite testing handled by user.**
 
 The 20B.3 reference-keyframe refinement below supersedes the initial generic red/green overlap and travelling surplus-window examples. Its value intervals and stage boundaries are owner-confirmed requirements for 20B.4; durations and interpolation remain for that later pass.
 
@@ -522,7 +570,7 @@ Exact responsive positioning remains subject to further owner requirements. Do n
 
 ### 5.3 Phase A placeholders
 
-For the later active bars, Judd has confirmed: desktop vertical bars use a **24px inner width**, **2px dark-grey container padding on every side**, and **28px outer width**. Mobile horizontal bars use a **10px inner height**, the same **2px padding on every side**, and **14px outer height**. These supersede provisional active-bar dimensions; this pass does not resize the existing Phase A placeholders.
+This subsection records the historical Phase A placeholder scope. Both active layouts are now implemented; their geometry and unavailable-presentation behavior are specified in the [current health-bar contract](#current-health-bar-contract--20b7).
 
 Placeholders establish final bar/legend space and visual proportions, without dynamic scaling or a resolution animation controller. A simple static current-health depiction is acceptable if approved for the pass. They must not suggest fabricated intermediate combat outcomes.
 
@@ -793,10 +841,12 @@ On missing historical contributions or mismatched identities, show the authorita
 
 ## 11. Health bars — Scale and legend contract
 
+Supporting detail for the [current health-bar contract](#current-health-bar-contract--20b7).
+
 ### 11.1 Shared mapping
 
 - Both players use the same mapping for a displayed resolution.
-- Implemented pure API: `prepareHealthBarScale`, `mapHealthBarValue`, `calculateHealthBarLegend` and `retainPreparedHealthBarScale` in `display/healthBars/healthBarScale.ts`. Prepared geometry is immutable; normalized 0 is the exact domain minimum and 1 the exact maximum. 20B.3 renders explicit static states; live adoption remains deferred.
+- Implemented pure API: `prepareHealthBarScale`, `mapHealthBarValue`, `calculateHealthBarLegend` and `retainPreparedHealthBarScale` in `display/healthBars/healthBarScale.ts`. Prepared geometry is immutable; normalized 0 is the exact domain minimum and 1 the exact maximum. Both live layouts and static examples consume these helpers.
 - Desktop uses a vertical mapping; mobile uses the corresponding horizontal mapping.
 - Mobile's default non-negative domain places zero on the left and positive health toward the right. When negatives are included, retain a visible zero reference within the shared mapping.
 - Both orientations use the same logical damage, clearance, healing, surplus and settle stages, presentation/controller and scale rules; do not create a separate mobile animation engine.
@@ -814,7 +864,7 @@ This is a screen-space guarantee, not a minimum player health or a new maximum-h
 
 Use the same units-per-pixel above and below zero while the natural positive fraction is at least the configured minimum. Only below that threshold, reserve the minimum positive fraction and linearly compress the negative region into the remainder. The mapping is continuous at zero. With top 35, −60 remains linear (positive fraction approximately 36.84%); −300 reserves 35% for positive values and 65% for negatives.
 
-The threshold and protected fractions now live in the shared helper/configuration, without outward domain rounding or JSX constants. Zero moves with the mapping; without negatives it is at mobile left / desktop bottom. A small axis-break cue remains a proposal for rendering review; the required outcome is that differing positive/negative scales remain understandable.
+The shared helper rounds required domain extents outward in fives before calculating compression; exact health and cap values remain unchanged. Threshold/protected fractions live in shared configuration. Zero moves with the mapping; without negatives it is at mobile left / desktop bottom. The existing external double-slash compression cue remains subject to owner visual acceptance.
 
 Do not compress each player's negatives differently. A value of −60 must occupy the same position for both bars in the same view.
 
@@ -828,7 +878,7 @@ Do not compress each player's negatives differently. A value of −60 must occup
 - Exact health remains available in the main number even where ticks are sparse.
 - Do not show a finite floor label while silently clipping more extreme values; enlarge/recalculate the range coherently.
 - Separate tick-label thinning from scale calculation; omitting a label must not move the mapped value.
-- Shared numeric-label limits are **9 mobile / 10 desktop**, including visible labels during coordinated transitions. Current adjustable center-spacing estimates are 24px for each orientation. Calculate readable regional steps starting at 5/10/20/50/100 and coarsen regions before exceeding the orientation's budget; candidate generation is bounded by the label limit. Typography measurement belongs to later rendering.
+- Shared numeric-label limits are **9 mobile / 10 desktop**, including visible labels during coordinated transitions. Current adjustable center-spacing estimates are 24px for each orientation. Calculate readable regional steps starting at 5/10/20/50/100 and coarsen regions before exceeding the orientation's budget; candidate generation is bounded by the label limit. Actual text measurement is not implemented; the spacing estimate and label limits do not guarantee fit on tiny axes.
 - Zero and exact positive top always remain, even if they overlap on tiny/zero axes (owner choice). Preserve useful negative context, including −5 for a −5 domain, without an unconditional −5 in larger domains. Deduplicate values and avoid negative zero. Each known player cap retains separate position metadata whether or not it is a tick. Preserve the default mobile labels and the readable nine-label −40-to-35 example in the refinement record above.
 - Cache transition selection per sequence/orientation/axis configuration, reserving both endpoint tops and negative context. Use deterministic mapped coverage for optional thinning and stage outgoing optional fades before incoming optional fades reuse those slots when the union exceeds budget. Numeric keys and shared movement remain stable; the existing duration/easing is unchanged.
 
@@ -840,11 +890,13 @@ Owner-confirmed revised policy: retain the deepest rounded negative boundary for
 
 The mounted session hook owns only the game ID and negative floor, independently of playback recovery identity. Source release, next turns, settled reconciliation, resize, desktop/mobile changes, temporary absent context and same-game recovery preserve this memory. A different game resets it. The existing identity guard still rejects unrelated prepared objects, and recovery clears snapshots/completion receipts; preserving the floor cannot revive stale playback or deltas. Fresh settled preparation receives the retained floor. Independent Graphics Test scenarios have no live per-game memory. Full reloads do not reconstruct missed resolutions, and no storage is introduced. This does not change 20B.1 eligibility or release behavior.
 
-20B.4 implements coordinated scale-transition animation preserving logical health while white bars, contribution geometry where relevant, zero/cap markers and legend share one transition mapping. Scheduling belongs to the presentation controller; live adoption remains for the integration passes.
+The shared live controller coordinates scale transitions, preserving logical health while white bars, contribution geometry where relevant, zero/cap markers and legend share one transition mapping.
 
-Resize may regenerate label density without changing frozen geometry; it is not a new resolution. Both orientations consume the same controller playhead and stage durations; changing dimensions or breakpoint does not restart logical progress. Future live owners must remain mounted above the orientation-specific consumers.
+Resize may regenerate label density without changing frozen geometry; it is not a new resolution. Both orientations consume the same controller playhead and stage durations; changing dimensions or breakpoint does not restart logical progress. `GameScreen` keeps the live owner mounted above orientation-specific consumers.
 
 ## 12. Health bars — Rendering and animation contract
+
+Supporting stage detail for the [current health-bar contract](#current-health-bar-contract--20b7); current geometry/typography is specified there.
 
 ### 12.1 Layers
 
@@ -872,7 +924,7 @@ The labels below describe states, not mandatory code identifiers:
 | Damage reveal/movement | Show red contribution and reduce displayed position toward `start − damage`. | Damage stage complete or absent. |
 | Damage clearance | Clear nonnegative red to zero length; for negative damage-stage health retain red exactly from that health to zero. | Empty green handoff at damage-stage health. |
 | Healing reveal/movement | Grow green from zero length at damage-stage health; retain full negative red behind it only for a negative start. | Reaches authoritative cap/final position with retained negative red still present. |
-| Retained red removal | Remove the pre-healing trail only for recovery finishing at zero or above; negative-final siblings retain red from final health to zero beneath completed green. | Include only when at least one recovering player needs full removal, after target arrival. |
+| Covered red trim | At target arrival, trim covered red beneath completed green; final-negative players retain red from final health to zero. | Instantaneous boundary before healing clearance; no separate timed removal stage. |
 | Healing clearance | Contract green; negative finals continuously preserve remaining red from final health to zero. | Green clears explicitly with the same remaining negative red still visible. |
 | Surplus healing completion | Express unused healing within the approved track treatment without increasing white fill beyond cap. | Surplus presentation complete or absent. |
 | Settle | Clear transient colours; explicitly retain red from negative final health to zero, or normal positive white fill. | Coordinated end-of-turn handoff. |
@@ -880,7 +932,7 @@ The labels below describe states, not mandatory code identifiers:
 
 One resolved update may contain several visual stages. Skip irrelevant stages for zero damage/healing; do not force empty delays. Both players share stage boundaries so the comparison remains readable even if only one has a contribution.
 
-Owner-confirmed 20B.3 refinement, including the negative-final continuity correction: handoff is an empty-green boundary, not partially grown green. Nonnegative damage-stage health has no visible red during healing. Negative damage-stage health retains its full red interval to zero throughout green growth, across zero and at the target-reaching sample. Full trail removal before green clearance applies only when recovery finishes at zero or above. A negative-final player instead retains red from final health to zero through clearance and settling, including during a sibling's shared removal stage. Add that shared stage only if at least one recovering player needs full removal. Rules apply independently per player. A player without healing keeps its completed damage state while its sibling heals; damage-only negative final red persists. The generic renderer continues to accept independent intervals without enforcing or inferring stages.
+The implemented handoff is an empty-green boundary, not partially grown green. Nonnegative damage-stage health has no visible red during healing. Negative damage-stage health retains its full red interval to zero throughout green growth, across zero and at the target-reaching sample. At the next boundary, covered red trims beneath completed green without another timed stage: recovery finishing at zero or above removes the full trail; negative finals continuously retain final-health-to-zero red through clearance and settling. Rules apply independently per player. A player without healing keeps its completed damage state while its sibling heals; damage-only negative final red persists. The generic renderer accepts independent intervals without enforcing or inferring stages.
 
 ### 12.3 Negative values and outcomes
 
@@ -922,6 +974,8 @@ The persistent net delta is actual authoritative change, including clamping. It 
 
 ## 13. Timing, presentation lifecycle and recovery
 
+Timing/effect policy is consolidated in the [current health-bar contract](#current-health-bar-contract--20b7); supporting lifecycle details follow.
+
 ### 13.1 Dedicated controller, existing lifecycle
 
 20B.4 provides a dedicated health-bar presentation controller/hook with explicit stages, a captured immutable input snapshot and one configuration location for timing. 20B.5 connects desktop and 20B.6 connects mobile to the existing end-of-turn live-capture seam. Capture precedes source release; stable session controller ownership continues independently after next-turn dice publication and layout switches. This supersedes the earlier expectation of live end-of-turn hook integration within 20B.4.
@@ -930,21 +984,7 @@ Do not create a second polling/subscription path. Do not advance authoritative p
 
 ### 13.2 Tweakable parameters
 
-Terminal lettering adds `HEALTH_BAR_ANIMATION_CONFIG.outcomeLetterFadeMs = 400` for a linear paired opacity fade after overall presentation completion. The session hook owns the fade above layout branches; it is independent of completion receipts. Zero offsets are separately named desktop/mobile constants in `HealthBar.tsx`, initially 4px, with initial bold 12px desktop / 9px mobile lettering. These are owner-tunable visual values, not layout dimensions.
-
-Animation timings live in **`src/game/display/healthBars/healthBarAnimationConfig.ts`**. Contribution easing is **`cubic-bezier(0.7, 0, 0.3, 1)`**, evaluated by solving x for elapsed time. Movement duration is **`clamp(maxMappedEndpointTravel × 1400, 700, 1400)` ms**, measured against the usable inner axis across both players/orientation mappings. This supersedes the proposed 35-health-unit threshold. No visible movement means no movement stage. Initial scale transition is **350ms**, conditional red-to-green handover **200ms**, extra final settle **0ms**. Desktop final-to-final numbers use **300ms** via **`settledNumberTweenMs`**, starting at bar completion with the same easing. Development-only completed hold is **1200ms**, separately named in the same file. Scale thresholds/protection remain in 20B.2; remaining production preference wiring is deferred. The timing responsibilities are:
-
-| Parameter | Purpose |
-| --- | --- |
-| Scale preparation/transition | Time to establish the new shared mapping. |
-| Damage reveal and travel | Red motion and health movement. |
-| Damage pause/clear | Readability between contributions. |
-| Healing reveal and travel | Green recovery. |
-| Surplus-healing completion | Bounded feedback after cap arrival. |
-| Final clearance/settle | Return to the stable bar. |
-| Settled desktop numbers | Count directly from previous to next final after full bar completion. |
-| Easing by stage | Shape movement without changing authoritative values. |
-| Reduced-motion policy | Direct/shortened presentation with identical final data. |
+Use the current contract's timing values and configuration/offset locations. Movement duration uses maximum mapped endpoint travel across both players and orientations, rather than raw-health totals or the historical 35-health-unit threshold. The number tween and outcome fade are separately adjustable; only the number tail participates in overall completion. Live reduced motion settles immediately rather than shortening stages. The development replay hold is not used by production playback.
 
 Do not put unexplained timing literals into several components. Avoid duration proportional to every point of damage; extreme totals must not create extremely long turns. Evaluate elapsed time rather than assuming each frame/timer fires punctually.
 
@@ -958,16 +998,16 @@ Do not put unexplained timing literals into several components. Avoid duration p
 - Old callbacks must not overwrite a newer turn or another game.
 - Source-snapshot release is not controller cancellation. Accepted animation may continue into the next turn without changing authoritative holds, clocks or dice timing; newer resolution input supersedes instead of queuing.
 - Resize/remount and desktop/mobile switches must not trigger another resolution, sound or outcome announcement.
-- Terminal completion is signalled using captured canonical outcome; future finished-game integration must not add an authoritative hold or presentation deadlock.
+- Terminal completion is signalled using captured canonical outcome and the matching receipt after numbers; the visual outcome fade adds no hold or navigation gate.
 - Disabled/reduced motion reaches the same final state and paired completion safely; no controller operation advances authoritative phases.
 
 ### 13.4 Existing clocks, holds and other effects
 
 Preserve clock authority and pause semantics. Animation cannot earn players extra decision time or block an opponent according to whether a local preference is enabled.
 
-Audit existing turn-resolution overlay, Health Flash, health-number animation, sounds, fleet activations and next-dice timing. Decide which coexist, which need coordination and which are replaced. Do not layer every old and new effect indiscriminately.
+The 20B.7 audit found no demonstrated health integration defect requiring changes to the existing overlay, Health Flash, fleet effects, dice publication or sounds. These keep their existing keyed triggers and lifecycle owners; bar completion does not retrigger them. Both live layouts consume the shared bar controller's number stream, with settled/recovery numbers direct.
 
-Renaming Health Flash to Battle Effects, tying bar motion to it or adding a separate preference remains open. Bar information should remain available even if motion is disabled; the exact control policy is owner-reviewed.
+Health Flash retains its existing setting, name and separate effect lifecycle; it does not control bar motion. Live bars observe the existing reduced-motion media preference. Existing sound controls/cues remain unchanged. No new preference, sound addition or timing adjustment belongs to this pass.
 
 ## 14. Phase 20B — Health Bars passes
 
@@ -985,7 +1025,7 @@ Renaming Health Flash to Battle Effects, tying bar motion to it or adding a sepa
 
 **Acceptance:** scenarios in Appendix C produce coherent inputs; overheal recovery is correct; duplicate/polling paths identify the same resolution; historical missing data settles safely. No hidden projections leak.
 
-**Implemented 2026-10-22:** see the 20B.1 implementation record above for actual source eligibility, lifetime/release, cap provenance, fallback and validation. This does not complete 20B.2 or any later pass.
+**Implemented 2026-10-22:** see the historical 20B.1 validation record and the current contract for source eligibility, capture/release and compatibility. The subsequent approved 20B.5 correction supplies exact resolution-time metadata; older provenance limitations remain.
 
 ### 20B.2 — Shared scale and legend calculations
 
@@ -999,7 +1039,7 @@ Renaming Health Flash to Battle Effects, tying bar motion to it or adding a sepa
 
 **Acceptance:** mapping is monotonic, consistent for both players and exact at zero/caps; −300 does not squash positive health beyond its approved minimum; labels do not dictate geometry. Focused numerical tests cover threshold/extreme cases.
 
-**Implemented 2026-10-22:** pure shared scale/legend preparation, conditional piecewise-linear compression, independent label density and identity-based retention guard; see the implementation record above for API, policy and validation. 20B.3 static rendering and 20B.4 controller/gallery are subsequently implemented; live integration remains for 20B.5–20B.7.
+**Implemented 2026-10-22:** pure shared scale/legend preparation, conditional piecewise-linear compression, independent label density and identity-based retention guard. Both live integrations subsequently adopted these helpers. Current outward rounding, retained negative floor and bounded legend policy supersede the initial proposal; historical validation is preserved above.
 
 ### 20B.3 — Atomic bars and legend rendering
 
@@ -1007,13 +1047,13 @@ Renaming Health Flash to Battle Effects, tying bar motion to it or adding a sepa
 
 **Goal:** Render vertical/horizontal bars from explicit presentation state, without owning resolution scheduling.
 
-**Implemented scope:** reusable bar/legend/pair components and pure presentation geometry under `display/healthBars/`, focused display tests, static Graphics Test examples and this planning update. Existing live placeholders are unchanged.
+**Implemented scope at that checkpoint:** reusable bar/legend/pair components and pure presentation geometry under `display/healthBars/`, focused display tests, static Graphics Test examples and this planning update. Live adoption subsequently replaced the board placeholders.
 
 **Work:** tracks, fill, red/green overlays, zero/cap markers, differing maximums, compressed negative cue and surplus-healing visual treatment. Support inspection of named states in the existing suitable development surface if agreed; do not build a new framework.
 
 **Acceptance:** individual supplied animation-sheet states are representable at intended dimensions; values are not clipped or misleading; no timers/networking/rule calculations inside the atomic renderer.
 
-**Implemented 2026-10-22:** explicit independent red/green intervals, capped positive white fill, exact track/background geometry, persistent zero, shared legend and provisional cap/compression markers. The subsequent reference-keyframe refinement corrects handoffs, retained negative trails, persistent negative-final red and zero-anchored surplus; nine manually selected paired Graphics Test scenarios provide the reference states. Automated validation passed; owner visual review remains pending. See both 20B.3 implementation records above. 20B.4 subsequently adds controller/animated examples; live integration remains deferred.
+**Implemented 2026-10-22:** explicit independent red/green intervals, capped positive white fill, exact track/background geometry, persistent zero, shared legend and cap/compression markers. The subsequent reference-keyframe refinement corrects handoffs, retained negative trails, persistent negative-final red and zero-anchored surplus; nine manually selected paired Graphics Test scenarios provide the reference states. See historical validation records above and the current contract for subsequent live integration and owner-adjusted styling; final owner visual acceptance remains pending.
 
 ### 20B.4 — Dedicated multi-stage animation controller
 
@@ -1021,15 +1061,15 @@ Renaming Health Flash to Battle Effects, tying bar motion to it or adding a sepa
 
 **Goal:** Turn one resolved snapshot into a bounded, cancellable and coordinated sequence.
 
-**Implemented scope:** dedicated presentation controller/hook, pure sequence/scale-transition helpers, central timing configuration and animated Graphics Test examples. Live end-of-turn hook integration is explicitly deferred to 20B.5–20B.6; no `useGameSession.ts` restructuring.
+**Implemented scope at that checkpoint:** dedicated presentation controller/hook, pure sequence/scale-transition helpers, central timing configuration and animated Graphics Test examples. The later 20B.5–20B.6 passes implemented live adoption through existing session seams.
 
 **Work:** stage transitions, both-player coordination, no-op skipping, immutable snapshots, cancellation, progress, disabled/reduced motion and terminal completion signalling.
 
-**Confirmed keyframe requirements from 20B.3 refinements:** preserve the empty positive handoff; negative clearance ending exactly at zero; unchanged negative red behind green through target arrival; and zero-anchored surplus growth/return capped to actual unused healing and owner maximum. Only recovery finishing at zero or above uses target → retained-red removal → green-clearance boundaries, with a shared removal stage only when at least one player needs it. Negative-final players continuously preserve `finalHealth→0` red through any shared removal stage, green clearance, Healing cleared and Settled final; never empty the negative bar and restore red at settling. Trimming covered old red beneath completed green must not alter visible remaining red. Apply independently per player with one retained prepared scale per orientation. These confirmed relationships supersede blanket removal, generic overlap and travelling-window examples; do not reintroduce them while implementing timing/interpolation.
+**Current keyframe requirements:** use section 12.2 and the current contract: empty-green handoff, full negative red behind healing through target arrival, invisible covered-red trim without an extra timed stage, continuous final-negative red, and capped zero-anchored surplus extension/return. Historical blanket removal, generic overlap and travelling-window examples are superseded.
 
 **Acceptance:** one sequence per identity; identical logical stages for both orientations; deterministic time-based transitions; extreme values do not extend turns indefinitely. Tests cover skips, interruption, duplicates and terminal completion.
 
-**Implemented 2026-10-22:** controller/gallery and automated validation complete; owner visual review pending. See the 20B.4 record above. Static examples remain intact. Live bars, production deltas/main-number coordination and preferences remain unimplemented.
+**Implemented 2026-10-22:** controller/gallery and automated validation complete; 20B.4 subsequently visually reviewed by the owner. Static examples remain intact. Both live integrations and production delta/number coordination are implemented; current reduced-motion/effect policy is consolidated above. Final live owner visual acceptance remains pending.
 
 ### 20B.5 — Desktop live integration
 
@@ -1041,7 +1081,7 @@ Renaming Health Flash to Battle Effects, tying bar motion to it or adding a sepa
 
 **Acceptance:** live contributions and final health agree; no old/new counter competition; next dice, outcomes, popovers and fleet presentation follow the approved sequence. Mobile remains coherent until its integration pass.
 
-**Implemented 2026-10-22:** stable session controller ownership, capture/release continuity metadata, responsive desktop pair, final-to-final main numbers after bar completion, bar-completion deltas, responsive lower-row reservations and narrow terminal handoff after number completion. Automated validation passed; owner browser review pending. See the implementation records above. 20B.6 is subsequently implemented; remaining 20B.7 work is incomplete.
+**Implemented 2026-10-22:** stable session controller ownership, capture/release continuity metadata, responsive desktop pair, final-to-final main numbers after bar completion, bar-completion deltas, responsive lower-row reservations and narrow terminal handoff after number completion. Automated validation passed; owner browser review pending. See historical records and the current contract for subsequent mobile adoption, outcomes and owner styling.
 
 ### 20B.6 — Mobile live integration
 
@@ -1053,17 +1093,19 @@ Renaming Health Flash to Battle Effects, tying bar motion to it or adding a sepa
 
 **Acceptance:** the same resolution renders correctly horizontally; both bars/legend stay aligned; stats taps/popovers, clocks, existing dice/helpers and fleet interactions survive. Breakpoint transition does not replay the resolution.
 
-**Implemented 2026-10-22:** measured compact 14px/10px/14px pair (38px total), shared session playback and final-to-final numbers, complete upper/lower ownership mapping, paired completion deltas and presentation-only terminal handoff after the number tail. Automated validation passes; owner visual acceptance remains pending. See the 20B.6 implementation record and owner checklist above. Remaining 20B.7 work is incomplete.
+**Implemented 2026-10-22:** measured compact tracks/shared legend, shared session playback and final-to-final numbers, complete upper/lower ownership mapping, paired completion deltas and presentation-only terminal handoff after the number tail. The owner's subsequent **46px pair**, spacing and legend typography are specified in the current contract; the original 38px description is historical. Automated validation passes; final owner visual acceptance remains pending.
 
-### 20B.7 — Outcomes, lifecycle, preferences and tuning
+### 20B.7 — Health-bar audit, cleanup and consolidation
 
-**Type:** Client/UI Pass; a separate explicit Server/Mixed Pass if a proven timing-contract change is still required. **Dependency:** both live integrations.
+**Type:** Client/UI Pass. **Dependency:** both live integrations and terminal outcome letters implemented.
 
-**Goal:** Complete difficult cases and review the visual experience as a whole.
+**Goal:** Audit the complete health presentation lifecycle and consolidate the current specification without redesigning working behavior.
 
-**Work:** overheal/full-health sequences, changing maximums, zero/negative and narrow-victory/draw finishes, non-health finishes, spectator ordering, sparse histories, reconnect/background tabs, resize, reduced motion/preferences and old-effect coordination.
+**Work:** completed code/coverage inspection found no demonstrated production defect. Correct stale comments/test names and current-facing documentation; add targeted session coverage for reduced motion during terminal numbers and fresh-mount negative-floor rebuilding. Preserve owner geometry/spacing/offsets, Game Over placement, Graphics Test APIs, all interactions, existing effects and timing. No server, networking, gameplay, tooling, storage, preference or sound changes.
 
-**Acceptance:** Appendix C and the preservation matrix pass appropriate automated checks and owner runtime review; no replay loops, premature loss feedback or presentation deadlocks. Timing configuration and responsive decisions are documented for future tuning.
+**Implementation/audit acceptance:** scoped cleanup and required automated checks must finish before marking 20B.7 complete. Current contract and historical validation remain distinct. Final owner visual acceptance is independently pending; automation does not establish fidelity or pacing. Browser/Vite testing belongs to the owner. See the 20B.7 record above for actual results and the grouped owner checklist.
+
+**Completed 2026-10-23:** 20B.7 implementation/audit and required automated checks are complete. No production fixes were necessary. Final owner visual acceptance remains pending.
 
 ## 15. Validation and owner review
 
@@ -1101,9 +1143,9 @@ No single screenshot or all-passing unit suite establishes that the entire matri
 
 ## 16. Decisions and unresolved details
 
-This register is part of the plan and should be updated as passes are approved.
+This register reflects current decisions. Health-bar entries summarize or reference the current contract; dated implementation records preserve earlier decisions and validation.
 
-| ID | Topic | Initial status / decision | Settle by |
+| ID | Topic | Current status / decision | Review / owner |
 | --- | --- | --- | --- |
 | D01 | Phase order | Locked: 20A first; placeholders allowed; active bars in 20B. | Established |
 | D02 | Pixel calibration | Open: received extra-dice raster is 2048px wide; owner original is reported as 2241px. Intended CSS viewport/export scale not yet confirmed. | 20A.1–20A.2 measurements |
@@ -1116,16 +1158,16 @@ This register is part of the plan and should be updated as passes are approved.
 | D09 | Server extension | 20B.5 correction captures resolution-time finals/caps atomically with existing aggregate maps and exposes them through intent/full-state responses. Matching finalized history uses captured caps. Exact live capture survives next-turn fleet work without history. Older provenance remains unavailable. | Implemented in approved 20B.5 Mixed Pass; deployment/owner review pending |
 | D10 | Positive-space clamp | 20B.2 calculations implemented: independently configurable desktop/mobile minimum positive fraction, both initially 0.35; shared positive domain accommodates caps and positive starts/finals above baseline 35. | Live in desktop/mobile; owner visual acceptance pending |
 | D11 | Negative compression | 20B.2 calculations implemented: single linear scale until natural positive share falls below minimum, then continuous piecewise-linear negative compression. 20B.3 adds an external grey-50 double-slash cue; appearance remains provisional pending owner review. | Calculations/rendering implemented; visual review pending |
-| D12 | Scale retention | Session-owned negative floor deepens from complete accepted paired facts or valid selected settled fallback and never contracts within the mounted game. All preparation paths receive it; same-game recovery keeps only the floor while clearing stale playback/receipts. Different games reset it. Positive bounds may contract; contributions retain frozen mappings. Settled cap/health reconciliation and delta suppression retain their existing ownership. | Desktop/mobile refinement implemented; owner visual acceptance pending; 20B.7 incomplete |
+| D12 | Scale retention | Mounted-game negative floor deepens only from accepted paired facts or selected settled fallbacks; all preparation paths receive it. Same-game recovery retains only the floor while clearing playback/receipts; different games reset it. Full reload rebuilds from current facts without storage/replay. Positive bounds remain responsive. See current contract for reconciliation/delta ownership. | Implemented; owner visual acceptance pending |
 | D13 | Counter behaviour | Refined 20B.5 policy adopted by 20B.6 mobile: numbers hold previous authoritative finals through all bar motion, then count directly to captured next finals using the same controller and easing; round only text. Overall presentation completion waits for this tail; deltas reveal at bar completion. Settled/recovery numbers are direct; reduced motion is immediate. | Desktop/mobile implemented; owner visual acceptance pending |
 | D14 | Overheal | Zero-anchored, capped surplus extension/return implemented by 20B.4; white remains supplied final/capped health and mapping never expands for unused healing. Desktop/mobile numbers hold previous finals through surplus return, then update; paired deltas reveal at bar completion. | Desktop/mobile integrated; owner visual acceptance pending |
-| D15 | Animation timings | Implemented central settings: mapped-travel clamp 700–1400ms, conditional 200ms handover, 350ms scale transition, 0ms extra settle, actual cubic-bezier(0.7, 0, 0.3, 1). Shared desktop/mobile settled-number tail 300ms via `settledNumberTweenMs`; development hold 1200ms separate. Raw-health threshold superseded. Playback may continue into next turn without changing authoritative timing. | Controller complete; visual tuning pending |
-| D16 | Preferences | Controller/gallery support disabled/reduced motion; 20B.5 live ownership also observes reduced motion. Existing Health Flash purpose and sound ownership are unchanged; no new preference or rename. Remaining preference/sound decisions stay deferred. | Remaining work 20B.7 |
-| D17 | Outcome markers | Separate terminal-letter feature implemented: canonical `V/L`, `NV/NL`, `D/D`, validated by reason/result/player identity without health inference. Session-owned paired 400ms fade follows bars and numbers; loading/recovery/reduced motion settle immediately. Zero-relative light/dark lettering and full accessible meanings preserve dimensions and completion timing. Persistent final-negative red remains unchanged. | Feature implemented; owner placement/contrast/fade acceptance and broader 20B.7 cleanup pending |
-| D18 | Placeholder treatment | Phase A used neutral tracks/blank lanes: desktop 24px tracks and 56px lane; mobile 12px tracks/lane. Superseded in live board views by 20B.5/20B.6; unavailable mobile presentation reserves the active 14px/10px/14px footprint. | Historical Phase A; live integration implemented |
+| D15 | Animation timings | Central movement/scale/handover/number/fade settings and owner-tunable offset locations are listed in the current contract. The 300ms number tail participates in completion; the 400ms letter fade does not. Playback may continue into the next turn without changing authoritative timing. No 20B.7 retuning. | Implemented; owner pacing acceptance pending |
+| D16 | Preferences | Live desktop/mobile observe reduced motion and settle immediately, including during playback. Gallery retains existing disabled/reduced-motion controls. Health Flash remains separately controlled and named; existing sound controls/cues are unchanged. No new preference, rename or sound work is required by 20B.7. | Policy consolidated; owner visual acceptance pending |
+| D17 | Outcome markers | Canonical `V/L`, `NV/NL`, `D/D` and paired visual-only 400ms reveal are implemented. Current zero-relative offsets are 8px, with bold 12px desktop / 9px mobile lettering. See current contract for validation, contrast, accessibility and recovery policy. | Implemented; owner placement/contrast/fade acceptance pending |
+| D18 | Placeholder treatment | Phase A placeholder requirements are historical. Live bars are integrated; unavailable mobile presentation reserves the current 46px wrapper and retains its neutral fallback. Species selection retains its existing divider. | Implemented; owner visual acceptance pending |
 | D19 | Desktop numeric typography and refs | Exact 20A.7 tiers/line-height 1 and explicit board/bar refs implemented and automated checks passed; final owner visual acceptance pending. | 20A.7 |
-| D20 | Active bar geometry | Desktop vertical, inner width 24px / padding 2px per side / outer width 28px; 20B.5 measures the flexible outer region and supplies inner height minus 4px. Desktop full-opacity gradient remains grey-90 at 0%, #101010 at 80% through 100%. Mobile live pair: 10px inner / 14px outer tracks, 10px shared legend, 38px total without internal gaps, flat grey-90; shared inner axis is measured left-column width minus 4px. | Desktop/mobile integrated; owner visual acceptance pending |
-| D21 | Mapping and zero reference | 20B.2 mapping and 20B.3 rendering implemented: shared mapping, persistent white 3px zero above colours across the full interior, padding-aligned grey-50 legend at 12px desktop / 10px mobile, regular weight and line-height 1. Live mobile compact labels omit vertical padding. Edge marker rectangle shifts inward without changing the scale. | Live integration implemented; owner visual acceptance pending |
+| D20 | Active bar geometry | Use the current contract's geometry/typography table: desktop 24px inner / 28px outer tracks with owner-responsive legend widths; mobile 46px pair including existing gaps/padding, 14px tracks and 10px legend lane. Responsive axis measurements, backgrounds and surrounding layout are preserved. | Desktop/mobile integrated; owner visual acceptance pending |
+| D21 | Mapping and zero reference | Shared mapping, persistent white 3px zero above colors/letters across the full interior, and padding-aligned grey-50 legends. Desktop labels are 12px regular; mobile labels are 9px medium with no compact vertical padding. Edge marker rectangle shifts inward without changing the scale. | Implemented; owner visual acceptance pending |
 | D22 | Snapshot lifetime and provenance | Exact aggregate-time metadata plus a live intent/adjacent observation establishes immutable paired capture without history. Source release and N+1 DTO updates do not cancel accepted playback. Bootstrap/refresh/recovery and persisted metadata alone never initiate historical replay. Older next-turn payloads without provenance settle. | 20B.5 correction |
 | D23 | Contribution keyframes | 20B.4 continuous sequence agrees with corrected static boundaries: empty nonnegative handoff, full negative red behind growing green, invisible covered-red trimming at target, continuous finalHealth→0 red through clearance/settling for negative finals. Rules apply independently per player. | Controller complete; visual review pending |
 
@@ -1147,6 +1189,8 @@ Implementation and automated validation are complete through 20A.7. The owner-re
 - Exact 20A.7 desktop numeric tiers use line-height 1; both layout-selector dependencies use explicit owner refs, with automated behavioural coverage.
 
 ### Phase 20B complete
+
+Implementation/audit status is recorded separately in the 20B.7 entry above. Final owner visual acceptance remains pending; passing automated checks alone does not complete the runtime/design review criteria below.
 
 - Coherent authoritative resolution inputs available without duplicated rule authority.
 - Shared legend handles increased caps, negative excursions and protected positive space.
@@ -1246,8 +1290,8 @@ Unimplemented entries remain proposals, not claimed pixel-perfect readings. The 
 | Element | Initial proposal | Class | Review |
 | --- | --- | --- | --- |
 | Desktop bar track | Vertical; inner width 24px, dark-grey padding 2px per side, outer width 28px; white fill, red/green transient layers | A geometry / P remaining treatment | 20B.3; use existing palette tokens. |
-| Desktop legend text | 12 CSS px, regular weight, line-height 1, grey-50; fit labels by density | P | 20B.3 implemented; owner visual review pending. |
-| Mobile legend text | 10 CSS px, regular weight, line-height 1, grey-50 | P | 20B.3 implemented; owner visual review pending. |
+| Desktop legend text | 12 CSS px, regular weight, line-height 1, grey-50 with black label backgrounds | A current code | See current contract for responsive lane widths; owner visual acceptance pending. |
+| Mobile legend text | 9 CSS px, medium weight, line-height 1, grey-50 | A current code | Supersedes initial 10px regular text; owner visual acceptance pending. |
 | Desktop current contribution | 20/24/28px at small/medium/large tiers, bold | A | 20A.7; retained matching implementation. |
 | Desktop last contribution | 14/16/20px, opacity 0.66 | A | 20A.7; centred against health number, excluding delta. |
 | Desktop economy | Saved/Bonus 20/24/28px; labels remain 11/12/12px | A | 20A.7; includes ordinary/joining/Centaur categories. |
@@ -1267,7 +1311,7 @@ Reference: `image(20261020-235250).png`, 360 × 800. Treat as a 360px design ref
 | Shared legend | Between bars, around y=271–278 | R |
 | Lower bar | Roughly x=16–272, y=285–297 | R |
 | Bar thickness | Owner-confirmed inner height 10px, dark-grey padding 2px per side, outer height 14px | A; replaces provisional active-bar thickness; 20B.1 documentation only |
-| Live compact pair | 14px upper track + 10px shared legend + 14px lower track = 38px, without internal gaps | A; 20B.6 implemented, owner visual acceptance pending |
+| Live compact pair | 46px: 14px upper track + 3px gap + 10px legend + 3px gap + 14px lower track + 1px top/bottom padding | A current owner layout; supersedes historical 38px pair; visual acceptance pending |
 | Bar/legend width | Approximately 256px at this reference width | R; responsive available width, not global constant |
 | Die/clock column | Existing 56px column and 52px die | E; preserve functional placement |
 | Requester identity row | Below bars, around y=306 onward | R |
