@@ -27,6 +27,7 @@ export interface ShipEffectAnimationProps {
   sourceIcon: ReactNode;
   sourcePreviewScaleMultiplier?: number;
   onImpact?: () => void;
+  onComplete?: () => void;
 }
 
 /** Presentation only. The caller supplies the target and activation, never rules. */
@@ -37,12 +38,15 @@ export function ShipEffectAnimation({
   sourceIcon,
   sourcePreviewScaleMultiplier = 1,
   onImpact,
+  onComplete,
 }: ShipEffectAnimationProps) {
   const targetRef = useRef<HTMLDivElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLDivElement>(null);
   const rotationRef = useRef<{ key: string | number; angle: number } | null>(null);
   const onImpactRef = useRef(onImpact);
+  const onCompleteRef = useRef(onComplete);
+  const lastCompleteKeyRef = useRef<string | number | null>(null);
   const lastImpactKeyRef = useRef<string | number | null>(null);
   const prefersReducedMotion = usePrefersReducedMotion();
   const hasSourceIcon = sourceIcon != null && sourceIcon !== false;
@@ -50,12 +54,14 @@ export function ShipEffectAnimation({
 
   useLayoutEffect(() => {
     onImpactRef.current = onImpact;
+    onCompleteRef.current = onComplete;
   });
 
   useLayoutEffect(() => {
     if (activationKey === null) {
       rotationRef.current = null;
       lastImpactKeyRef.current = null;
+      lastCompleteKeyRef.current = null;
       return;
     }
 
@@ -64,6 +70,11 @@ export function ShipEffectAnimation({
     if (!target || !glow) return;
 
     const timing = SHIP_EFFECT_TIMING;
+    const completeTimeout = window.setTimeout(() => {
+      if (lastCompleteKeyRef.current === activationKey) return;
+      lastCompleteKeyRef.current = activationKey;
+      onCompleteRef.current?.();
+    }, timing.durationMs);
     const animations: Animation[] = [];
     const startTime = document.timeline.currentTime;
     const animate = (
@@ -139,6 +150,7 @@ export function ShipEffectAnimation({
     }
 
     return () => {
+      window.clearTimeout(completeTimeout);
       if (impactTimeout !== undefined) window.clearTimeout(impactTimeout);
       for (const animation of animations) animation.cancel();
     };

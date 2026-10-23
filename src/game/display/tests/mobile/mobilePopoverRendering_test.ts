@@ -305,6 +305,28 @@ describe('mobile health playback and interaction integration', () => {
     playback.controller.dispose();
   });
 
+  it('defers mobile result takeovers for ship effects even without a health animation', () => {
+    globals();
+    const playback = liveHealth('one', 'two', false, true);
+    const config = input(playback);
+    config.healthBarPresentation = null;
+    config.actionPanelVm = { ...config.actionPanelVm, terminalPresentationPending: true, endOfGame: {
+      bannerText: 'Game Over', bannerBgCssVar: 'var(--shapeships-grey-50)',
+      metaLeftText: '', metaRightText: '', rematchHelperText: '',
+    } };
+    const read = () => render(() => MobileGameLayout(config));
+    read(); let tree = read();
+    expect(find(tree, MobileTopNav).props.isGameOver).toBe(true);
+    const panel = find(tree, MobileActionPanel);
+    expect(find(MobileActionPanel(panel.props), MobileEndOfGameActionPanel)).toBeUndefined();
+    find(tree, MobileTopNav).props.onOpenMenu(); tree = read();
+    expect(find(tree, MobileEndOfGameMenuTakeover)).toBeUndefined();
+    config.actionPanelVm = { ...config.actionPanelVm, terminalPresentationPending: false };
+    tree = read();
+    expect(find(tree, MobileEndOfGameMenuTakeover)).toBeDefined();
+    playback.controller.dispose();
+  });
+
   it('defers mobile finished-panel fallback through the number tail and keeps Missions manual', () => {
     globals();
     const playback = liveHealth('one', 'two', false, true); const config = input(playback);

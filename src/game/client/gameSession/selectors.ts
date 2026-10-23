@@ -69,12 +69,66 @@ export type ShipActivationCueSource = {
   sourceInstanceId: string;
 };
 
+/** Presentation DTO mirrored from the server; never inferred from fleet diffs. */
+export type ResolvedActivationOutcome = {
+  playerId: string;
+  kind: 'destroy' | 'steal' | 'copy';
+  source:
+    | { type: 'ship'; instanceId: string; shipDefId: string; effectId: string }
+    | { type: 'solar'; solarPowerId: 'SBLA'; ledgerEntryId: string; effectId: string }
+    | { type: 'solar'; solarPowerId: 'SSIM'; ledgerEntryId: string; pendingCopyId: string;
+        trigger?: { kind: 'cube_destruction'; sourceShipInstanceId: string; sourceEffectId: string } };
+  targets: Array<{ playerId: string; shipInstanceId: string; destinationPlayerId?: string }>;
+};
+
+export function getResolvedOutcomeIdentity(outcome: ResolvedActivationOutcome): string {
+  const source = outcome.source;
+  return JSON.stringify([outcome.playerId, outcome.kind, source.type,
+    source.type === 'solar' && source.solarPowerId === 'SSIM' ? source.pendingCopyId : source.effectId]);
+}
+
+function normalizeResolvedOutcomes(value: unknown): ResolvedActivationOutcome[] {
+  if (!Array.isArray(value)) return [];
+  const id = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
+  const record = (v: unknown): v is Record<string, any> => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const seen = new Set<string>();
+  const results: ResolvedActivationOutcome[] = [];
+  for (const raw of value) {
+    if (!record(raw) || !id(raw.playerId) || !record(raw.source)) continue;
+    const s = raw.source;
+    let source: ResolvedActivationOutcome['source'];
+    if (s.type === 'ship' && ['destroy', 'steal'].includes(raw.kind) &&
+        id(s.instanceId) && id(s.shipDefId) && id(s.effectId)) {
+      source = { type: 'ship', instanceId: s.instanceId, shipDefId: s.shipDefId, effectId: s.effectId };
+    } else if (s.type === 'solar' && s.solarPowerId === 'SBLA' && raw.kind === 'destroy' &&
+        id(s.ledgerEntryId) && id(s.effectId)) {
+      source = { type: 'solar', solarPowerId: 'SBLA', ledgerEntryId: s.ledgerEntryId, effectId: s.effectId };
+    } else if (s.type === 'solar' && s.solarPowerId === 'SSIM' && raw.kind === 'copy' &&
+        id(s.ledgerEntryId) && id(s.pendingCopyId)) {
+      const t = s.trigger;
+      if (t !== undefined && (!record(t) || t.kind !== 'cube_destruction' ||
+          !id(t.sourceShipInstanceId) || !id(t.sourceEffectId))) continue;
+      source = { type: 'solar', solarPowerId: 'SSIM', ledgerEntryId: s.ledgerEntryId, pendingCopyId: s.pendingCopyId,
+        ...(t ? { trigger: { kind: 'cube_destruction', sourceShipInstanceId: t.sourceShipInstanceId, sourceEffectId: t.sourceEffectId } } : {}) };
+    } else continue;
+    if (!Array.isArray(raw.targets) || raw.targets.length === 0 || raw.targets.some((t: unknown) =>
+      !record(t) || !id(t.playerId) || !id(t.shipInstanceId) || (raw.kind === 'steal' && !id(t.destinationPlayerId)))) continue;
+    const outcome: ResolvedActivationOutcome = { playerId: raw.playerId, kind: raw.kind, source,
+      targets: raw.targets.map((t: ResolvedActivationOutcome['targets'][number]) => ({ playerId: t.playerId,
+        shipInstanceId: t.shipInstanceId, ...(raw.kind === 'steal' ? { destinationPlayerId: t.destinationPlayerId } : {}) })) };
+    const identity = getResolvedOutcomeIdentity(outcome);
+    if (!seen.has(identity)) { seen.add(identity); results.push(outcome); }
+  }
+  return results;
+}
+
 export type ShipActivationCueBatch = {
   key: string;
   turnNumber: number;
   phaseKey: string;
   seq: number;
   sources: ShipActivationCueSource[];
+  resolvedOutcomes?: ResolvedActivationOutcome[];
 };
 
 function normalizeShipActivationCueBatches(
@@ -123,13 +177,15 @@ function normalizeShipActivationCueBatches(
       });
     }
 
-    if (sources.length === 0) continue;
+    const resolvedOutcomes = normalizeResolvedOutcomes(rawBatch.resolvedOutcomes);
+    if (sources.length === 0 && resolvedOutcomes.length === 0) continue;
     batches.push({
       key: rawBatch.key,
       turnNumber: rawBatch.turnNumber,
       phaseKey: rawBatch.phaseKey,
       seq: rawBatch.seq,
       sources,
+      ...(resolvedOutcomes.length ? { resolvedOutcomes } : {}),
     });
   }
 
@@ -151,7 +207,8 @@ export function getShipActivationCueBatches(
 
   return [
     ...normalizeShipActivationCueBatches(rawPublicBatches),
-    ...normalizeShipActivationCueBatches(rawRequesterBatches),
+    // Requester feedback is source-only, even if a malformed/private DTO adds outcomes.
+    ...normalizeShipActivationCueBatches(rawRequesterBatches).map(({ resolvedOutcomes: _outcomes, ...batch }) => batch),
   ];
 }
 

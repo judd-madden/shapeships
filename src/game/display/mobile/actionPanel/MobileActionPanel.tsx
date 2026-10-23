@@ -223,7 +223,8 @@ export function MobileActionPanel({
     );
   }
 
-  if ((!terminalHealthBarPresentationPending && vm.endOfGame != null) || vm.activePanelId === 'ap.end_of_game.result') {
+  if (!terminalHealthBarPresentationPending && !vm.terminalPresentationPending &&
+      (vm.endOfGame != null || vm.activePanelId === 'ap.end_of_game.result')) {
     return renderWithHealthOverlay(
       <MobileEndOfGameActionPanel
         endOfGame={vm.endOfGame ?? END_OF_GAME_FALLBACK}

@@ -797,6 +797,10 @@ export function BoardStage({
         order={vm.myFleetRenderOrder}
         species={mySpeciesKey}
         animTokens={vm.fleetAnim.my}
+        shipEffects={vm.shipEffects?.my}
+        retainedShipRenderKeys={vm.retainedShipRenderKeys?.my}
+        onShipEffectImpact={actions.onShipEffectImpact}
+        onShipEffectComplete={actions.onShipEffectComplete}
         flipEnabled={vm.mode === 'board'}
         side="my"
         activationIndexMap={vm.activationStaggerPlan?.myIndexByShipId}
@@ -831,6 +835,10 @@ export function BoardStage({
         order={vm.opponentFleetRenderOrder} 
         species={opponentSpeciesKey}
         animTokens={vm.fleetAnim.opponent}
+        shipEffects={vm.shipEffects?.opponent}
+        retainedShipRenderKeys={vm.retainedShipRenderKeys?.opponent}
+        onShipEffectImpact={actions.onShipEffectImpact}
+        onShipEffectComplete={actions.onShipEffectComplete}
         flipEnabled={vm.mode === 'board'}
         side="opponent"
         activationIndexMap={vm.activationStaggerPlan?.opponentIndexByShipId}

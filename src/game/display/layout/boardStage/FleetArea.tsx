@@ -3,6 +3,7 @@ import type { FleetAreaHealthDeltaFlashVm } from '../../../client/useGameSession
 import type {
   AncientSolarDisplayEntry,
   BoardTargetSelectedTone,
+  BoardShipEffectVm,
 } from '../../../client/gameSession/types';
 import { getShipDefinitionUI } from '../../../data/ShipDefinitionsUI';
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
@@ -16,6 +17,7 @@ import {
   getTargetingVisualState,
 } from '../../graphics/animation';
 import { resolveShipGraphic } from '../../graphics/resolveShipGraphic';
+import { ShipEffectAnimation } from '../../graphics/ShipEffectAnimation';
 import { useFlipLayout } from '../../graphics/useFlipLayout';
 import { FitToBox } from './FitToBox';
 import { FleetAreaHealthDeltaFlash } from './FleetAreaHealthDeltaFlash';
@@ -257,6 +259,10 @@ function ShipStack({
   onFleetHoverEnter,
   onFleetHoverLeave,
   onFleetShipTap,
+  effect,
+  retained = false,
+  onShipEffectImpact,
+  onShipEffectComplete,
 }: { 
   ship: FleetStackVm;
   animToken?: ShipAnimToken;
@@ -268,6 +274,10 @@ function ShipStack({
   onFleetHoverEnter?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
   onFleetHoverLeave?: (shipId: ShipDefId) => void;
   onFleetShipTap?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
+  effect?: BoardShipEffectVm;
+  retained?: boolean;
+  onShipEffectImpact?: (key: string) => void;
+  onShipEffectComplete?: (key: string, instanceId: string) => void;
 }) {
   const shipDefId = ship.shipDefId as ShipDefId;
   const def = getShipDefinitionUI(shipDefId);
@@ -292,7 +302,9 @@ function ShipStack({
     : null;
 
   const ShipGraphic = resolvedGraphic?.component;
-  const targetingVisualState = isVoid ? null : getTargetingVisualState(targetState);
+  const targetingVisualState = isVoid || retained ? null : getTargetingVisualState(targetState);
+  const effectSourceDef = effect?.sourceShipDefId ? getShipDefinitionUI(effect.sourceShipDefId as ShipDefId) : undefined;
+  const EffectSourceGraphic = effectSourceDef ? resolveShipGraphic(effectSourceDef, { context: 'default' })?.component : undefined;
   const previewDef =
     !isVoid && previewShipDefId ? getShipDefinitionUI(previewShipDefId) : undefined;
   const previewGraphic = previewDef
@@ -303,7 +315,7 @@ function ShipStack({
   
   // Enable hover activation for ships with animation presets (Human + Xenite + Centaur ships)
   const enableHover =
-    !isVoid &&
+    !isVoid && !retained &&
     ['DEF', 'FIG', 'INT', 'COM', 'ORB', 'CAR', 'STA', 'FRI', 'TAC', 'GUA', 'SCI', 'BAT', 'EAR', 'DRE', 'LEV', 'XEN', 'OXI', 'AST', 'ANT', 'MAN', 'EVO', 'HEL', 'BUG', 'ZEN', 'DSW', 'AAR', 'OXF', 'ASF', 'SAC', 'QUE', 'CHR', 'HVE', 'FEA', 'ANG', 'EQU', 'WIS', 'VIG', 'FAM', 'LEG', 'TER', 'FUR', 'KNO', 'ENT', 'RED', 'POW', 'DES', 'DOM'].includes(ship.shipDefId);
 
   const showCount = ship.count > 1;
@@ -345,7 +357,7 @@ function ShipStack({
           >
             <ShipAnimationWrapper 
               shipDefId={shipDefId} 
-              token={animToken}
+              token={retained ? undefined : animToken}
               enableHoverActivation={enableHover}
               activationDelayMs={activationDelayMs}
             >
@@ -368,7 +380,15 @@ function ShipStack({
                     : undefined
                 }
               >
-                {ShipGraphic ? (
+                {effect ? (
+                  <ShipEffectAnimation effect={effect.kind} activationKey={effect.activationKey}
+                    sourceIcon={EffectSourceGraphic ? <EffectSourceGraphic /> : null}
+                    sourcePreviewScaleMultiplier={effect.sourceShipDefId === 'DOM' ? DOM_TARGETING_PREVIEW_SCALE_MULTIPLIER : 1}
+                    onImpact={() => onShipEffectImpact?.(effect.activationKey)}
+                    onComplete={() => onShipEffectComplete?.(effect.activationKey, effect.instanceId)}>
+                    {ShipGraphic ? <ShipGraphic /> : <span className="text-sm text-white">{ship.shipDefId}</span>}
+                  </ShipEffectAnimation>
+                ) : ShipGraphic ? (
                   <ShipGraphic />
                 ) : (
                   <span className={cx('text-sm text-white')}>{ship.shipDefId}</span>
@@ -527,6 +547,10 @@ export function FleetArea({
   voidFitMaxScale = 0.6,
   liveRowOverrides,
   overlay,
+  shipEffects,
+  retainedShipRenderKeys = [],
+  onShipEffectImpact,
+  onShipEffectComplete,
 }: {
   title: string;
   ships?: FleetStackVm[];
@@ -563,6 +587,10 @@ export function FleetArea({
   voidFitMaxScale?: number;
   liveRowOverrides?: FleetRowOverrides;
   overlay?: ReactNode;
+  shipEffects?: Record<string, BoardShipEffectVm>;
+  retainedShipRenderKeys?: string[];
+  onShipEffectImpact?: (key: string) => void;
+  onShipEffectComplete?: (key: string, instanceId: string) => void;
 }) {
   const rowSets = ROW_SETS_BY_SPECIES[species];
   const grouped =
@@ -651,8 +679,9 @@ export function FleetArea({
     getLiveFlipRef: LiveFlipRefGetter = getStackedFlipRef
   ) => {
     const targetState = displayMode === 'live' ? targetStatesByStackKey?.[ship.stackKey] : undefined;
-    const isTargetable = targetState?.isTargetable === true;
-    const canInspectFleetShip = displayMode === 'live' && !isTargetable && Boolean(onFleetShipTap);
+    const retained = displayMode === 'live' && retainedShipRenderKeys.includes(ship.renderKey);
+    const isTargetable = !retained && targetState?.isTargetable === true;
+    const canInspectFleetShip = displayMode === 'live' && !retained && !isTargetable && Boolean(onFleetShipTap);
 
     return (
       <div
@@ -683,14 +712,18 @@ export function FleetArea({
       >
         <ShipStack 
           ship={ship}
+          effect={displayMode === 'live' ? shipEffects?.[ship.renderKey] : undefined}
+          retained={retained}
+          onShipEffectImpact={onShipEffectImpact}
+          onShipEffectComplete={onShipEffectComplete}
           animToken={displayMode === 'live' ? animTokens?.[ship.renderKey] : undefined}
           activationIndexMap={displayMode === 'live' ? activationIndexMap : undefined}
           targetState={targetState}
           previewShipDefId={displayMode === 'live' ? previewShipDefIdByStackKey?.[ship.stackKey] : undefined}
           targetingGlowScale={displayMode === 'live' ? targetingGlowScale : undefined}
           displayMode={displayMode}
-          onFleetHoverEnter={displayMode === 'live' ? onFleetHoverEnter : undefined}
-          onFleetHoverLeave={displayMode === 'live' ? onFleetHoverLeave : undefined}
+          onFleetHoverEnter={displayMode === 'live' && !retained ? onFleetHoverEnter : undefined}
+          onFleetHoverLeave={displayMode === 'live' && !retained ? onFleetHoverLeave : undefined}
           onFleetShipTap={canInspectFleetShip ? onFleetShipTap : undefined}
         />
       </div>

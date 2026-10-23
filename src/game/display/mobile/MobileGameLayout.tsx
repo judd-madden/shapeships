@@ -196,9 +196,9 @@ export function MobileGameLayout({
       : 'reference';
   const simulacrumSpecies = resolveAncientSimulacrumSpecies(boardVm);
   const terminalHealthBarPresentationPending = healthBarPresentation?.sequence?.snapshot.outcome.isTerminal === true &&
-    !healthBarPresentation.presentationComplete;
-  const isEndGamePanel = actionPanelVm.activePanelId === 'ap.end_of_game.result' ||
-    (actionPanelVm.endOfGame != null && !terminalHealthBarPresentationPending);
+    !healthBarPresentation.presentationComplete || actionPanelVm.terminalPresentationPending === true;
+  const isEndGamePanel = !terminalHealthBarPresentationPending && (actionPanelVm.activePanelId === 'ap.end_of_game.result' ||
+    actionPanelVm.endOfGame != null);
   const isGameOver = actionPanelVm.endOfGame != null;
   const isMissionIntroPending = missionChallenge?.introPending === true;
   const shouldShowInitialMission = Boolean(
@@ -530,6 +530,7 @@ export function MobileGameLayout({
     setMissionReferenceShipId(shipId);
   }, [isMissionOverlayVisible]);
   const shouldShowEndGameStatsTakeover =
+    !terminalHealthBarPresentationPending &&
     activeTakeover === 'menu' &&
     actionPanelVm.endOfGame != null &&
     isGameStatsOpen &&
@@ -886,6 +887,8 @@ export function MobileGameLayout({
               onFirstTurnBuildHelperDismiss={onFirstTurnBuildHelperDismiss}
               onFleetShipInspect={handleFleetShipInspect}
               onBoardBackgroundMouseDown={actions.onBoardBackgroundMouseDown}
+              onShipEffectImpact={actions.onShipEffectImpact}
+              onShipEffectComplete={actions.onShipEffectComplete}
               onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
               onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
               topHealthAnchorRef={topHealthAnchorRef}
@@ -962,7 +965,7 @@ export function MobileGameLayout({
                 onDownloadBattleLog={actions.onDownloadBattleLog}
                 onClose={handleReturnToBoard}
               />
-            ) : actionPanelVm.endOfGame != null ? (
+            ) : actionPanelVm.endOfGame != null && !terminalHealthBarPresentationPending ? (
               <MobileEndOfGameMenuTakeover
                 endOfGame={actionPanelVm.endOfGame}
                 winStreak={winStreak}

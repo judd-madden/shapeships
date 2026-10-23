@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { getSoundManifestEntry, type SoundCueId } from './soundManifest';
+import type { ShipEffectAudioVm } from '../gameSession/types';
 
 type CuePlayKey = string | number;
 
@@ -8,6 +9,7 @@ interface UseGameSoundArgs {
   active: boolean;
   diceAnimateKey: number;
   voidShipInstanceIds?: string[];
+  shipEffects?: ShipEffectAudioVm;
 }
 
 export function useGameSound({
@@ -15,6 +17,7 @@ export function useGameSound({
   active,
   diceAnimateKey,
   voidShipInstanceIds,
+  shipEffects,
 }: UseGameSoundArgs): void {
   const audioByCueIdRef = useRef<Partial<Record<SoundCueId, HTMLAudioElement>>>({});
   const scheduledCueTimeoutByCueIdRef = useRef<Partial<Record<SoundCueId, number>>>({});
@@ -24,6 +27,10 @@ export function useGameSound({
   const observedVoidShipIdsRef = useRef<Set<string>>(new Set());
   const hasSeededVoidShipIdsRef = useRef(false);
   const unlockReadyRef = useRef(false);
+  const scheduledOwnerByCueRef = useRef<Partial<Record<SoundCueId, 'effect' | 'ordinary'>>>({});
+  const playingOwnerByCueRef = useRef<Partial<Record<SoundCueId, 'effect' | 'ordinary'>>>({});
+  const effectScopeRef = useRef<string | null>(null);
+  const observedEffectImpactRef = useRef<string | null>(null);
 
   function getOrCreateAudio(cueId: SoundCueId): HTMLAudioElement | null {
     const existingAudio = audioByCueIdRef.current[cueId];
@@ -48,6 +55,7 @@ export function useGameSound({
     }
     scheduledCueTimeoutsRef.current.clear();
     scheduledCueTimeoutByCueIdRef.current = {};
+    scheduledOwnerByCueRef.current = {};
   }
 
   function stopCue(cueId: SoundCueId): void {
@@ -117,7 +125,7 @@ export function useGameSound({
     }
   }
 
-  function scheduleCue(cueId: SoundCueId, playKey: CuePlayKey, delayMs: number): void {
+  function scheduleCue(cueId: SoundCueId, playKey: CuePlayKey, delayMs: number, owner: 'effect' | 'ordinary' = 'ordinary'): void {
     const existingTimeoutId = scheduledCueTimeoutByCueIdRef.current[cueId];
     if (existingTimeoutId !== undefined) {
       window.clearTimeout(existingTimeoutId);
@@ -127,6 +135,7 @@ export function useGameSound({
     const timeoutId = window.setTimeout(() => {
       scheduledCueTimeoutsRef.current.delete(timeoutId);
       delete scheduledCueTimeoutByCueIdRef.current[cueId];
+      delete scheduledOwnerByCueRef.current[cueId];
 
       if (!enabled || !active) {
         return;
@@ -142,6 +151,7 @@ export function useGameSound({
       }
 
       lastPlayedKeyByCueIdRef.current[cueId] = playKey;
+      playingOwnerByCueRef.current[cueId] = owner;
 
       try {
         audio.pause();
@@ -156,6 +166,7 @@ export function useGameSound({
     }, delayMs);
 
     scheduledCueTimeoutByCueIdRef.current[cueId] = timeoutId;
+    scheduledOwnerByCueRef.current[cueId] = owner;
     scheduledCueTimeoutsRef.current.add(timeoutId);
   }
 
@@ -214,18 +225,45 @@ export function useGameSound({
   }, [active, diceAnimateKey, enabled]);
 
   useEffect(() => {
-    if (!active || voidShipInstanceIds === undefined) {
+    if (effectScopeRef.current === (shipEffects?.scopeKey ?? null)) return;
+    effectScopeRef.current = shipEffects?.scopeKey ?? null;
+    // Recovery owns only effect-originated destroy audio, never dice or fallback cues.
+    if (scheduledOwnerByCueRef.current.destroy === 'effect') {
+      const timer = scheduledCueTimeoutByCueIdRef.current.destroy;
+      if (timer !== undefined) { window.clearTimeout(timer); scheduledCueTimeoutsRef.current.delete(timer); }
+      delete scheduledCueTimeoutByCueIdRef.current.destroy;
+      delete scheduledOwnerByCueRef.current.destroy;
+    }
+    if (playingOwnerByCueRef.current.destroy === 'effect') {
+      stopCue('destroy');
+      delete playingOwnerByCueRef.current.destroy;
+    }
+  }, [shipEffects?.scopeKey]);
+
+  useEffect(() => {
+    const impactKey = shipEffects?.impactKey ?? null;
+    const previous = observedEffectImpactRef.current;
+    observedEffectImpactRef.current = impactKey;
+    if (impactKey === previous) return;
+    if (active && enabled && shipEffects && !shipEffects.baseline && impactKey) {
+      scheduleCue('destroy', `effect:${shipEffects.scopeKey}:${impactKey}`, 0, 'effect');
+    }
+  }, [active, enabled, shipEffects?.scopeKey, shipEffects?.impactKey, shipEffects?.baseline]);
+
+  const observedVoidIds = shipEffects?.authoritativeVoidInstanceIds ?? voidShipInstanceIds;
+  useEffect(() => {
+    if (!active || observedVoidIds === undefined) {
       return;
     }
 
-    if (!hasSeededVoidShipIdsRef.current) {
-      observedVoidShipIdsRef.current = new Set(voidShipInstanceIds);
+    if (!hasSeededVoidShipIdsRef.current || shipEffects?.baseline) {
+      observedVoidShipIdsRef.current = new Set(observedVoidIds);
       hasSeededVoidShipIdsRef.current = true;
       return;
     }
 
     const observedVoidShipIds = observedVoidShipIdsRef.current;
-    const newVoidShipIds = voidShipInstanceIds.filter((instanceId) => !observedVoidShipIds.has(instanceId));
+    const newVoidShipIds = observedVoidIds.filter((instanceId) => !observedVoidShipIds.has(instanceId));
 
     if (newVoidShipIds.length === 0) {
       return;
@@ -239,9 +277,10 @@ export function useGameSound({
       return;
     }
 
-    const sortedNewVoidShipIds = [...newVoidShipIds].sort();
+    const sortedNewVoidShipIds = newVoidShipIds.filter((id) => !shipEffects?.suppressedVoidInstanceIds.includes(id)).sort();
+    if (!sortedNewVoidShipIds.length) return;
     scheduleCue('destroy', `destroy:${sortedNewVoidShipIds.join(',')}`, 0);
-  }, [active, enabled, voidShipInstanceIds]);
+  }, [active, enabled, observedVoidIds, shipEffects?.baseline, shipEffects?.suppressedVoidInstanceIds]);
 
   useEffect(() => {
     return () => {

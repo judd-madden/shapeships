@@ -43,6 +43,8 @@ interface MobileBoardViewProps {
     anchorEl: HTMLElement,
     side: 'my' | 'opponent'
   ) => void;
+  onShipEffectImpact?: GameSessionActions['onShipEffectImpact'];
+  onShipEffectComplete?: GameSessionActions['onShipEffectComplete'];
   onBoardBackgroundMouseDown?: GameSessionActions['onBoardBackgroundMouseDown'];
   onDestroyTargetHoverChange?: GameSessionActions['onDestroyTargetStackHoverChange'];
   onDestroyTargetMouseDown?: GameSessionActions['onDestroyTargetStackMouseDown'];
@@ -76,6 +78,8 @@ export function MobileBoardView({
   firstTurnBuildHelperDismissSignal = 0,
   onFirstTurnBuildHelperDismiss,
   onFleetShipInspect,
+  onShipEffectImpact,
+  onShipEffectComplete,
   onBoardBackgroundMouseDown,
   onDestroyTargetHoverChange,
   onDestroyTargetMouseDown,
@@ -111,6 +115,10 @@ export function MobileBoardView({
           order={boardVm.opponentFleetRenderOrder}
           species={opponentSpeciesKey}
           animTokens={boardVm.fleetAnim.opponent}
+          shipEffects={boardVm.shipEffects?.opponent}
+          retainedShipRenderKeys={boardVm.retainedShipRenderKeys?.opponent}
+          onShipEffectImpact={onShipEffectImpact}
+          onShipEffectComplete={onShipEffectComplete}
           flipEnabled={boardVm.mode === 'board'}
           side="opponent"
           activationIndexMap={boardVm.activationStaggerPlan?.opponentIndexByShipId}
@@ -186,6 +194,10 @@ export function MobileBoardView({
           order={boardVm.myFleetRenderOrder}
           species={mySpeciesKey}
           animTokens={boardVm.fleetAnim.my}
+          shipEffects={boardVm.shipEffects?.my}
+          retainedShipRenderKeys={boardVm.retainedShipRenderKeys?.my}
+          onShipEffectImpact={onShipEffectImpact}
+          onShipEffectComplete={onShipEffectComplete}
           flipEnabled={boardVm.mode === 'board'}
           side="my"
           activationIndexMap={boardVm.activationStaggerPlan?.myIndexByShipId}

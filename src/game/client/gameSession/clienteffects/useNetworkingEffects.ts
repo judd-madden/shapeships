@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type React from 'react';
 import type { UntimedPollingMode } from './useUntimedPollingThrottle';
+import type { ShipEffectSyncObservation } from './useShipEffectPresentation';
 import type {
   AcceptedFullStateFingerprint,
   AuthoritativeStateApplyMeta,
@@ -299,7 +300,10 @@ export function usePollingEffect(args: {
   untimedPollingMode: UntimedPollingMode;
   foregroundResumeToken: number;
   postGamePollMs?: number;
+  observeShipEffectSync?: (event: ShipEffectSyncObservation) => void;
 }) {
+  const shipEffectObserverRef = useRef(args.observeShipEffectSync);
+  shipEffectObserverRef.current = args.observeShipEffectSync;
   const {
     effectiveGameId,
     hasJoinedCurrentGame,
@@ -398,6 +402,15 @@ export function usePollingEffect(args: {
     let isPolling = false;
     let latestHeadRequestToken = 0;
     let foregroundResumeValidationPending = hasResumeEvent;
+    let receivedHttpResponseThisCycle = false;
+    const observePresentation = (event: ShipEffectSyncObservation) => {
+      if (!mounted) return;
+      try { shipEffectObserverRef.current?.(event); } catch { /* Observation cannot affect polling. */ }
+    };
+    const observeHttpResponse = () => {
+      receivedHttpResponseThisCycle = true;
+      observePresentation('http_response');
+    };
 
     const clearPollTimer = () => {
       if (pollTimer) {
@@ -488,6 +501,7 @@ export function usePollingEffect(args: {
           `/game-state/${effectiveGameId}`,
           LIVE_GAME_STATE_REQUEST_TIMEOUT_MS,
         );
+        observeHttpResponse();
 
         if (!response.ok) {
           const errorResult = await handleErrorResponse(response);
@@ -523,6 +537,7 @@ export function usePollingEffect(args: {
           return { kind: 'success', nextPollDelayMs };
         }
 
+        observePresentation('accepted_full');
         nextPollDelayMs = getRecurringDelayMs(fetchedIsFinished);
         if (mounted) {
           setLoading(false);
@@ -564,6 +579,7 @@ export function usePollingEffect(args: {
           `/game-state-head/${effectiveGameId}`,
           LIVE_GAME_STATE_REQUEST_TIMEOUT_MS,
         );
+        observeHttpResponse();
 
         if (!response.ok) {
           const errorResult = await handleErrorResponse(response);
@@ -644,6 +660,7 @@ export function usePollingEffect(args: {
       }
 
       isPolling = true;
+      receivedHttpResponseThisCycle = false;
       let nextPollDelayMs = initialDelayMs;
       let cycleOutcome: 'success' | 'failure' | 'skipped' | 'stopped' = 'skipped';
       let failureStatus: number | undefined;
@@ -685,6 +702,7 @@ export function usePollingEffect(args: {
               headResult.head,
               getLastAcceptedFullFingerprint(),
             );
+            if (!headFinished && !headDiffers) observePresentation('unchanged_head');
 
             if (
               foregroundResumeValidationPending &&
@@ -747,6 +765,10 @@ export function usePollingEffect(args: {
         cycleOutcome = 'failure';
       } finally {
         isPolling = false;
+      }
+
+      if (cycleOutcome === 'failure' && !receivedHttpResponseThisCycle) {
+        observePresentation('transport_failure');
       }
 
       if (cycleOutcome === 'success') {

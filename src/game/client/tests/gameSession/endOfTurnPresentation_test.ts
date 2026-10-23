@@ -1,5 +1,158 @@
 declare const Deno: { test(name: string, fn: () => void | Promise<void>): void };
 
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { useShipEffectPresentation } from '../../gameSession/clienteffects/useShipEffectPresentation';
+import { useGameSound } from '../../audio/useGameSound';
+import { usePollingEffect } from '../../gameSession/clienteffects/useNetworkingEffects';
+import type { ShipEffectAudioVm } from '../../gameSession/types';
+
+// Exercise production hook cleanup/deadlines without a DOM or a browser runner.
+const effectsHarness = vi.hoisted(() => {
+  type Cell = { value?: any; deps?: readonly unknown[]; cleanup?: () => void };
+  const cells: Cell[] = []; let index = 0; let dirty = false;
+  const work: Array<() => void> = [];
+  const cell = () => cells[index++] ?? (cells[index - 1] = {});
+  const effect = (setup: () => void | (() => void), deps?: readonly unknown[]) => {
+    const entry = cell();
+    if (entry.deps && deps && deps.length === entry.deps.length && deps.every((v, i) => Object.is(v, entry.deps![i]))) return;
+    entry.deps = deps;
+    work.push(() => { entry.cleanup?.(); entry.cleanup = setup() || undefined; });
+  };
+  return {
+    reset: () => { cells.splice(0).forEach((entry) => entry.cleanup?.()); work.length = 0; },
+    render: <T,>(read: () => T): T => {
+      let value: T; let count = 0;
+      do { dirty = false; index = 0; value = read(); work.splice(0).forEach((run) => run());
+        if (++count > 30) throw new Error('Hook did not settle'); } while (dirty);
+      return value!;
+    },
+    useState: (initial: any) => {
+      const entry = cell();
+      if (!('value' in entry)) entry.value = typeof initial === 'function' ? initial() : initial;
+      return [entry.value, (update: any) => {
+        const next = typeof update === 'function' ? update(entry.value) : update;
+        if (!Object.is(next, entry.value)) { entry.value = next; dirty = true; }
+      }];
+    },
+    useRef: (initial: any) => { const entry = cell(); return entry.value ?? (entry.value = { current: initial }); },
+    useEffect: effect, useLayoutEffect: effect,
+  };
+});
+vi.mock('react', async (original) => ({ ...await original<typeof import('react')>(),
+  useState: effectsHarness.useState, useRef: effectsHarness.useRef,
+  useEffect: effectsHarness.useEffect, useLayoutEffect: effectsHarness.useLayoutEffect }));
+
+const audioInstances: AudioDouble[] = [];
+class AudioDouble {
+  preload = ''; currentTime = 0; muted = false; volume = 1;
+  play = vi.fn(() => Promise.resolve()); pause = vi.fn(); load = vi.fn();
+  constructor(readonly src: string) { audioInstances.push(this); }
+}
+beforeEach(() => {
+  vi.useFakeTimers(); vi.setSystemTime(0); audioInstances.length = 0;
+  vi.stubGlobal('window', { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
+    addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal('Audio', AudioDouble);
+});
+afterEach(() => { effectsHarness.reset(); vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+it.each([false, true])('poll observations preserve request cadence and stale acceptance even when an observer throws (%s)', async (throws) => {
+  vi.spyOn(Math, 'random').mockReturnValue(0);
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+  const head = { gameId: 'g', stateRevision: 1, status: 'active', turnNumber: 3, phaseKey: 'battle.first_strike', clock: null };
+  const fetch = vi.fn<Parameters<typeof usePollingEffect>[0]['authenticatedGet']>()
+    .mockRejectedValueOnce(new Error('transport unavailable'))
+    .mockResolvedValueOnce(new Response(JSON.stringify(head)))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ ...head, stateRevision: 2 })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ gameId: 'g' })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ ...head, stateRevision: 2 })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ gameId: 'g' })));
+  const observations: string[] = [];
+  const accept = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
+  const finish = vi.fn(); let seq = 0;
+  const args: Parameters<typeof usePollingEffect>[0] = {
+    effectiveGameId: 'g', hasJoinedCurrentGame: true, authenticatedGet: fetch,
+    beginGameStateRequest: () => ({ requestSeq: ++seq, unlockEligible: false, resumeLockActivationRequestSeq: null }),
+    finishGameStateRequest: finish, maybeUnlockResumeSyncFromGameStateSuccess: vi.fn(), applyAuthoritativeRawState: accept,
+    shouldRetryGameStateRequestImmediately: () => false, isResumeSyncLocked: () => false,
+    maybeUnlockResumeSyncFromValidatedUnchangedHead: vi.fn(), hasAcceptedFullGameState: () => true,
+    getLastAcceptedFullFingerprint: () => head, getLastAcceptedFullSyncAtMs: () => 0, isGameStateRequestInFlight: () => false,
+    setLoading: vi.fn(), setError: vi.fn(), isFinished: false, isUntimedAuthoritative: true,
+    untimedPollingMode: 'active', foregroundResumeToken: 0,
+    observeShipEffectSync: (event) => { observations.push(event); if (throws) throw new Error('observer'); },
+  };
+  effectsHarness.render(() => usePollingEffect(args));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(observations).toEqual(['transport_failure']);
+  await vi.advanceTimersByTimeAsync(2499); expect(fetch).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1); expect(fetch).toHaveBeenCalledTimes(2);
+  expect(observations).toEqual(['transport_failure', 'http_response', 'unchanged_head']);
+  await vi.advanceTimersByTimeAsync(2000); expect(fetch).toHaveBeenCalledTimes(4);
+  expect(observations).not.toContain('accepted_full'); // Existing acceptance rejected this full DTO.
+  await vi.advanceTimersByTimeAsync(2000); expect(fetch).toHaveBeenCalledTimes(6);
+  expect(observations.filter((event) => event === 'accepted_full')).toHaveLength(1);
+  expect(accept).toHaveBeenCalledTimes(2); expect(finish).toHaveBeenCalledTimes(2);
+});
+
+it('ship-effect deadlines release terminal waiting when no display component mounts or calls back', () => {
+  const ship = { shipDefId: 'DEF', stackKey: 'DEF', renderKey: 'def', count: 1, memberInstanceIds: ['victim'] };
+  const input: Parameters<typeof useShipEffectPresentation>[0] = { context: 'game', enabled: true, batches: [],
+    previous: { my: [], opponent: [ship] }, fleet: { my: [], opponent: [] }, voidFleet: { my: [], opponent: [ship] },
+    leftPlayerId: 'p1', rightPlayerId: 'p2' };
+  const read = () => effectsHarness.render(() => useShipEffectPresentation(input));
+  read();
+  input.batches = [{ key: 'b', seq: 1, turnNumber: 3, phaseKey: 'battle.first_strike', sources: [], resolvedOutcomes: [{
+    playerId: 'p1', kind: 'destroy', source: { type: 'ship', shipDefId: 'GUA', instanceId: 'gua', effectId: 'e' },
+    targets: [{ playerId: 'p2', shipInstanceId: 'victim' }],
+  }] }];
+  const active = read(); expect(active.pending).toBe(true);
+  vi.advanceTimersByTime(1200); expect(read().pending).toBe(true);
+  vi.advanceTimersByTime(800); expect(read().pending).toBe(false);
+  expect(read().retained).toEqual([]);
+  active.onComplete(Object.values(active.effects.opponent)[0].activationKey, 'victim');
+  expect(read().pending).toBe(false);
+});
+
+it('recovery cancels ship-effect audio without stopping dice or legacy destroy cues', () => {
+  let presentation: ShipEffectAudioVm = { scopeKey: 'game', impactKey: null, suppressedVoidInstanceIds: ['victim'],
+    authoritativeVoidInstanceIds: [], baseline: false };
+  let dice = 0;
+  const read = () => effectsHarness.render(() => useGameSound({ active: true, enabled: true,
+    diceAnimateKey: dice, shipEffects: presentation }));
+  read();
+  presentation = { ...presentation, impactKey: 'group', authoritativeVoidInstanceIds: ['victim'] };
+  dice++; read(); vi.runOnlyPendingTimers();
+  const [diceAudio, destroyAudio] = audioInstances;
+  expect(diceAudio.play).toHaveBeenCalledTimes(1);
+  expect(destroyAudio.play).toHaveBeenCalledTimes(1); // No duplicate Void-diff sound.
+  const dicePauses = diceAudio.pause.mock.calls.length;
+  const destroyPauses = destroyAudio.pause.mock.calls.length;
+  presentation = { ...presentation, scopeKey: 'recovery', impactKey: null, baseline: true };
+  read();
+  expect(diceAudio.pause).toHaveBeenCalledTimes(dicePauses);
+  expect(destroyAudio.pause).toHaveBeenCalledTimes(destroyPauses + 1);
+  presentation = { ...presentation, baseline: false, suppressedVoidInstanceIds: [], authoritativeVoidInstanceIds: ['victim', 'legacy'] };
+  read(); vi.runOnlyPendingTimers();
+  const fallbackPauses = destroyAudio.pause.mock.calls.length;
+  presentation = { ...presentation, scopeKey: 'another-recovery', baseline: true }; read();
+  expect(destroyAudio.pause).toHaveBeenCalledTimes(fallbackPauses);
+});
+
+it('recovery cancels a scheduled effect impact and mute does not replay an old impact', () => {
+  let enabled = true;
+  let presentation: ShipEffectAudioVm = { scopeKey: 'game', impactKey: null, suppressedVoidInstanceIds: [],
+    authoritativeVoidInstanceIds: [], baseline: false };
+  const read = () => effectsHarness.render(() => useGameSound({ active: true, enabled, diceAnimateKey: 0, shipEffects: presentation }));
+  read(); presentation = { ...presentation, impactKey: 'scheduled' }; read();
+  presentation = { ...presentation, scopeKey: 'recovery', impactKey: null, baseline: true }; read();
+  vi.runOnlyPendingTimers(); expect(audioInstances[1].play).not.toHaveBeenCalled();
+  enabled = false; presentation = { ...presentation, baseline: false, impactKey: 'muted' }; read();
+  enabled = true; read(); vi.runOnlyPendingTimers();
+  expect(audioInstances[1].play).not.toHaveBeenCalled();
+});
+
 import {
   transitionThisTurnResolutionSnapshot,
 } from '../../gameSession/clienteffects/useEndOfTurnPresentation';

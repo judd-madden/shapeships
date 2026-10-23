@@ -131,6 +131,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
     active: !vm.isBootstrapping,
     diceAnimateKey: vm.leftRail.diceAnimateKey,
     voidShipInstanceIds,
+    shipEffects: vm.board.mode === 'board' ? vm.board.shipEffectAudio : undefined,
   });
 
   const mobileBoardVm = isMobileGameLayout && (

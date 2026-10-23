@@ -210,6 +210,7 @@ export function mapGameSessionVm(args: {
   healthResolutionLockActive: boolean;
   healthResolutionPresentationActive: boolean;
   terminalHealthBarPresentationPending?: boolean;
+  terminalShipEffectPresentationPending?: boolean;
   healthResolutionOverlay?: HealthResolutionPresentationVm;
   myFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
   opponentFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
@@ -346,6 +347,7 @@ export function mapGameSessionVm(args: {
     board,
     healthResolutionPresentationActive,
     terminalHealthBarPresentationPending = false,
+    terminalShipEffectPresentationPending = false,
     healthResolutionOverlay,
     myFleetHealthDeltaFlash,
     opponentFleetHealthDeltaFlash,
@@ -490,7 +492,7 @@ export function mapGameSessionVm(args: {
   let finalActivePanelId = activePanelId;
   let finalTabs = tabs;
   
-  if (isFinished && !healthResolutionPresentationActive && !terminalHealthBarPresentationPending) {
+  if (isFinished && !healthResolutionPresentationActive && !terminalHealthBarPresentationPending && !terminalShipEffectPresentationPending) {
     if (finalActivePanelId === 'ap.menu.root') {
       finalActivePanelId = 'ap.end_of_game.result';
     }
@@ -1573,6 +1575,7 @@ export function mapGameSessionVm(args: {
         canResign,
         canAbortGame,
       },
+      terminalPresentationPending: isFinished && (healthResolutionPresentationActive || terminalHealthBarPresentationPending || terminalShipEffectPresentationPending),
       endOfGame: isFinished ? {
         bannerText,
         bannerBgCssVar,

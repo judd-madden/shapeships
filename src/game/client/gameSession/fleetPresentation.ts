@@ -165,6 +165,20 @@ function makeExactTargetRenderKey(instanceId: string): string {
   return `presentation__target__render_${instanceId}`;
 }
 
+export interface RetainedExactTargetPresentation {
+  instanceId: string;
+  side: 'my' | 'opponent';
+  summary: BoardFleetSummary;
+  /** Previous displayed order, used only to anchor this affected instance. */
+  order: string[];
+}
+
+export function retainExactTargetSummary(summary: BoardFleetSummary, instanceId: string): BoardFleetSummary {
+  return { ...summary, count: 1, memberInstanceIds: [instanceId],
+    stackKey: makeExactTargetStackKey(instanceId),
+    renderKey: summary.count === 1 ? summary.renderKey : makeExactTargetRenderKey(instanceId) };
+}
+
 export function projectExactTargetFleetPresentation(args: {
   side: 'my' | 'opponent';
   fleet: BoardFleetSummary[];
@@ -172,7 +186,33 @@ export function projectExactTargetFleetPresentation(args: {
   exactTargets: readonly ExactTargetPresentationEntry[];
   targetStatesByStackKey: Readonly<Record<string, BoardDestroyTargetState>>;
   previewShipDefIdByStackKey: Readonly<Partial<Record<string, ShipDefId>>>;
+  retainedTargets?: readonly RetainedExactTargetPresentation[];
 }): ExactTargetFleetPresentationProjection {
+  if (args.retainedTargets?.length) {
+    const ids = args.retainedTargets.map((target) => target.instanceId);
+    const fleet = [...filterFleetSummariesBySuppressedMemberIds(args.fleet, ids)];
+    const order = args.renderOrder.filter((key) => fleet.some((ship) => ship.renderKey === key));
+    for (const target of args.retainedTargets.filter((entry) => entry.side === args.side)) {
+      const summary = retainExactTargetSummary(target.summary, target.instanceId);
+      // A new same-bucket member may arrive while the previous singleton is retained.
+      const collision = fleet.find((ship) => ship.renderKey === summary.renderKey);
+      if (collision) {
+        const index = order.indexOf(collision.renderKey);
+        const renderKey = `${collision.renderKey}__effect_remainder`;
+        fleet[fleet.indexOf(collision)] = { ...collision, renderKey };
+        if (index >= 0) order[index] = renderKey;
+      }
+      fleet.push(summary);
+      const anchor = target.order.indexOf(target.summary.renderKey);
+      const nextKey = target.order.slice(anchor + 1).find((key) => order.includes(key));
+      const index = nextKey === undefined ? order.length : order.indexOf(nextKey);
+      order.splice(index, 0, summary.renderKey);
+    }
+    // All splitting still goes through the existing exact-instance projector.
+    return projectExactTargetFleetPresentation({ ...args, fleet, renderOrder: order,
+      exactTargets: args.exactTargets.filter((target) => !ids.includes(target.instanceId)),
+      retainedTargets: undefined });
+  }
   const exactTargetByInstanceId = new Map(
     args.exactTargets
       .filter((target) => target.side === args.side)

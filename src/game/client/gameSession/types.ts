@@ -657,6 +657,21 @@ export interface BoardFleetSummary {
 
 export type BoardTargetSelectedTone = 'red' | 'cyan' | 'purple';
 
+export interface BoardShipEffectVm {
+  activationKey: string;
+  instanceId: string;
+  kind: 'destroy' | 'steal' | 'copy';
+  sourceShipDefId?: string;
+}
+
+export interface ShipEffectAudioVm {
+  scopeKey: string;
+  impactKey: string | null;
+  suppressedVoidInstanceIds: string[];
+  authoritativeVoidInstanceIds: string[];
+  baseline: boolean;
+}
+
 export interface BoardDestroyTargetState {
   isTargetable: boolean;
   isHovered: boolean;
@@ -828,6 +843,9 @@ export type BoardViewModel =
 
       // Client-only targeting affordances derived from server-provided validTargets
       destroyTargeting?: BoardDestroyTargetingViewModel;
+      shipEffects?: { my: Record<string, BoardShipEffectVm>; opponent: Record<string, BoardShipEffectVm> };
+      retainedShipRenderKeys?: { my: string[]; opponent: string[] };
+      shipEffectAudio?: ShipEffectAudioVm;
     };
 
 // Type alias for choose species board mode
@@ -962,6 +980,8 @@ export interface CubeDiceChoicePanelVm {
 }
 
 export interface ActionPanelViewModel {
+  /** Delays result takeovers only; canonical endOfGame remains available. */
+  terminalPresentationPending?: boolean;
   activePanelId: ActionPanelId;
   tabs: ActionPanelTabVm[];
   buildCatalogue: ActionPanelBuildCatalogueViewModel;
@@ -1097,6 +1117,8 @@ export interface GameSessionViewModel {
 // ============================================================================
 
 export interface GameSessionActions {
+  onShipEffectImpact?: (activationKey: string) => void;
+  onShipEffectComplete?: (activationKey: string, instanceId: string) => void;
   onReadyToggle: () => void;
   onUndoActions: () => void;
   onOpenMenu: () => void;

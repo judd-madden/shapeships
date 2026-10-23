@@ -127,6 +127,23 @@ function ids(slots: ReturnType<typeof helpers>) {
 }
 
 describe('terminal health-bar handoff isolation', () => {
+  it('waits only for ship-effect result presentation while preserving canonical finish data', () => {
+    const args = mapperArgs({ isFinished: true, resultReason: 'decisive', winnerPlayerId: 'p1',
+      terminalShipEffectPresentationPending: true,
+      tabs: [{ tabId: 'tab.menu', label: 'Menu', visible: true, targetPanelId: 'ap.menu.root' }] });
+    const pending = mapGameSessionVm(args);
+    expect(pending.actionPanel.activePanelId).toBe('ap.menu.root');
+    expect(pending.actionPanel.terminalPresentationPending).toBe(true);
+    expect(pending.actionPanel.endOfGame).toBeDefined();
+    const settled = mapGameSessionVm({ ...args, terminalShipEffectPresentationPending: false });
+    expect(settled.actionPanel.activePanelId).toBe('ap.end_of_game.result');
+    expect(settled.actionPanel.endOfGame).toEqual(pending.actionPanel.endOfGame);
+    const ordinary = mapGameSessionVm(mapperArgs());
+    const playing = mapGameSessionVm(mapperArgs({ terminalShipEffectPresentationPending: true }));
+    expect(playing.bottomActionRail).toEqual(ordinary.bottomActionRail);
+    expect(playing.leftRail).toEqual(ordinary.leftRail);
+    expect(playing.actionPanel.tabInteractionLocked).toBe(false);
+  });
   it('defers finished-panel redirection without changing the canonical finished result', () => {
     const args = mapperArgs({ isFinished: true, resultReason: 'decisive', winnerPlayerId: 'p1',
       terminalHealthBarPresentationPending: true,

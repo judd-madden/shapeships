@@ -213,6 +213,8 @@ import {
   type ResolvedFleetActivationEvent,
 } from './gameSession/clienteffects/useFleetAnimTokens';
 import { useUntimedPollingThrottle } from './gameSession/clienteffects/useUntimedPollingThrottle';
+import { useShipEffectPresentation, observeShipEffectSync, type ShipEffectSyncState,
+  type ShipEffectSyncObservation, type ShipEffectFleetFrame } from './gameSession/clienteffects/useShipEffectPresentation';
 import { useClockPresentation } from './gameSession/clienteffects/useClockPresentation';
 import { deriveMatchupIntroViewModel } from './gameSession/matchupIntro';
 import {
@@ -1415,6 +1417,16 @@ export function useGameSession(
     mode: untimedPollingMode,
     foregroundResumeToken,
   } = useUntimedPollingThrottle();
+  const [shipEffectSync, setShipEffectSync] = useState<ShipEffectSyncState>({
+    failures: 0, recovering: false, version: 0, validatedResumeToken: null,
+  });
+  useEffect(() => {
+    setShipEffectSync((current) => ({ failures: 0, recovering: false,
+      version: current.version + 1, validatedResumeToken: null }));
+  }, [effectiveGameId]);
+  const observeShipEffectPolling = useCallback((event: ShipEffectSyncObservation) => {
+    setShipEffectSync((current) => observeShipEffectSync(current, event, foregroundResumeToken));
+  }, [foregroundResumeToken]);
   const isFinished = isGameFinished(rawState);
   const { formatPlayerClock } = useClockPresentation({
     effectiveGameId,
@@ -1487,6 +1499,7 @@ export function useGameSession(
     untimedPollingMode,
     foregroundResumeToken,
     postGamePollMs: POSTGAME_POLL_MS,
+    observeShipEffectSync: observeShipEffectPolling,
   });
 
   const { extendChatBurstWindow, getNextChatPollDelayMs, fetchChatOnce } = useChatPolling({
@@ -5376,6 +5389,20 @@ useEffect(() => {
       ? currentTurnOpponentSimulacrumInstanceIds
       : []
   );
+  const lastShipEffectFleetFrameRef = useRef<{ context: string; fleet: ShipEffectFleetFrame } | null>(null);
+  const shipEffectContext = JSON.stringify([activationHardContinuityKey, foregroundResumeToken, shipEffectSync.version]);
+  const shipEffects = useShipEffectPresentation({
+    context: shipEffectContext,
+    enabled: rawActivationCueBatches !== null && untimedPollingMode !== 'hidden' && !resumeSyncLocked &&
+      !shipEffectSync.recovering && shipEffectSync.validatedResumeToken === foregroundResumeToken,
+    batches: rawActivationCueBatches,
+    previous: lastShipEffectFleetFrameRef.current?.context === shipEffectContext
+      ? lastShipEffectFleetFrameRef.current.fleet : { my: [], opponent: [] },
+    fleet: { my: localFleetBeforeExactTargetProjection, opponent: opponentFleetBeforeExactTargetProjection },
+    voidFleet: { my: displayLeftVoidFleet, opponent: displayRightVoidFleet },
+    leftPlayerId: getPlayerIdentityKey(displayLeftPlayer), rightPlayerId: getPlayerIdentityKey(displayRightPlayer),
+  });
+  const terminalShipEffectPresentationPending = isOrdinaryFinished && shipEffects.pending;
   const localAncientExactTargetPresentationEntries = me?.role === 'player'
     ? buildLocalAncientExactTargetPresentationEntries({
         blackHoleSelectedTargetInstanceIds:
@@ -5400,6 +5427,7 @@ useEffect(() => {
     exactTargetPresentationEntryByInstanceId.values()
   );
   const projectedMyTargetPresentation = projectExactTargetFleetPresentation({
+    retainedTargets: shipEffects.retained,
     side: 'my',
     fleet: localFleetBeforeExactTargetProjection,
     renderOrder: myFleetRenderOrder,
@@ -5409,6 +5437,7 @@ useEffect(() => {
       baseBoardDestroyTargeting.previewShipDefIdBySide.my,
   });
   const projectedOpponentTargetPresentation = projectExactTargetFleetPresentation({
+    retainedTargets: shipEffects.retained,
     side: 'opponent',
     fleet: opponentFleetBeforeExactTargetProjection,
     renderOrder: opponentFleetRenderOrder,
@@ -5419,6 +5448,11 @@ useEffect(() => {
   });
   const presentedLocalFleet = projectedMyTargetPresentation.fleet;
   const presentedOpponentFleet = projectedOpponentTargetPresentation.fleet;
+  useLayoutEffect(() => {
+    lastShipEffectFleetFrameRef.current = { context: shipEffectContext,
+      fleet: { my: orderFleetSummariesByRenderKey(presentedLocalFleet, projectedMyTargetPresentation.renderOrder),
+        opponent: orderFleetSummariesByRenderKey(presentedOpponentFleet, projectedOpponentTargetPresentation.renderOrder) } };
+  });
   const projectedBoardDestroyTargeting = {
     activeSourceInstanceId: baseBoardDestroyTargeting.activeSourceInstanceId,
     targetStatesBySide: {
@@ -5437,7 +5471,10 @@ useEffect(() => {
   const persistentAncientSolarTargetMarkers =
     buildPersistentAncientSolarTargetMarkers({
       active: showAncientSolarTargetMarkers,
-      solarEntries: ancientSolarEntriesForMarkers,
+      solarEntries: ancientSolarEntriesForMarkers.filter((entry) =>
+        !(entry.solarPowerId === 'SSIM' && rawActivationCueBatches?.some((batch) =>
+          batch.resolvedOutcomes?.some((outcome) => outcome.source.type === 'solar' &&
+            outcome.source.solarPowerId === 'SSIM' && outcome.source.ledgerEntryId === entry.authoritativeLedgerEntryId)))),
       myFleet: presentedLocalFleet,
       opponentFleet: presentedOpponentFleet,
     });
@@ -5446,6 +5483,13 @@ useEffect(() => {
       activeTargeting: projectedBoardDestroyTargeting,
       persistentMarkers: persistentAncientSolarTargetMarkers,
     });
+  // Resolved cells own their visual and cannot become interactive via marker overlay.
+  for (const target of shipEffects.retained) {
+    boardDestroyTargetingWithAncientSolarMarkers.targetStatesBySide[target.side][target.summary.stackKey] = {
+      isTargetable: false, isHovered: false, isSelected: false,
+    };
+    delete boardDestroyTargetingWithAncientSolarMarkers.previewShipDefIdBySide[target.side][target.summary.stackKey];
+  }
   const myCountsByRenderKey = buildPresentationFleetCountsByLiveRenderKey({
     presentedFleet: presentedLocalFleet,
     liveFleet: myFleetWithPreview,
@@ -5898,7 +5942,7 @@ useEffect(() => {
     !!actionsTargetPanelId &&
     (hasServerActionsAvailable || hasClientActionsAvailable);
 
-  const menuTargetPanelId: ActionPanelId = isOrdinaryFinished && !healthResolutionPresentationActive && !terminalHealthBarPresentationPending
+  const menuTargetPanelId: ActionPanelId = isOrdinaryFinished && !healthResolutionPresentationActive && !terminalHealthBarPresentationPending && !terminalShipEffectPresentationPending
     ? 'ap.end_of_game.result'
     : 'ap.menu.root';
 
@@ -6382,11 +6426,12 @@ useEffect(() => {
   useLayoutEffect(() => {
     if (!effectiveGameId || !isOrdinaryFinished) return;
     if (terminalHealthBarPending()) return;
+    if (terminalShipEffectPresentationPending) return;
     if (finishedRedirectHandledGameIdRef.current === effectiveGameId) return;
 
     finishedRedirectHandledGameIdRef.current = effectiveGameId;
     setActivePanelId('ap.end_of_game.result');
-  }, [effectiveGameId, isOrdinaryFinished, terminalHealthBarPresentationPending]);
+  }, [effectiveGameId, isOrdinaryFinished, terminalHealthBarPresentationPending, terminalShipEffectPresentationPending]);
 
   useEffect(() => {
     if (!phaseKey || isFinished) {
@@ -6643,6 +6688,7 @@ useEffect(() => {
     healthResolutionLockActive,
     healthResolutionPresentationActive,
     terminalHealthBarPresentationPending,
+    terminalShipEffectPresentationPending,
     healthResolutionOverlay,
     myFleetHealthDeltaFlash,
     opponentFleetHealthDeltaFlash,
@@ -7243,6 +7289,8 @@ useEffect(() => {
   }
 
   const actions: GameSessionActions = {
+    onShipEffectImpact: shipEffects.onImpact,
+    onShipEffectComplete: shipEffects.onComplete,
     onReadyToggle: () => {
       void handleReadyToggle('manual');
     },
@@ -8467,6 +8515,14 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         ...vm.board,
         myFleet: presentedLocalFleet,
         opponentFleet: presentedOpponentFleet,
+        myVoidFleet: filterFleetSummariesBySuppressedMemberIds(vm.board.myVoidFleet, shipEffects.retained.map((target) => target.instanceId)),
+        opponentVoidFleet: filterFleetSummariesBySuppressedMemberIds(vm.board.opponentVoidFleet, shipEffects.retained.map((target) => target.instanceId)),
+        shipEffects: shipEffects.effects,
+        retainedShipRenderKeys: {
+          my: shipEffects.retained.filter((target) => target.side === 'my').map((target) => target.summary.renderKey),
+          opponent: shipEffects.retained.filter((target) => target.side === 'opponent').map((target) => target.summary.renderKey),
+        },
+        shipEffectAudio: shipEffects.audio,
         presentedFleetValue: {
           my: calculatePresentedFleetValue(localFleetBeforeExactTargetProjection),
           opponent: calculatePresentedFleetValue(opponentFleetBeforeExactTargetProjection),

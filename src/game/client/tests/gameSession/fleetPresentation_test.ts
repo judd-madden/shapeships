@@ -15,6 +15,9 @@ import {
   projectExactTargetFleetPresentation,
   projectDeferredBugChargePresentation,
 } from '../../gameSession/fleetPresentation';
+import { getShipActivationCueBatches, type ResolvedActivationOutcome, type ShipActivationCueBatch } from '../../gameSession/selectors';
+import { createShipEffectPresentationState, reconcileShipEffects, settleShipEffect, impactShipEffect,
+  expireShipEffects, observeShipEffectSync } from '../../gameSession/clienteffects/useShipEffectPresentation';
 
 interface FleetSummary {
   shipDefId: string;
@@ -62,6 +65,189 @@ function makeSummary(args: {
     caption: args.caption ?? null,
   };
 }
+
+function resolved(kind: ResolvedActivationOutcome['kind'] = 'destroy', ids = ['victim'], sourceId = 'GUA'): ResolvedActivationOutcome {
+  return { playerId: 'p1', kind,
+    source: kind === 'copy' ? { type: 'solar', solarPowerId: 'SSIM', ledgerEntryId: 'ledger', pendingCopyId: 'copy' }
+      : { type: 'ship', instanceId: 'source', shipDefId: sourceId, effectId: sourceId + ids.join(',') },
+    targets: ids.map((shipInstanceId) => ({ playerId: 'p2', shipInstanceId,
+      ...(kind === 'steal' ? { destinationPlayerId: 'p1' } : {}) })) };
+}
+function effectBatch(outcomes: ResolvedActivationOutcome[] = [], seq = 1): ShipActivationCueBatch {
+  return { key: `batch-${seq}`, seq, turnNumber: 3, phaseKey: 'battle.first_strike', sources: [], resolvedOutcomes: outcomes };
+}
+function effectInput(batches: ShipActivationCueBatch[] = []): Parameters<typeof reconcileShipEffects>[1] {
+  const summary = makeSummary({ shipDefId: 'CUB', count: 3, memberInstanceIds: ['victim', 'other', 'safe'], currentCharges: 2 });
+  return { context: 'game:viewer', enabled: true, batches, previous: { my: [], opponent: [summary] },
+    fleet: { my: [], opponent: [summary] }, voidFleet: { my: [], opponent: [] }, leftPlayerId: 'p1', rightPlayerId: 'p2' };
+}
+
+Deno.test('public outcome-only batches survive normalization without trusting private outcomes', () => {
+  const good = resolved();
+  const state = { publicState: { presentationEvents: { shipActivationCueBatches: [effectBatch([
+    good, good, { ...good, targets: [] }, { ...resolved('steal'), targets: good.targets },
+  ])] } }, requester: { presentationEvents: { shipActivationCueBatches: [{ ...effectBatch([good]),
+    sources: [{ playerId: 'p1', sourceInstanceId: 'source' }] }] } } };
+  const batches = getShipActivationCueBatches(state);
+  assertEquals(batches[0].resolvedOutcomes, [good], 'reject malformed outcomes and dedupe identities');
+  assertEquals(batches[0].sources, [], 'Solar-only public batch remains valid');
+  assertEquals(batches[1].resolvedOutcomes, undefined, 'requester data cannot publish outcomes');
+  const cubeCopy = resolved('copy');
+  if (cubeCopy.source.type === 'solar' && cubeCopy.source.solarPowerId === 'SSIM') {
+    cubeCopy.source.trigger = { kind: 'cube_destruction', sourceShipInstanceId: 'cube', sourceEffectId: 'destroy-cube' };
+  }
+  assertEquals(getShipActivationCueBatches({ publicState: { shipActivationCueBatches: [effectBatch([cubeCopy])] } })[0].resolvedOutcomes,
+    [cubeCopy], 'Cube provenance survives unchanged');
+});
+
+Deno.test('private source feedback cannot consume a later public outcome with the same batch key', () => {
+  const input = effectInput([effectBatch()]);
+  input.batches![0].sources = [{ playerId: 'p1', sourceInstanceId: 'source' }];
+  let state = reconcileShipEffects(createShipEffectPresentationState(), input, 0);
+  assertEquals(state.groups.length, 0, 'initial history is a baseline');
+  input.batches = [effectBatch([resolved()])];
+  state = reconcileShipEffects(state, input, 100);
+  assertEquals(state.groups.length, 1, 'new public outcome plays independently');
+  const repeated = reconcileShipEffects(state, input, 500);
+  assertSame(repeated, state, 'ordinary polls cannot restart the effect or deadline');
+  state = impactShipEffect(state, state.groups[0].key);
+  assertSame(impactShipEffect(state, state.groups[0].key), state, 'related targets claim sound once');
+  state = settleShipEffect(state, state.groups[0].key, null, 2100);
+  assertEquals(reconcileShipEffects(state, input, 2500).groups.length, 0, 'completion does not replay retained metadata');
+});
+
+Deno.test('rejoin, background and recovery establish a baseline and release pending retention', () => {
+  let input = effectInput();
+  let state = reconcileShipEffects(createShipEffectPresentationState(), input, 0);
+  input.batches = [effectBatch([resolved()])];
+  state = reconcileShipEffects(state, input, 100);
+  const oldKey = state.groups[0].key;
+  state = reconcileShipEffects(state, { ...input, enabled: false }, 200);
+  assertEquals(state.groups, [], 'recovery immediately releases result waiting and retention');
+  state = reconcileShipEffects(state, { ...input, context: 'new-session' }, 300);
+  assertEquals(state.groups, [], 'historical outcomes do not replay');
+  assertSame(settleShipEffect(state, oldKey, null, 400), state, 'old callbacks cannot settle the new session');
+  input = { ...input, context: 'new-session', batches: [effectBatch([resolved()], 1), effectBatch([resolved('copy')], 2)] };
+  assertEquals(reconcileShipEffects(state, input, 500).groups.map((group) => group.kind), ['copy'], 'new live outcomes resume');
+});
+
+Deno.test('consumption retains eight batches and cannot replay evicted historical outcomes', () => {
+  const input = effectInput();
+  let state = reconcileShipEffects(createShipEffectPresentationState(), input, 0);
+  for (let seq = 1; seq <= 10; seq++) state = reconcileShipEffects(state,
+    { ...input, batches: [effectBatch([], seq)] }, seq);
+  assertEquals(state.seen.length, 8, 'history remains bounded');
+  const stale = reconcileShipEffects(state, { ...input, batches: [effectBatch([resolved()], 1)] }, 20);
+  assertSame(stale, state, 'eviction does not permit stale replay');
+});
+
+Deno.test('disconnect recovery requires three response-free failures and validated baseline confirmation', () => {
+  let state = { failures: 0, recovering: false, version: 0, validatedResumeToken: 0 as number | null };
+  state = observeShipEffectSync(state, 'transport_failure', 0);
+  state = observeShipEffectSync(state, 'transport_failure', 0);
+  assertEquals(state.recovering, false, 'isolated failed polls leave live effects eligible');
+  state = observeShipEffectSync(state, 'http_response', 0);
+  assertEquals(state.failures, 0, 'any HTTP response, including HTTP errors, breaks the streak');
+  for (let i = 0; i < 3; i++) state = observeShipEffectSync(state, 'transport_failure', 0);
+  assertEquals(state.recovering, true, 'third response-free cycle enters recovery');
+  state = observeShipEffectSync(state, 'http_response', 0);
+  assertEquals(state.recovering, true, 'a changed or malformed head cannot establish a baseline');
+  state = observeShipEffectSync(state, 'unchanged_head', 1);
+  assertEquals([state.recovering, state.validatedResumeToken], [false, 1], 'validated unchanged head reuses accepted snapshot');
+  state = { ...state, recovering: true };
+  assertEquals(observeShipEffectSync(state, 'accepted_full', 2).recovering, false, 'accepted full also confirms recovery');
+});
+
+Deno.test('EQU and SBLA group related destroys while shared-instance copy/destroy order is preserved', () => {
+  const input = effectInput();
+  let state = reconcileShipEffects(createShipEffectPresentationState(), input, 0);
+  const own = { ...resolved('destroy', ['other'], 'EQU'), targets: [{ playerId: 'p1', shipInstanceId: 'other' }] };
+  input.previous.my = input.previous.opponent;
+  input.batches = [effectBatch([resolved('destroy', ['victim'], 'EQU'), own])];
+  state = reconcileShipEffects(state, input, 100);
+  assertEquals(state.groups.length, 1, 'EQU pair shares a group');
+  assertEquals(state.groups[0].targets.map((target) => target.side), ['opponent', 'my'], 'both sides retain their owners');
+  const solar = (id: string): ResolvedActivationOutcome => ({ ...resolved('destroy', [id]),
+    source: { type: 'solar', solarPowerId: 'SBLA', ledgerEntryId: 'black-hole', effectId: id } });
+  state = reconcileShipEffects(createShipEffectPresentationState(), effectInput(), 0);
+  state = reconcileShipEffects(state, effectInput([effectBatch([solar('victim'), solar('other')])]), 100);
+  assertEquals(state.groups[0].targets.length, 2, 'SBLA ledger groups multiple effects');
+  state = reconcileShipEffects(createShipEffectPresentationState(), effectInput(), 0);
+  state = reconcileShipEffects(state, effectInput([effectBatch([resolved('copy'), resolved()])]), 100);
+  assertEquals(state.groups.map((group) => group.startedAt), [100, null], 'same-instance effects do not overlap');
+  assertEquals(state.groups[0].sourceShipDefId, undefined, 'SSIM never receives a source icon');
+  state = settleShipEffect(state, state.groups[0].key, 'victim', 2100);
+  assertEquals(state.groups.map((group) => [group.kind, group.startedAt]), [['destroy', 2100]], 'destroy follows copy');
+});
+
+Deno.test('runtime deadlines release unmounted targets and do not extend on ordinary reconciliation', () => {
+  const input = effectInput();
+  let state = reconcileShipEffects(createShipEffectPresentationState(), input, 0);
+  input.batches = [effectBatch([resolved('destroy', ['victim', 'other'])])];
+  state = reconcileShipEffects(state, input, 100);
+  const key = state.groups[0].key;
+  state = settleShipEffect(state, key, 'victim', 800);
+  assertEquals(state.groups.length, 1, 'one missing completion keeps related targets together');
+  state = reconcileShipEffects(state, input, 2000);
+  assertSame(expireShipEffects(state, 2000), state, 'deadline has not elapsed');
+  assertEquals(expireShipEffects(state, 2100).groups, [], 'deadline settles even if the remaining target never mounted');
+  assertEquals(reconcileShipEffects(createShipEffectPresentationState(), { ...input, batches: [] }, 0).groups, [], 'empty baseline');
+  const missing = effectInput([effectBatch([resolved('destroy', ['unknown'])])]);
+  assertEquals(reconcileShipEffects(reconcileShipEffects(createShipEffectPresentationState(), effectInput(), 0), missing, 100).groups,
+    [], 'unreconstructable victims never create a wait');
+});
+
+Deno.test('grouping cannot pull EQU destruction ahead of an interleaved Cube copy of its victim', () => {
+  const input = effectInput(); input.previous.my = input.previous.opponent;
+  let state = reconcileShipEffects(createShipEffectPresentationState(), input, 0);
+  const own = { ...resolved('destroy', ['other'], 'EQU'), targets: [{ playerId: 'p1', shipInstanceId: 'other' }] };
+  input.batches = [effectBatch([own, resolved('copy'), resolved('destroy', ['victim'], 'EQU')])];
+  state = reconcileShipEffects(state, input, 100);
+  assertEquals(state.groups.map((group) => group.kind), ['destroy', 'copy', 'destroy'], 'do not merge across a shared-instance dependency');
+  assertEquals(state.groups.map((group) => group.startedAt), [100, 100, null], 'copy precedes the later destruction');
+});
+
+Deno.test('whole retained stacks have no empty remainder and new same-bucket members cannot steal a pinned key', () => {
+  const input = effectInput();
+  let state = reconcileShipEffects(createShipEffectPresentationState(), input, 0);
+  input.batches = [effectBatch([resolved('destroy', ['victim', 'other', 'safe'])])];
+  state = reconcileShipEffects(state, input, 100);
+  const project = (fleet: Parameters<typeof projectExactTargetFleetPresentation>[0]['fleet']) =>
+    projectExactTargetFleetPresentation({ side: 'opponent', fleet, renderOrder: fleet.map((ship) => ship.renderKey),
+      exactTargets: [], retainedTargets: state.groups[0].targets, targetStatesByStackKey: {}, previewShipDefIdByStackKey: {} });
+  assertEquals(project(input.fleet.opponent).fleet.map((ship) => ship.count), [1, 1, 1], 'all affected members detach without an empty remainder');
+  const old = makeSummary({ shipDefId: 'CUB', count: 1, memberInstanceIds: ['victim'] });
+  const added = makeSummary({ shipDefId: 'CUB', count: 1, memberInstanceIds: ['new'] });
+  input.previous.opponent = [old];
+  state = reconcileShipEffects(reconcileShipEffects(createShipEffectPresentationState(), { ...input, batches: [] }, 0),
+    { ...input, batches: [effectBatch([resolved()])] }, 100);
+  const projection = project([added]);
+  assertEquals(new Set(projection.fleet.map((ship) => ship.renderKey)).size, 2, 'render identities remain unique');
+  assertEquals(projection.fleet.find((ship) => ship.memberInstanceIds.includes('victim'))?.renderKey, old.renderKey, 'victim keeps its original key');
+  assertEquals(added.renderKey, old.renderKey, 'collision resolution never mutates the live summary');
+});
+
+Deno.test('retained stack members preserve appearance and position without destination or Void duplicates', () => {
+  const before = makeSummary({ shipDefId: 'CUB', count: 3, memberInstanceIds: ['victim', 'other', 'safe'], currentCharges: 2 });
+  const neighbour = makeSummary({ shipDefId: 'DEF', count: 1, memberInstanceIds: ['neighbour'] });
+  const input = effectInput(); input.previous.opponent = [before, neighbour];
+  let state = reconcileShipEffects(createShipEffectPresentationState(), input, 0);
+  input.batches = [effectBatch([resolved('steal', ['victim', 'other'], 'DOM')])];
+  state = reconcileShipEffects(state, input, 100);
+  const targets = state.groups[0].targets;
+  const project = (side: 'my' | 'opponent', fleet: FleetSummary[]) => projectExactTargetFleetPresentation({
+    side, fleet, renderOrder: fleet.map((ship) => ship.renderKey), exactTargets: [], retainedTargets: targets,
+    targetStatesByStackKey: {}, previewShipDefIdByStackKey: {} });
+  const source = project('opponent', [before, neighbour]);
+  assertEquals(source.fleet.find((ship) => ship.renderKey === before.renderKey)?.memberInstanceIds, ['safe'], 'unaffected remainder retains its real count');
+  assertEquals(source.renderOrder, [before.renderKey, ...targets.map((target) => target.summary.renderKey), neighbour.renderKey], 'affected members stay at the previous stack position');
+  assertEquals(targets.map((target) => target.summary.currentCharges), [2, 2], 'previous appearance is frozen');
+  assertEquals(project('my', [before]).fleet[0].memberInstanceIds, ['safe'], 'destination excludes retained instances');
+  assertEquals(filterFleetSummariesBySuppressedMemberIds([before], targets.map((target) => target.instanceId))[0].count, 1, 'Void filtering uses exact IDs');
+  assertEquals(before.memberInstanceIds, ['victim', 'other', 'safe'], 'canonical/input summaries are untouched');
+  state = settleShipEffect(state, state.groups[0].key, null, 2100);
+  assertEquals(state.groups.length, 0, 'completion restores ordinary authoritative grouping');
+});
 
 Deno.test('presentation redaction withholds a wholly new current-turn stack', () => {
   const liveFleet = [makeSummary({
