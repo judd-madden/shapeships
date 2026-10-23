@@ -29,7 +29,7 @@ export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomAction
         <div className="content-stretch flex flex-col gap-[3px] items-start leading-[normal] pl-[20px] pr-0 py-0 relative text-white w-full min-[768px]:max-[1599px]:pl-[12px]">
           <p
             aria-hidden={isGameOver || undefined}
-            className={`font-black relative shrink-0  w-full text-[24px] xl:text-[36px] ${isGameOver ? ' invisible' : ''}`}
+            className={`font-black relative shrink-0  w-full text-[30px] 2xl:text-[36px] ${isGameOver ? ' invisible' : ''}`}
           >
             {vm.subphaseTitle}
             {vm.subphaseTitleSuffix ? (
