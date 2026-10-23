@@ -53,6 +53,7 @@ import {
 } from '../state/battleLogHistory.ts';
 import {
   appendShipActivationCueBatch,
+  getResolvedActivationOutcomes,
   getShipActivationSourcesFromAppliedEffects,
 } from '../state/shipActivationCues.ts';
 import { hasCompletedSpeciesSelection } from '../state/speciesSelection.ts';
@@ -2111,6 +2112,7 @@ function resolvePendingFirstStrikeSelections(state: any, nowMs: number, events: 
 
   let workingState = state;
   let activationSources: ShipActivationCueSource[] = [];
+  let resolvedOutcomes: ReturnType<typeof getResolvedActivationOutcomes> = [];
   const prepared = selections.map((selection: any) => ({
     selection,
     outcome: resolvePowerAction({
@@ -2135,6 +2137,12 @@ function resolvePendingFirstStrikeSelections(state: any, nowMs: number, events: 
       allEffects,
       applied.events
     );
+    resolvedOutcomes = getResolvedActivationOutcomes({
+      stateBeforeResolution,
+      stateAfterResolution: workingState,
+      effects: allEffects,
+      effectEvents: applied.events,
+    });
 
     const effectEvents = getEffectEventsFromOutcomeEvents(applied.events);
     for (const item of prepared) {
@@ -2203,6 +2211,7 @@ function resolvePendingFirstStrikeSelections(state: any, nowMs: number, events: 
     }:${phaseKey}`,
     phaseKey,
     sources: activationSources,
+    resolvedOutcomes,
   });
 }
 
@@ -2816,6 +2825,12 @@ function handleAction(
           outcome.effects || [],
           effectEvents
         ),
+        resolvedOutcomes: getResolvedActivationOutcomes({
+          stateBeforeResolution,
+          stateAfterResolution: state,
+          effects: outcome.effects || [],
+          effectEvents,
+        }),
       });
       
       state = syncPhaseFields(state);
@@ -3025,6 +3040,7 @@ function handleActionsSubmit(
   state = structuredClone(state);
   events = [];
   const activationSources: ShipActivationCueSource[] = [];
+  const resolvedOutcomes: ReturnType<typeof getResolvedActivationOutcomes> = [];
 
   for (const item of payload.actions) {
     // Validate action type
@@ -3136,6 +3152,12 @@ function handleActionsSubmit(
           effectEvents
         )
       );
+      resolvedOutcomes.push(...getResolvedActivationOutcomes({
+        stateBeforeResolution,
+        stateAfterResolution: state,
+        effects: outcome.effects || [],
+        effectEvents,
+      }));
 
       events.push({
         type: 'POWER_USED',
@@ -3187,6 +3209,7 @@ function handleActionsSubmit(
   state = appendShipActivationCueBatch(state, {
     phaseKey,
     sources: activationSources,
+    resolvedOutcomes,
   });
   
   state = syncPhaseFields(state);

@@ -34,6 +34,7 @@ import {
 } from '../../engine/state/battleLogHistory.ts';
 import {
   appendShipActivationCueBatch,
+  getResolvedActivationOutcomes,
   getShipActivationSourcesFromAppliedEffects,
 } from '../../engine/state/shipActivationCues.ts';
 import { getCanonicalShipFamilyDisplayName } from '../defs/ShipDefinitionNames.ts';
@@ -565,6 +566,7 @@ function resolveBattleEndOfTurn(
     };
   }
 
+  const stateBeforeResolution = state;
   const blackHoleResolution = resolveCommittedBlackHoleDestructions(
     state,
     currentTurn,
@@ -650,6 +652,12 @@ function resolveBattleEndOfTurn(
         effects,
         applied.events
       ),
+      resolvedOutcomes: getResolvedActivationOutcomes({
+        stateBeforeResolution,
+        stateAfterResolution: clearedState,
+        effects: [...blackHoleResolution.effects, ...effects],
+        effectEvents: [...blackHoleResolution.events, ...applied.events],
+      }),
     }),
     events: allEvents,
   };

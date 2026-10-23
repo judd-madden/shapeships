@@ -1871,6 +1871,11 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
   state.gameData.turnData.chargeDeclarationAcknowledgements.chargeAfterByPlayerId = {
     p1: { 'p1-equ': 0 },
   };
+  const resolvedOutcomes = [{
+    playerId: 'p1', kind: 'destroy',
+    source: { type: 'ship', instanceId: 'p1-equ', shipDefId: 'EQU', effectId: 'resolved-equ-effect' },
+    targets: [{ playerId: 'p2', shipInstanceId: 'p2-orb' }],
+  }];
   state.gameData.turnData.shipActivationCueBatches = [
     {
       key: 'ship-activation:2:battle.charge_declaration:1',
@@ -1885,6 +1890,7 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
       phaseKey: 'battle.charge_declaration',
       seq: 1,
       sources: [{ playerId: 'p1', sourceInstanceId: 'p1-equ' }],
+      resolvedOutcomes,
     },
   ];
   state.gameData.phaseReadiness = [{
@@ -1938,6 +1944,7 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
   const spectatorBody = await readAs('spectator');
 
   for (const body of [p1Body, p2Body, spectatorBody]) {
+    assert.equal(JSON.stringify(body).includes('resolved-equ-effect'), false);
     assert.deepEqual(
       body.publicState.ships.p1.map((ship: any) => ship.instanceId),
       ['p1-equ', 'p1-spi', 'p1-orb', 'p1-frigate', 'p1-qua'],
@@ -2021,6 +2028,7 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
   assert.deepEqual(p1Body.requester.availableActions, []);
   assert.equal(p2Body.requester.availableActions.some((action: any) => action.shipDefId === 'EQU'), true);
   assert.equal(p1Body.requester.presentationEvents.shipActivationCueBatches.length, 1);
+  assert.equal('resolvedOutcomes' in p1Body.requester.presentationEvents.shipActivationCueBatches[0], false);
   assert.deepEqual(p2Body.requester.presentationEvents.shipActivationCueBatches, []);
   assert.deepEqual(spectatorBody.requester.presentationEvents.shipActivationCueBatches, []);
   assert.deepEqual(
@@ -2058,6 +2066,21 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
     ['ship-activation:2:battle.charge_declaration:1'],
   );
   assert.equal(terminalBody.result.resultReason, 'timeout');
+  assert.equal(JSON.stringify(terminalBody).includes('resolved-equ-effect'), false);
+
+  const readIntentState = async (storedState: any, participantId: string) => {
+    const intentFixture = createIntentRouteFixture({ storedState });
+    intentFixture.setSessionId(participantId);
+    return responseJson(await intentFixture.app.handler('POST', '/make-server-825e19ab/intent')(createContext({
+      body: { gameId: storedState.gameId, intentType: 'ACTION', turnNumber: 99,
+        payload: { actionType: 'message', content: 'stale' } },
+    })));
+  };
+  for (const participantId of ['p1', 'p2', 'spectator']) {
+    const intentBody = await readIntentState(state, participantId);
+    assert.equal(JSON.stringify(intentBody).includes('resolved-equ-effect'), false);
+    assert.equal('shipActivationCueBatches' in intentBody.state.gameData.turnData, false);
+  }
 
   const revealed = structuredClone(terminal);
   revealed.status = 'active';
@@ -2084,6 +2107,16 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
   );
   assert.equal('pendingTurn' in revealedBody.gameData, true);
   assert.equal('powerMemory' in revealedBody.gameData, true);
+  for (const participantId of ['p1', 'p2', 'spectator']) {
+    const publicBody = await readAs(participantId);
+    assert.deepEqual(publicBody.publicState.presentationEvents.shipActivationCueBatches[1].resolvedOutcomes, resolvedOutcomes);
+    assert.equal('shipActivationCueBatches' in publicBody.gameData.turnData, false);
+    const intentBody = await readIntentState(revealed, participantId);
+    assert.deepEqual(intentBody.state.gameData.turnData.shipActivationCueBatches[1].resolvedOutcomes, resolvedOutcomes);
+  }
+  revealed.status = 'finished';
+  fixture.store.set('game_charge-privacy-barrier', revealed);
+  assert.deepEqual((await readAs('spectator')).publicState.presentationEvents.shipActivationCueBatches[1].resolvedOutcomes, resolvedOutcomes);
 });
 
 Deno.test('/game-state surfaces a stale declaration legality invariant even for a ready requester', async () => {

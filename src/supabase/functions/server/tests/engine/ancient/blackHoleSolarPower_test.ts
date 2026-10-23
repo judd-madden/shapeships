@@ -737,6 +737,15 @@ Deno.test('accepted Black Hole declaration survives JSON reload and resolves onc
 
   const resolved = resolvePhase(reloaded, 'battle.end_of_turn_resolution');
   const resolvedState: any = resolved.state;
+  const batches = resolvedState.gameData.turnData.shipActivationCueBatches;
+  assert.equal(batches.length, 1);
+  const outcomes = batches[0].resolvedOutcomes;
+  assert.deepEqual(outcomes.map((outcome: any) => [outcome.playerId, outcome.kind, outcome.targets]), [
+    ['p1', 'destroy', [{ playerId: 'p2', shipInstanceId: 'enemy-a' }]],
+    ['p1', 'destroy', [{ playerId: 'p2', shipInstanceId: 'enemy-z' }]],
+  ]);
+  assert.equal(outcomes.every((outcome: any) => outcome.source.ledgerEntryId ===
+    reloaded.gameData.ancient.solarLedgerByPlayerId.p1.entries[0].entryId), true);
   assert.deepEqual(
     resolvedState.gameData.voidShipsByPlayerId.p2.map(
       (candidate: any) => candidate.instanceId,
@@ -760,6 +769,44 @@ Deno.test('accepted Black Hole declaration survives JSON reload and resolves onc
   const repeated = resolvePhase(resolvedState, 'battle.end_of_turn_resolution');
   assert.deepEqual(repeated.events, []);
   assert.deepEqual(repeated.state, resolvedState);
+});
+
+Deno.test('resolved Black Hole metadata excludes missing targets and retains successful Cube copies in one terminal batch', () => {
+  const state = createState({
+    p1Ships: [ship('copy-target', 'INT', { chargesCurrent: 2 })],
+    p2Ships: [ship('destroyed-cube', 'CUB'), ship('missing-target', 'DEF')],
+  });
+  state.gameData.turnData.simulacrumRevealFleetSnapshotByPlayerId = structuredClone(state.gameData.ships);
+  const committed = resolveBlackHole({ state, targetInstanceIds: ['destroyed-cube', 'missing-target'] });
+  committed.state.gameData.ancient.solarLedgerByPlayerId.p1 = {
+    battleTurnNumber: 3, entries: committed.ledgerEntries,
+  };
+  assert.equal(committed.state.gameData.turnData.shipActivationCueBatches, undefined);
+  // The second selected target is no longer present when deferred destruction runs.
+  committed.state.gameData.ships.p2 = committed.state.gameData.ships.p2.filter((ship: any) => ship.instanceId !== 'missing-target');
+  committed.state.gameData.pendingTurn.damageByPlayerId.p2 = 100;
+  const resolved = resolvePhase(committed.state, 'battle.end_of_turn_resolution');
+  assert.equal(resolved.state.status, 'finished');
+  const batches = resolved.state.gameData.turnData!.shipActivationCueBatches!;
+  assert.equal(batches.length, 1);
+  assert.deepEqual(batches[0].sources, []);
+  const outcomes = batches[0].resolvedOutcomes!;
+  const ledgerEntryId = committed.ledgerEntries[0].entryId;
+  const effectId = `${ledgerEntryId}:black-hole-destruction:destroy:destroyed-cube`;
+  const copy = resolved.state.gameData.ancient!.pendingSimulacrumCopies[0];
+  assert.deepEqual(outcomes, [
+    { playerId: 'p1', kind: 'destroy',
+      source: { type: 'solar', solarPowerId: 'SBLA', ledgerEntryId, effectId },
+      targets: [{ playerId: 'p2', shipInstanceId: 'destroyed-cube' }] },
+    { playerId: 'p2', kind: 'copy',
+      source: { type: 'solar', solarPowerId: 'SSIM',
+        ledgerEntryId: resolved.state.gameData.ancient!.solarLedgerByPlayerId.p2.entries[0].entryId,
+        pendingCopyId: copy.pendingCopyId,
+        trigger: { kind: 'cube_destruction', sourceShipInstanceId: 'destroyed-cube', sourceEffectId: effectId } },
+      targets: [{ playerId: 'p1', shipInstanceId: 'copy-target' }] },
+  ]);
+  assert.equal(resolved.state.gameData.ships!.p1[0].instanceId, 'copy-target');
+  assert.deepEqual(resolvePhase(resolved.state, 'battle.end_of_turn_resolution').state.gameData.turnData!.shipActivationCueBatches, batches);
 });
 
 Deno.test('pre-Automatic Black Hole resolution is simultaneous and preserves once-only and staged Charge effects', () => {

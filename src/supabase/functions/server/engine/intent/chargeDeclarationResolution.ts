@@ -28,6 +28,7 @@ import {
 } from '../state/battleLogHistory.ts';
 import {
   appendShipActivationCueBatch,
+  getResolvedActivationOutcomes,
   getShipActivationSourcesFromAppliedEffects,
 } from '../state/shipActivationCues.ts';
 import {
@@ -79,6 +80,8 @@ export type DisposableOrdinaryChargeResolution = {
 };
 
 export type DisposableChargeDeclarationResult = {
+  /** Transient immutable input reference; never part of persisted game state. */
+  stateBeforeResolution: any;
   state: any;
   normalized: NormalizedChargeDeclaration;
   battleTurnNumber: number;
@@ -463,6 +466,7 @@ export function resolveChargeDeclarationDisposable(args: {
   }
 
   return {
+    stateBeforeResolution: args.state,
     state: workingState,
     normalized: args.normalized,
     battleTurnNumber,
@@ -509,6 +513,12 @@ export function applyDisposableChargeDeclarationToProduction(args: {
   workingState = appendShipActivationCueBatch(workingState, {
     phaseKey: 'battle.charge_declaration',
     sources: activationSources,
+    resolvedOutcomes: getResolvedActivationOutcomes({
+      stateBeforeResolution: args.result.stateBeforeResolution,
+      stateAfterResolution: workingState,
+      effects: args.result.ordinaryResolutions.flatMap((resolution) => resolution.effects),
+      effectEvents: args.result.ordinaryResolutions.flatMap((resolution) => getEffectEvents(resolution.events)),
+    }),
   });
   return { state: workingState, events };
 }

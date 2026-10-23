@@ -4,6 +4,7 @@ import {
   normalizeChargeDeclarationPayload,
   resolveChargeDeclarationSubmission,
   resolveChargeDeclarationSubmissionWithDependencies,
+  resolveChargeDeclarationDisposable,
 } from '../../../engine/intent/chargeDeclarationResolution.ts';
 import type { ManualSolarResolverRegistry } from '../../../engine/ancient/manualSolarDeclaration.ts';
 import { advancePhaseCore } from '../../../engine/phase/advancePhase.ts';
@@ -17,6 +18,10 @@ import {
 } from '../../../engine_shared/effects/Effect.ts';
 import { getShipById } from '../../../engine_shared/defs/ShipDefinitions.core.ts';
 import { replaceChargeDeclarationVisibilityState } from '../../../engine/state/chargeDeclarationVisibility.ts';
+import {
+  appendShipActivationCueBatch,
+  getShipActivationCueBatches,
+} from '../../../engine/state/shipActivationCues.ts';
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {
@@ -28,6 +33,58 @@ function payload(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+Deno.test('disposable resolution reuses its input reference without publishing presentation outcomes', () => {
+  const state = createState();
+  state.gameData.ships.p2 = [{ instanceId: 'copy-target', shipDefId: 'DEF' }];
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p2 = state.gameData.ships.p2;
+  state.gameData.ancient.energyByPlayerId.p1.pool.blue = 2;
+  const before = structuredClone(state);
+  const disposable = resolveChargeDeclarationDisposable({
+    state, playerId: 'p1',
+    normalized: normalizeChargeDeclarationPayload(payload({
+      solarCasts: [{ solarPowerId: 'SSIM', targetInstanceId: 'copy-target' }],
+    })),
+  });
+  assert.strictEqual(disposable.stateBeforeResolution, state);
+  assert.deepEqual(state, before);
+  assert.equal(disposable.state.gameData.ancient.pendingSimulacrumCopies.length, 1);
+  assert.equal(disposable.state.gameData.turnData.shipActivationCueBatches, undefined);
+  assert.equal('stateBeforeResolution' in disposable.state.gameData, false);
+});
+
+Deno.test('activation batches retain normalized outcomes with legacy compatibility, deduplication and bounded retention', () => {
+  const outcome = {
+    playerId: 'p1', kind: 'steal' as const,
+    source: { type: 'ship' as const, instanceId: 'dom', shipDefId: 'DOM', effectId: 'transfer' },
+    targets: [{ playerId: 'p2', shipInstanceId: 'target', destinationPlayerId: 'p1' }],
+  };
+  const legacy = { key: 'legacy', turnNumber: 2, phaseKey: 'battle.first_strike', seq: 1,
+    sources: [{ playerId: 'p1', sourceInstanceId: 'dom' }] };
+  assert.deepEqual(getShipActivationCueBatches([legacy]), [legacy]);
+  const normalized = getShipActivationCueBatches([{ ...legacy, sources: [], resolvedOutcomes: [
+    outcome, outcome,
+    { ...outcome, targets: [{ playerId: 'p2', shipInstanceId: 'missing-destination' }] },
+    { ...outcome, kind: 'copy' },
+  ] }]);
+  assert.deepEqual(normalized, [{ ...legacy, sources: [], resolvedOutcomes: [outcome] }]);
+  assert.deepEqual(getShipActivationCueBatches([{ ...legacy, sources: [], resolvedOutcomes: [] }]), []);
+  let state = createState();
+  for (let index = 0; index < 10; index += 1) {
+    state = appendShipActivationCueBatch(state, { key: `batch-${index}`, phaseKey: 'battle.first_strike',
+      sources: [], resolvedOutcomes: [outcome] });
+  }
+  const batches = getShipActivationCueBatches(JSON.parse(JSON.stringify(state)).gameData.turnData.shipActivationCueBatches);
+  assert.equal(batches.length, 8);
+  assert.deepEqual(batches.map((batch) => batch.key), Array.from({ length: 8 }, (_, index) => `batch-${index + 2}`));
+  assert.deepEqual(batches[7].resolvedOutcomes, [outcome]);
+  assert.strictEqual(appendShipActivationCueBatch(state, { key: 'batch-9', phaseKey: 'battle.first_strike',
+    sources: [], resolvedOutcomes: [outcome] }), state);
+  const advanced = advancePhaseCore({ ...state, gameData: { ...state.gameData,
+    currentSubPhase: 'end_of_turn_resolution', turnData: { ...state.gameData.turnData, currentSubPhase: 'end_of_turn_resolution' } } });
+  assert.equal(advanced.ok, true);
+  assert.deepEqual((advanced as any).state.gameData.turnData.shipActivationCueBatches, batches);
+});
 
 function createState(): any {
   const state = {
@@ -615,6 +672,17 @@ Deno.test('production Simulacrum commits ordered queue records, exact blue payme
   const exactLedger = structuredClone(
     result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries,
   );
+  const batches = result.state.gameData.turnData.shipActivationCueBatches;
+  assert.equal(batches.length, 1);
+  assert.deepEqual(batches[0].sources, []);
+  assert.deepEqual(batches[0].resolvedOutcomes, exactPending.map((copy: any, index: number) => ({
+    playerId: 'p1', kind: 'copy',
+    source: { type: 'solar', solarPowerId: 'SSIM', ledgerEntryId: exactLedger[index].entryId, pendingCopyId: copy.pendingCopyId },
+    targets: [{ playerId: 'p2', shipInstanceId: copy.sourceTargetInstanceId }],
+  })));
+  assert.deepEqual(result.state.gameData.ships.p2, state.gameData.ships.p2);
+  assert.equal('stateBeforeResolution' in result.state, false);
+  assert.equal('stateBeforeResolution' in result.state.gameData, false);
   const retry = resolveChargeDeclarationSubmission({
     state: result.state,
     playerId: 'p1',
@@ -622,6 +690,7 @@ Deno.test('production Simulacrum commits ordered queue records, exact blue payme
     nowMs: 1001,
   });
   assert.equal(retry.status, 'idempotent');
+  assert.deepEqual(retry.state.gameData.turnData.shipActivationCueBatches, batches);
   assert.deepEqual(
     retry.state.gameData.ancient.pendingSimulacrumCopies,
     exactPending,

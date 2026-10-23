@@ -259,6 +259,10 @@ Deno.test("accepted Simulacrum Cube survives reload through materialization and 
     nowMs: 1000,
   });
   const queued = committed.state.gameData.ancient.pendingSimulacrumCopies[0];
+  const copyBatches = committed.state.gameData.turnData.shipActivationCueBatches;
+  assert.equal(copyBatches.length, 1);
+  assert.deepEqual(copyBatches[0].sources, []);
+  assert.equal(copyBatches[0].resolvedOutcomes[0].source.pendingCopyId, queued.pendingCopyId);
   assert.equal(
     committed.state.gameData.ancient.acceptedDeclarationByPlayerId["z-owner"]
       .declarationId,
@@ -310,6 +314,7 @@ Deno.test("accepted Simulacrum Cube survives reload through materialization and 
   );
   const materializedRecord =
     entered.state.gameData.ancient!.pendingSimulacrumCopies[0];
+  assert.deepEqual(entered.state.gameData.turnData!.shipActivationCueBatches, copyBatches);
   const materializedInstanceId = materializedRecord.materializedInstanceId!;
   assert.equal(materializedRecord.status, "materialized");
   assert.equal(
@@ -400,6 +405,28 @@ Deno.test("accepted Simulacrum Cube survives reload through materialization and 
     ),
     false,
   );
+});
+
+Deno.test("Simulacrum outcomes survive next-Reveal ledger reset and completed queue pruning", () => {
+  const state: any = createState({
+    p2Ships: [ship("copy-target", "DEF")],
+    p2Snapshot: [ship("copy-target", "DEF")],
+  });
+  state.gameData.ancient.energyByPlayerId["z-owner"].pool.blue = 2;
+  const committed = resolveChargeDeclarationSubmission({
+    state, playerId: "z-owner",
+    payload: { contractVersion: 1, declarationId: "retained-copy", ordinaryChargeActions: [],
+      solarCasts: [{ solarPowerId: "SSIM", targetInstanceId: "copy-target" }], autocastEnabled: false },
+    nowMs: 1000,
+  });
+  const batches = committed.state.gameData.turnData.shipActivationCueBatches;
+  const materialized = materializeQueuedSimulacrumCopiesAtTurnStart(committed.state, 5);
+  materialized.state.gameData.turnNumber = 5;
+  materialized.state.gameData.turnData!.turnNumber = 5;
+  const prepared = applyAncientBattleRevealPreparation(materialized.state);
+  assert.deepEqual(prepared.gameData.ancient!.solarLedgerByPlayerId["z-owner"].entries, []);
+  assert.deepEqual(prepared.gameData.ancient!.pendingSimulacrumCopies, []);
+  assert.deepEqual(prepared.gameData.turnData!.shipActivationCueBatches, batches);
 });
 
 Deno.test("Simulacrum ledger and pending records share fresh initial charges without sharing configuration references", () => {

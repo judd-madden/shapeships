@@ -152,7 +152,7 @@ export const BLACK_HOLE_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
 export function resolveCommittedBlackHoleDestructions(
   state: GameState,
   battleTurnNumber: number,
-): { state: GameState; events: EffectEvent[] } {
+): { state: GameState; events: EffectEvent[]; effects: Effect[] } {
   const pendingDestructions =
     state.gameData.ancient?.pendingBlackHoleDestructions ?? [];
   const selectedRecords = pendingDestructions
@@ -165,7 +165,7 @@ export function resolveCommittedBlackHoleDestructions(
     );
 
   if (selectedRecords.length === 0) {
-    return { state, events: [] };
+    return { state, events: [], effects: [] };
   }
 
   const effects: Effect[] = selectedRecords.flatMap((record) =>
@@ -214,5 +214,6 @@ export function resolveCommittedBlackHoleDestructions(
       },
     },
     events: applied.events,
+    effects,
   };
 }

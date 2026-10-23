@@ -761,6 +761,7 @@ Deno.test('staged Spiral First Strike survives simultaneous Guardian, SAC, and D
       1000,
     );
     assert.equal(spiralAction.ok, true, removalKind);
+    assert.equal(spiralAction.state.gameData.turnData.shipActivationCueBatches, undefined);
     state = spiralAction.state;
 
     const opponentAction = await applyIntent(
@@ -788,6 +789,23 @@ Deno.test('staged Spiral First Strike survives simultaneous Guardian, SAC, and D
     const resolved = await applyIntent(state, 'p2', readyIntent(gameId, 'p2'), 1003);
     assert.equal(resolved.ok, true, removalKind);
     state = resolved.state;
+
+    const firstStrikeBatches = state.gameData.turnData.shipActivationCueBatches
+      .filter((batch: any) => batch.phaseKey === 'battle.first_strike');
+    assert.equal(firstStrikeBatches.length, 1);
+    const outcomes = firstStrikeBatches[0].resolvedOutcomes;
+    assert.equal(outcomes.length, 2);
+    assert.deepEqual(outcomes.map((outcome: any) => [outcome.playerId, outcome.kind, outcome.source.instanceId, outcome.targets]), [
+      ['p1', 'destroy', 'spi-3', [{ playerId: 'p2', shipInstanceId: 'spiral-target' }]],
+      ['p2', removalKind === 'domination' ? 'steal' : 'destroy', 'opponent-source',
+        removalKind === 'domination'
+          ? [
+              { playerId: 'p1', shipInstanceId: 'spi-3', destinationPlayerId: 'p2' },
+              { playerId: 'p1', shipInstanceId: 'p1-def', destinationPlayerId: 'p2' },
+            ]
+          : [{ playerId: 'p1', shipInstanceId: 'spi-3' }]],
+    ]);
+    assert.equal(outcomes.every((outcome: any) => typeof outcome.source.effectId === 'string'), true);
 
     assert.equal(
       state.gameData.ships.p2.some((ship: any) => ship.instanceId === 'spiral-target'),
@@ -932,6 +950,12 @@ Deno.test('DOM clamps after reservations and zero remaining targets do not block
       targetInstanceIds: undefined,
     },
   );
+  const resolved = await applyIntent(dom.state, 'p1', readyIntent(oneRemaining.gameId, 'p1'), 102);
+  assert.equal(resolved.ok, true);
+  const transfer = resolved.state.gameData.turnData.shipActivationCueBatches
+    .flatMap((batch: any) => batch.resolvedOutcomes ?? []).filter((outcome: any) => outcome.kind === 'steal');
+  assert.equal(transfer.length, 1);
+  assert.deepEqual(transfer[0].targets, [{ playerId: 'p2', shipInstanceId: 'target-y', destinationPlayerId: 'p1' }]);
 
   const zeroRemaining = createReservationFirstStrikeState(['target-x']);
   const onlyTargetStaged = await applyIntent(
@@ -1044,6 +1068,42 @@ Deno.test('First Strike reservations remain per player when two legal sources ta
       .targetInstanceId,
     'shared-target-x',
   );
+  let resolved = p2;
+  for (const playerId of ['p1', 'p2', 'target-owner']) {
+    resolved = await applyIntent(resolved.state, playerId, readyIntent(state.gameId, playerId), 102);
+    assert.equal(resolved.ok, true, resolved.rejected?.message);
+  }
+  const outcomes = resolved.state.gameData.turnData.shipActivationCueBatches
+    .flatMap((batch: any) => batch.resolvedOutcomes ?? []);
+  assert.equal(outcomes.length, 1);
+  assert.equal(outcomes[0].source.instanceId, 'p1-gua');
+  assert.deepEqual(outcomes[0].targets, [{ playerId: 'target-owner', shipInstanceId: 'shared-target-x' }]);
+});
+
+Deno.test('First Strike retains a successful Cube-triggered copy alongside its destruction in the existing batch', async () => {
+  const state = createReservationFirstStrikeState(['destroyed-cube']);
+  state.players.find((player: any) => player.id === 'p2').faction = 'ancient';
+  state.gameData.ships.p2[0].shipDefId = 'CUB';
+  state.gameData.ships.p1.push({ instanceId: 'copy-target', shipDefId: 'DEF' });
+  state.gameData.turnData.simulacrumRevealFleetSnapshotByPlayerId = structuredClone(state.gameData.ships);
+  const staged = await applyIntent(state, 'p1', powerActionIntent(state.gameId, 'gua-a', 'GUA#0', 'destroy', {
+    targetInstanceId: 'destroyed-cube',
+  }), 100);
+  assert.equal(staged.ok, true);
+  assert.equal(staged.state.gameData.turnData.shipActivationCueBatches, undefined);
+  const resolved = await applyIntent(staged.state, 'p1', readyIntent(state.gameId, 'p1'), 101);
+  assert.equal(resolved.ok, true, resolved.rejected?.message);
+  const batches = resolved.state.gameData.turnData.shipActivationCueBatches
+    .filter((batch: any) => batch.phaseKey === 'battle.first_strike');
+  assert.equal(batches.length, 1);
+  assert.deepEqual(batches[0].sources, [{ playerId: 'p1', sourceInstanceId: 'gua-a' }]);
+  assert.deepEqual(batches[0].resolvedOutcomes.map((outcome: any) => [outcome.playerId, outcome.kind, outcome.targets]), [
+    ['p1', 'destroy', [{ playerId: 'p2', shipInstanceId: 'destroyed-cube' }]],
+    ['p2', 'copy', [{ playerId: 'p1', shipInstanceId: 'copy-target' }]],
+  ]);
+  const source = batches[0].resolvedOutcomes[1].source;
+  assert.equal(source.pendingCopyId, resolved.state.gameData.ancient.pendingSimulacrumCopies[0].pendingCopyId);
+  assert.equal(source.trigger.sourceEffectId, batches[0].resolvedOutcomes[0].source.effectId);
 });
 
 Deno.test('ordinary multi-EQU batches reject overlap atomically and accept disjoint pairs', async () => {
@@ -1117,6 +1177,14 @@ Deno.test('ordinary multi-EQU batches reject overlap atomically and accept disjo
     },
   }, 101);
   assert.equal(disjoint.ok, true, disjoint.rejected?.message);
+  const batches = disjoint.state.gameData.turnData.shipActivationCueBatches;
+  assert.equal(batches.length, 1);
+  assert.deepEqual(batches[0].resolvedOutcomes.map((outcome: any) => [outcome.source.instanceId, outcome.targets]), [
+    ['p1-equ-a', [{ playerId: 'p1', shipInstanceId: 'p1-own-a' }]],
+    ['p1-equ-a', [{ playerId: 'p2', shipInstanceId: 'p2-target-a' }]],
+    ['p1-equ-b', [{ playerId: 'p1', shipInstanceId: 'p1-own-b' }]],
+    ['p1-equ-b', [{ playerId: 'p2', shipInstanceId: 'p2-target-b' }]],
+  ]);
   assert.deepEqual(
     Object.keys(
       disjoint.state.gameData.turnData.acceptedShipOfEqualityTargetsByPlayerId.p1,
@@ -1552,6 +1620,10 @@ Deno.test('simultaneous EQU declarations validate from entry fleets and both spe
     { targetInstanceIds: ['p2-def', 'p1-def'] },
   ), 1001);
   assert.equal(second.ok, true);
+  assert.deepEqual(second.state.gameData.turnData.shipActivationCueBatches.flatMap((batch: any) =>
+    (batch.resolvedOutcomes ?? []).map((outcome: any) => outcome.playerId)), ['p1', 'p1']);
+  assert.deepEqual(second.state.gameData.turnData.shipActivationCueBatches[1].sources,
+    [{ playerId: 'p2', sourceInstanceId: 'p2-equ' }]);
   assert.equal(
     second.state.gameData.ships.p2.find((ship: any) => ship.instanceId === 'p2-equ')
       .chargesCurrent,

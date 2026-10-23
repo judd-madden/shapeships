@@ -163,12 +163,34 @@ export type ShipActivationCueSource = {
   sourceInstanceId: string;
 };
 
+export type ResolvedActivationOutcome = {
+  playerId: string;
+  kind: 'destroy' | 'steal' | 'copy';
+  source:
+    | { type: 'ship'; instanceId: string; shipDefId: string; effectId: string }
+    | { type: 'solar'; solarPowerId: 'SBLA'; ledgerEntryId: string; effectId: string }
+    | {
+        type: 'solar';
+        solarPowerId: 'SSIM';
+        ledgerEntryId: string;
+        pendingCopyId: string;
+        trigger?: AncientSolarTriggerProvenance;
+      };
+  targets: Array<{
+    playerId: string;
+    shipInstanceId: string;
+    /** Required for steal outcomes; playerId retains original ownership. */
+    destinationPlayerId?: string;
+  }>;
+};
+
 export type ShipActivationCueBatch = {
   key: string;
   turnNumber: number;
   phaseKey: string;
   seq: number;
   sources: ShipActivationCueSource[];
+  resolvedOutcomes?: ResolvedActivationOutcome[];
 };
 
 export type TurnPhaseProgressState = {

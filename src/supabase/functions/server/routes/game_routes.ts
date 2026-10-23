@@ -484,7 +484,7 @@ function projectRequesterShipActivationCueBatches(
           batch.turnNumber === currentTurnNumber &&
           batch.phaseKey === 'battle.charge_declaration'
       )
-      .map((batch) => ({
+      .map(({ resolvedOutcomes: _resolvedOutcomes, ...batch }) => ({
         ...batch,
         sources: batch.sources.filter(
           (source) => source.playerId === requestingPlayerId
