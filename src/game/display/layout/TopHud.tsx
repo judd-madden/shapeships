@@ -50,15 +50,15 @@ function PlayerHeader({ vm, side }: PlayerHeaderProps) {
 
   return (
     <div
-      className={`relative z-30 row-start-1 flex min-w-0 items-start gap-[8px] min-[1400px]:gap-[12px] min-[1920px]:gap-[20px] max-[1199px]:flex-col max-[1199px]:gap-[4px] [--ss-header-track-gap:20px] min-[1400px]:[--ss-header-track-gap:28px] min-[1920px]:[--ss-header-track-gap:40px] [--ss-header-inset:calc(var(--ss-board-center-width)_/_2_+_8px_-_52px_-_var(--ss-header-track-gap))] ${
-        isLeft
-          ? 'col-start-1 -mr-[var(--ss-header-inset)] justify-end max-[1199px]:items-end'
-          : 'col-start-3 -ml-[var(--ss-header-inset)] justify-start max-[1199px]:items-start'
-      }`}
-      data-name={isLeft ? 'Me Header' : 'Opponent Header'}
-    >
+        className={`relative z-30 row-start-1 flex flex-row min-w-0 items-start gap-[8px] min-[1400px]:gap-[12px] min-[1920px]:gap-[20px] [--ss-header-track-gap:20px] min-[1400px]:[--ss-header-track-gap:28px] min-[1920px]:[--ss-header-track-gap:40px] [--ss-header-inset:calc(var(--ss-board-center-width)_/_2_+_8px_-_52px_-_var(--ss-header-track-gap))] ${
+          isLeft
+            ? 'col-start-1 -mr-[var(--ss-header-inset)] justify-end'
+            : 'col-start-3 -ml-[var(--ss-header-inset)] justify-start'
+        }`}
+        data-name={isLeft ? 'Me Header' : 'Opponent Header'}
+      >
       <div
-        className={`h-[36px] w-[136px] max-w-full shrink-0 min-[1400px]:h-[42px] min-[1400px]:w-[164px] min-[1920px]:h-[50px] min-[1920px]:w-[200px] max-[1199px]:order-3 ${
+        className={`h-[36px] w-[136px] max-w-full shrink-0 min-[1400px]:h-[42px] min-[1400px]:w-[164px] min-[1920px]:h-[50px] min-[1920px]:w-[200px]  ${
           isLeft ? 'order-1' : 'order-3'
         }`}
       >
@@ -78,7 +78,7 @@ function PlayerHeader({ vm, side }: PlayerHeaderProps) {
       </div>
 
       <div
-        className={`order-2 flex h-[36px] w-[7ch] shrink-0 mt-[4px] items-center justify-center whitespace-nowrap font-bold text-[16px] leading-normal tabular-nums min-[1400px]:h-[42px] min-[1400px]:text-[20px] min-[1920px]:h-[50px] min-[1920px]:text-[28px] max-[1199px]:h-[40px] max-[1199px]:items-start ${
+        className={`order-2 flex h-[36px] w-[7ch] shrink-0 mt-[4px] items-center justify-center whitespace-nowrap font-bold text-[16px] leading-normal tabular-nums min-[1400px]:h-[42px] min-[1400px]:text-[20px] min-[1920px]:h-[50px] min-[1920px]:text-[28px]  ${
           isReady ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]'
         }`}
       >
@@ -92,11 +92,11 @@ function PlayerHeader({ vm, side }: PlayerHeaderProps) {
       </div>
 
       <div
-        className={`min-w-0 max-w-[160px] flex-1 min-[1400px]:max-w-[200px] min-[1920px]:max-w-[300px] max-[1199px]:order-1 max-[1199px]:w-full max-[1199px]:flex-none max-[1199px]:pb-[8px] ${
+        className={`min-w-0 max-w-[160px] flex-1 min-[1400px]:max-w-[200px] min-[1920px]:max-w-[300px]  ${
           isLeft ? 'order-3' : 'order-1'
         }`}
       >
-        <div className={`grid h-[36px] w-full min-w-0 items-center gap-x-[8px] min-[1400px]:h-[42px] min-[1920px]:h-[50px] max-[1199px]:h-[22px] ${
+        <div className={`grid h-[36px] w-full min-w-0 items-center gap-x-[8px] min-[1400px]:h-[42px] min-[1920px]:h-[50px]  ${
           isLeft ? 'grid-cols-[minmax(0,1fr)_12px]' : 'grid-cols-[12px_minmax(0,1fr)]'
         }`}>
           <div className={`relative row-start-1 min-w-0 ${isLeft ? 'col-start-1' : 'col-start-2'}`}>

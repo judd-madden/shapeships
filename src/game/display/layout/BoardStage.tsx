@@ -98,7 +98,7 @@ function BoardStageFrame({
   return (
     <div
       ref={boardRootRef}
-      className="relative grid w-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_var(--ss-board-center-width)_minmax(0,1fr)] grid-rows-[var(--ss-desktop-header-height)_minmax(0,1fr)] gap-x-[8px] [--ss-board-center-width:200px] min-[1600px]:[--ss-board-center-width:230px] [--ss-desktop-header-height:68px] max-[1199px]:[--ss-desktop-header-height:124px] min-[1400px]:[--ss-desktop-header-height:78px] min-[1920px]:[--ss-desktop-header-height:90px]"
+      className="relative grid w-full min-h-0 flex-1 grid-cols-[minmax(0,1fr)_var(--ss-board-center-width)_minmax(0,1fr)] grid-rows-[var(--ss-desktop-header-height)_minmax(0,1fr)] gap-x-[8px] [--ss-board-center-width:200px] min-[1600px]:[--ss-board-center-width:230px] [--ss-desktop-header-height:68px] min-[1400px]:[--ss-desktop-header-height:78px] min-[1920px]:[--ss-desktop-header-height:90px]"
       data-name="Board Stage"
     >
       <TopHud vm={hudVm} />
