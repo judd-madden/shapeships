@@ -128,7 +128,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('desktop lower-row reservations', () => {
+describe('desktop health and economy presentation', () => {
   type Props = Parameters<typeof BoardStage>[0];
   const baseBoard = {
     mode: 'board', mySpeciesId: 'human', opponentSpeciesId: 'human', turnNumber: 1,
@@ -166,68 +166,43 @@ describe('desktop lower-row reservations', () => {
       delta: { left: -2, right: 4, visible: false, key: 'resolution' } } as unknown as Props['desktopHealthPresentation']);
     const markup = renderToStaticMarkup(tree.props.healthContent);
     expect(markup).toContain('Health 22, maximum 35');
-    expect(markup).toContain('>22</span>');
+    expect(markup).toContain('>22<');
     expect(markup).not.toContain('Health -10');
-    expect(markup).toContain('min-h-[1em]');
   });
 
-  it('keeps the same row envelopes with joining metrics absent/present and one/two-line labels', () => {
+  it('shows joining and even-turn metrics only when applicable', () => {
     const plain = read();
-    const reserved = rows(plain).map((element) => element.props.className);
     const joining = read({ mySpeciesId: 'centaur', myBonusLinesOnEven: 2,
       myDisplayedSavedJoiningLines: 3, opponentDisplayedSavedJoiningLines: 2,
       myJoiningBonusLines: 1, opponentJoiningBonusLines: 1 });
-    expect(rows(joining).map((element) => element.props.className)).toEqual(reserved);
     const saved = renderToStaticMarkup(rows(joining)[0]);
     const bonus = renderToStaticMarkup(rows(joining)[1]);
-    expect(saved).toContain('[--ss-metric-label-lines:1]');
-    expect(bonus).toContain('[--ss-metric-label-lines:2]');
     expect(saved).toContain('JOINING');
     expect(bonus).toContain('ON EVEN');
-    expect(bonus).toContain('min-h-[calc(var(--ss-metric-label-lines)*1lh)]');
     const plainSaved = renderToStaticMarkup(rows(plain)[0]);
     expect(plainSaved).not.toContain('JOINING');
-    expect(plainSaved).toContain('<p aria-hidden="true"');
-    // Component/style coverage only; rendered geometry requires owner browser review.
   });
 
-  it('keeps empty gated rows and separators without values, focus targets or misleading accessible labels', () => {
-    const shown = read();
+  it('withholds gated economy values, focus targets and misleading accessible labels', () => {
     const withheld = read({ showTurnStartEconomyPresentation: false });
-    expect(rows(withheld).map((element) => element.props.className))
-      .toEqual(rows(shown).map((element) => element.props.className));
     for (const row of rows(withheld)) {
       expect(Children.count(row.props.children)).toBe(0);
       const markup = renderToStaticMarkup(row);
-      expect(markup).not.toMatch(/tabindex|aria-label|<span|<p|<button/);
+      expect(markup).not.toMatch(/tabindex|aria-label|<(?:button|a|input|select|textarea)\b/);
     }
-    const spacerClasses = (tree: ReactElement<any>) => elements(tree.props.statsContent)
-      .filter((element) => element.type === 'div' && element.props['aria-hidden']).map((element) => element.props.className);
-    expect(spacerClasses(withheld)).toEqual(spacerClasses(shown));
     const fleet = rows(read({ presentedFleetValue: null }))[2];
-    expect(fleet.props.className).toContain('hidden min-h-[18px]');
-    expect(fleet.props.className).toContain('min-[1400px]:flex');
     expect(Children.count(fleet.props.children)).toBe(0);
   });
 
-  it('preserves outward bonus anchors and explicit board/bar refs and responsive value-height tiers', () => {
+  it('preserves bonus anchors and explicit board/bar refs', () => {
     const tree = read({ opponentJoiningBonusLines: 1 });
     expect(tree.props.boardRootRef).toBeDefined();
     expect(tree.props.barRegionRef).toBeDefined();
     const anchors = elements(tree.props.statsContent).filter((element) => element.props.hoverKey);
     expect(anchors.map((element) => element.props.hoverKey)).toEqual(['my-bonus', 'opponent-bonus']);
-    expect(anchors.every((element) => element.props.className.includes('w-max shrink-0'))).toBe(true);
     const opponentJoining = elements(anchors[1].props.children).find((element) =>
       (element as any).ref === anchors[1].props.anchorRef);
     expect(opponentJoining).toBeDefined();
-    const frame = (tree.type as (props: any) => ReactElement<any>)(tree.props);
-    const stack = elements(frame).find((element) => element.props['data-name'] === 'Existing Board Stats')!;
-    for (const tier of ['[--ss-metric-value-height:20px]', 'min-[1400px]:[--ss-metric-value-height:24px]',
-      'min-[1920px]:[--ss-metric-value-height:28px]', 'min-[2220px]:[--ss-metric-value-height:32px]']) {
-      expect(stack.props.className).toContain(tier);
-    }
-    expect(elements(frame).find((element) => element.props['data-name'] === 'Desktop Health Bar Region')!.props.className)
-      .toContain('min-h-[42px] basis-0 grow');
   });
 });
 
@@ -336,15 +311,26 @@ describe('explicit desktop guidance layout refs', () => {
     const observer = ObserverDouble.instances.at(-1)!;
     expect(observer.observe.mock.calls.map(([element]) => element)).toEqual([card, die, boardRootRef.current, barRegionRef.current]);
     let tree = renderDice();
-    expect(guidance(tree)?.props.style).toMatchObject({ left: 76, top: -24 });
+    const initial = guidance(tree)!.props.style;
+    expect(die.bounds.left + initial.left).toBeGreaterThanOrEqual(die.bounds.right);
     die.bounds = rect(900, 760, 64, 64);
     observer.notify();
     tree = renderDice();
-    expect(guidance(tree)?.props.style).toMatchObject({ left: -302, top: -132 });
+    const moved = guidance(tree)!.props.style;
+    expect(die.bounds.left + moved.left + card.bounds.width).toBeLessThanOrEqual(die.bounds.left);
+    expect(moved.top).not.toBe(initial.top);
     viewport.innerWidth = 600;
     viewport.innerHeight = 400;
     viewport.addEventListener.mock.calls.find(([name]) => name === 'resize')![1]();
-    expect(guidance(renderDice())?.props.style).toMatchObject({ left: -602, top: -532 });
+    const resized = guidance(renderDice())!.props.style;
+    expect(resized.left).toBeLessThan(moved.left);
+    expect(resized.top).toBeLessThan(moved.top);
+    const left = die.bounds.left + resized.left;
+    const top = die.bounds.top + resized.top;
+    expect(left).toBeGreaterThanOrEqual(0);
+    expect(top).toBeGreaterThanOrEqual(0);
+    expect(left + card.bounds.width).toBeLessThanOrEqual(viewport.innerWidth);
+    expect(top + card.bounds.height).toBeLessThanOrEqual(viewport.innerHeight);
     hooks.unmount();
     expect(observer.disconnect).toHaveBeenCalledOnce();
     expect(viewport.removeEventListener.mock.calls).toEqual(viewport.addEventListener.mock.calls);

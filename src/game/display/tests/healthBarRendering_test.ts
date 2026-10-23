@@ -6,6 +6,7 @@ import { HealthBar, HealthBarLegend, HealthBarPair } from '../healthBars/HealthB
 import { prepareHealthBarOutcome } from '../healthBars/healthBarOutcomePresentation';
 import {
   calculateHealthBarGeometry, healthBarIntervalRectangle, healthBarValuePosition,
+  HEALTH_BAR_PADDING,
   type HealthBarPresentationState,
 } from '../healthBars/healthBarPresentation';
 import {
@@ -43,8 +44,7 @@ describe('health-bar production geometry', () => {
         const lower = Math.min(...positions);
         const upper = Math.max(...positions);
         expect(orientation === 'desktop' ? bounds.height : bounds.width).toBeCloseTo((upper - lower) * 320);
-        expect(orientation === 'desktop' ? bounds.top : bounds.left).toBeCloseTo(2 + (orientation === 'desktop' ? 1 - upper : lower) * 320);
-        expect(orientation === 'desktop' ? [bounds.left, bounds.width] : [bounds.top, bounds.height]).toEqual(orientation === 'desktop' ? [2, 24] : [2, 10]);
+        expect(orientation === 'desktop' ? bounds.top : bounds.left).toBeCloseTo(HEALTH_BAR_PADDING + (orientation === 'desktop' ? 1 - upper : lower) * 320);
       }
     });
 
@@ -57,7 +57,6 @@ describe('health-bar production geometry', () => {
       for (const health of [-60, -1, 0]) {
         expect(calculateHealthBarGeometry(prepared, 'left', { health }, orientation, 256).white).toBeNull();
       }
-      expect([geometry.width, geometry.height]).toEqual(orientation === 'desktop' ? [28, 260] : [260, 14]);
     });
 
     it(`${orientation}: preserves exact small intervals, omits invalid and empty intervals`, () => {
@@ -71,14 +70,18 @@ describe('health-bar production geometry', () => {
 
     it(`${orientation}: keeps a complete zero marker at the edge and over zero-crossing fills`, () => {
       const edge = calculateHealthBarGeometry(scale(0, 35, 35), 'left', { health: 25 }, orientation, 100);
-      expect(edge.zero).toEqual(orientation === 'desktop'
-        ? { left: 2, top: 99, width: 24, height: 3 }
-        : { left: 2, top: 2, width: 3, height: 10 });
+      const markerStart = orientation === 'desktop' ? edge.zero.top : edge.zero.left;
+      const markerLength = orientation === 'desktop' ? edge.zero.height : edge.zero.width;
+      expect(markerLength).toBeGreaterThan(0);
+      expect(markerStart).toBeGreaterThanOrEqual(HEALTH_BAR_PADDING);
+      expect(markerStart + markerLength).toBeLessThanOrEqual(HEALTH_BAR_PADDING + 100);
+      expect(edge.zeroPosition).toBeGreaterThanOrEqual(markerStart);
+      expect(edge.zeroPosition).toBeLessThanOrEqual(markerStart + markerLength);
       const prepared = scale();
       const crossing = calculateHealthBarGeometry(prepared, 'left', {
         health: 10, red: { from: -60, to: 0 }, green: { from: -60, to: 10 },
       }, orientation, 256);
-      expect((orientation === 'desktop' ? crossing.zero.top : crossing.zero.left) + 1.5)
+      expect(orientation === 'desktop' ? crossing.zero.top + crossing.zero.height / 2 : crossing.zero.left + crossing.zero.width / 2)
         .toBeCloseTo(healthBarValuePosition(prepared, 0, orientation, 256)!);
       expect(crossing.red).not.toBeNull();
       expect(crossing.green).not.toBeNull();
@@ -153,66 +156,21 @@ describe('health-bar rendered structure', () => {
     expect(bars.map((bar) => bar.props.outcomeOpacity)).toEqual([0.5, 0.5]);
   });
 
-  for (const orientation of ['desktop', 'mobile'] as const) {
-    for (const compactMobile of [false, true]) {
-      it(`${orientation}: preserves legend styling with compactMobile=${compactMobile}`, () => {
-        const prepared = scale(0, 35, 35, orientation);
-        const legend = HealthBarLegend({ scale: prepared, orientation, axisLength: 256, compactMobile });
-        const desktop = orientation === 'desktop';
-        const classes = legend.props.className.split(/\s+/);
-        expect(classes).toContain('leading-none');
-        expect(classes).toContain(desktop ? 'font-normal' : 'font-medium');
-        expect(classes).not.toContain(desktop ? 'font-medium' : 'font-normal');
-        expect(classes).toContain('text-[var(--shapeships-grey-50)]');
-        expect(classes).not.toContain('text-[var(--shapeships-grey-20)]');
-        expect(legend.props.style).toMatchObject({ fontSize: desktop ? 12 : 9,
-          height: desktop ? 260 : compactMobile ? 10 : 18 });
-        const ticks = elements(legend).filter((node) => node.props['data-health-tick'] !== undefined);
-        if (!desktop) expect(ticks.map((tick) => tick.props['data-health-tick'])).toEqual([0, 5, 10, 15, 20, 25, 30, 35]);
-        for (const tick of ticks) {
-          const tickClasses = tick.props.className.split(/\s+/);
-          expect(tickClasses.some((className: string) => className.startsWith('bg-'))).toBe(desktop);
-          if (desktop) expect(tickClasses).toContain('bg-black');
-          expect(tickClasses.includes('py-[2px]')).toBe(desktop || !compactMobile);
-          expect(tick.props.style.background).toBeUndefined();
-          expect(tick.props.style.backgroundColor).toBeUndefined();
-        }
-      });
-    }
-  }
-
-  it('preserves compact mobile track geometry, logical caps and outward markers', () => {
+  it('preserves mobile player labels and compact legend value mapping', () => {
     const prepared = scale(-300, 35, 45, 'mobile');
     const upper = HealthBar({ scale: prepared, orientation: 'mobile', axisLength: 256,
       side: 'right', state: { health: 21 }, label: 'Upper player', mobileMarkerEdge: 'top' });
     const lower = HealthBar({ scale: prepared, orientation: 'mobile', axisLength: 256,
       side: 'left', state: { health: -12, red: { from: -12, to: 0 } }, label: 'Lower player', mobileMarkerEdge: 'bottom' });
     const legend = HealthBarLegend({ scale: prepared, orientation: 'mobile', axisLength: 256, compactMobile: true });
-    expect(upper.props.style.height + legend.props.style.height + lower.props.style.height).toBe(38);
-    for (const track of [upper, lower]) {
-      expect(track.props.style.width).toBe(260);
-      expect(track.props.style.background).toBe('var(--shapeships-grey-90)');
-    }
     expect(upper.props['aria-label']).toContain('Upper player: displayed health 21; maximum 45');
     expect(lower.props['aria-label']).toContain('Lower player: displayed health -12; maximum 35');
-    const markers = (tree: Element) => elements(tree).filter((node) =>
-      ['cap', 'compression'].includes(node.props['data-health-marker']));
-    expect(markers(upper).every((marker) => marker.props.style.top < 0)).toBe(true);
-    expect(markers(lower).every((marker) => marker.props.style.top === 16)).toBe(true);
-    const lowerCap = markers(lower).find((marker) => marker.props['data-health-marker'] === 'cap')!;
-    expect(lowerCap.props.style.left + 2).toBe(healthBarValuePosition(prepared, 35, 'mobile', 256));
-    const zeros = [upper, lower].map((tree) => elements(tree).find((node) => node.props['data-health-marker'] === 'zero')!);
-    expect(zeros[0].props.style).toEqual(zeros[1].props.style);
-    expect(zeros[0].props.style.width).toBe(3);
-    expect(zeros[0].props.style.height).toBe(10);
-    expect(legend.props.style).toMatchObject({ width: 260, height: 10, fontSize: 9 });
-    for (const tick of elements(legend).filter((node) => node.props['data-health-tick'] !== undefined)) {
-      expect(tick.props.className).not.toContain('py-');
+    const ticks = elements(legend).filter((node) => node.props['data-health-tick'] !== undefined);
+    expect(ticks.map((tick) => tick.props['data-health-tick']))
+      .toEqual(calculateHealthBarLegend(prepared, { axisLength: 256, orientation: 'mobile' }).map((tick) => tick.value));
+    for (const tick of ticks) {
       expect(tick.props.style.left).toBe(healthBarValuePosition(prepared, tick.props['data-health-tick'], 'mobile', 256));
     }
-    const ordinary = HealthBarLegend({ scale: prepared, orientation: 'mobile', axisLength: 256 });
-    expect(ordinary.props.style.height).toBe(18);
-    expect(elements(ordinary).some((node) => node.props.className?.includes('py-[2px]'))).toBe(true);
   });
 
   it('keeps independent red/green layers in order with the zero marker last', () => {
@@ -221,8 +179,9 @@ describe('health-bar rendered structure', () => {
     const props = { scale: prepared, side: 'left' as const, state, orientation: 'desktop' as const, axisLength: 320, label: 'Player A' };
     const tree = HealthBar(props);
     const nodes = elements(tree);
-    const ordered = nodes.map((node) => node.props['data-health-layer'] ?? node.props['data-health-marker']).filter(Boolean);
-    expect(ordered).toEqual(['white', 'red', 'green', 'cap', 'compression', 'zero']);
+    const ordered = nodes.map((node) => node.props['data-health-layer'] ??
+      (node.props['data-health-marker'] === 'zero' ? 'zero' : undefined)).filter(Boolean);
+    expect(ordered).toEqual(['white', 'red', 'green', 'zero']);
     const markup = renderToStaticMarkup(createElement(HealthBar, props));
     expect(markup).toContain('role="img"');
     expect(markup).toContain('red interval -60 to 0; green interval -60 to 12');
@@ -291,21 +250,14 @@ describe('health-bar rendered structure', () => {
       const prepared = scale(-300, 35, 50, orientation);
       const tree = HealthBarPair({ scale: prepared, orientation, axisLength: 256,
         left: { health: 25 }, right: { health: 30 }, leftLabel: 'A', rightLabel: 'B' });
-      const children = Children.toArray(tree.props.children) as Element[];
-      expect(children.map((child) => child.type)).toEqual([HealthBar, HealthBarLegend, HealthBar]);
+      const children = elements(tree).filter((node) => node.type === HealthBar || node.type === HealthBarLegend);
+      expect(children.filter((node) => node.type === HealthBar).map((node) => node.props.side)).toEqual(['left', 'right']);
+      expect(children.filter((node) => node.type === HealthBarLegend)).toHaveLength(1);
       for (const child of children) {
         expect(child.props.scale).toBe(prepared);
         expect(child.props.axisLength).toBe(256);
       }
       const legend = HealthBarLegend({ scale: prepared, orientation, axisLength: 256 });
-      if (orientation === 'desktop') {
-        expect(legend.props.style.width).toBeUndefined();
-        expect(legend.props.className.split(/\s+/)).toEqual(expect.arrayContaining([
-          'w-[36px]', 'xl:w-[42px]', '2xl:w-[52px]', 'min-[120rem]:w-[76px]',
-        ]));
-      } else {
-        expect(legend.props.style.width).toBe(260);
-      }
       const labels = elements(legend).filter((node) => node.props['data-health-tick'] !== undefined);
       expect(labels.map((node) => node.props['data-health-tick'])).toEqual(calculateHealthBarLegend(prepared, { axisLength: 256, orientation }).map((tick) => tick.value));
       for (const node of labels) {

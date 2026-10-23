@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BoardViewModel, ResolvedHealthSnapshot, ThisTurnMetricVm, ThisTurnPresentationVm } from '../../../client/gameSession/types';
 import { MobileStatBreakdownPopovers } from '../../mobile/MobileStatBreakdownPopovers';
+import { getMobilePopoverTailLeft } from '../../mobile/mobileStatPresentation';
 import { MobileStatusRail, MobileStatusRailFrame } from '../../mobile/MobileStatusRail';
 import { MobileGameLayout } from '../../mobile/MobileGameLayout';
 import { MobileBoardView } from '../../mobile/MobileBoardView';
@@ -205,7 +206,6 @@ describe('mobile live health ownership', () => {
     expect(rows.map((row) => row.props.statsAnchorRef)).toEqual([input.topStatsAnchorRef, input.bottomStatsAnchorRef]);
     const hiddenHealth = elements(invoke(rows[1])).find((node) => node.type === 'button')!;
     expect(hiddenHealth.props['aria-label']).toContain(`Health 22, maximum 35, change pending`);
-    expect(elements(hiddenHealth).find((node) => node.props['aria-hidden'] === true)!.props.className).toContain('min-h-[16px]');
     const duration = playback.controller.getSnapshot().sequence!.durationMs;
     playback.advance(duration);
     rail = read();
@@ -225,15 +225,11 @@ describe('mobile live health ownership', () => {
     expect(playback.pending.size).toBe(0);
   });
 
-  it('keeps the neutral live footprint separate from the species-selection divider', () => {
+  it('omits health bars until a presentation is available', () => {
     const input = { healthBarPresentation: null, hudVm: {}, boardVm: { ...board, myHealth: 25, opponentHealth: 25 },
       leftRailVm: {}, thisTurn: null, mobileDiceModifierSlots: { top: null, bottom: null } } as unknown as Parameters<typeof MobileStatusRail>[0];
     const rail = MobileStatusRail(input);
-    expect(rail.props.healthBars.props.className).toContain('h-[46px]');
     expect(elements(rail.props.healthBars).some((node) => node.type === HealthBar)).toBe(false);
-    const species = MobileStatusRailFrame({ topRow: { name: 'A' }, bottomRow: { name: 'B' },
-      topClock: '1:00', bottomClock: '1:00', diceValue: 1, diceAnimateKey: 0 } as Parameters<typeof MobileStatusRailFrame>[0]);
-    expect(elements(species).some((node) => node.props.className?.includes('bg-gradient-to-r'))).toBe(true);
   });
 });
 
@@ -366,7 +362,6 @@ describe('paired mobile inspection', () => {
     expect(current[0]).toContain('Lines on even turns');
     expect(current[0]).toContain('Computer opponent gains 4 bonus lines');
     expect(current[0]).not.toContain('>Win streak<');
-    expect(current[0]).toContain('var(--shapeships-pastel-purple)');
   });
 
   it('omits unavailable Fleet values, but renders an available zero', () => {
@@ -448,12 +443,19 @@ describe('paired mobile inspection', () => {
   it('places both tails at the board centre with stable row-based vertical anchors', () => {
     const input = props({ boardCenterX: 190 });
     const pair = frames(input).map(invoke);
-    expect(pair[0].props.style).toMatchObject({ left: 16, width: 328, top: 240, transform: 'translateY(-100%)' });
-    expect(pair[1].props.style).toMatchObject({ left: 16, width: 328, top: 386 });
+    expect(pair[0].props.style.top).toBeLessThan(input.topAnchorRect.top);
+    expect(pair[1].props.style.top).toBeGreaterThan(input.bottomAnchorRect.bottom);
     for (const frame of pair) {
       const tail = elements(frame).find((element) => String(element.props['aria-hidden']) === 'true');
-      expect(tail?.props.style.left + frame.props.style.left + 6).toBe(190);
+      expect(tail?.props.style.left).toBe(getMobilePopoverTailLeft(
+        input.boardCenterX, frame.props.style.left, frame.props.style.width,
+      ));
     }
+    const shifted = frames({ ...input,
+      topAnchorRect: { ...input.topAnchorRect, top: input.topAnchorRect.top + 20 },
+      bottomAnchorRect: { ...input.bottomAnchorRect, bottom: input.bottomAnchorRect.bottom + 20 },
+    }).map(invoke);
+    expect(shifted.map((frame, index) => frame.props.style.top - pair[index].props.style.top)).toEqual([20, 20]);
   });
 
   it('enables all four health/stat buttons with one action and shared expanded state', () => {

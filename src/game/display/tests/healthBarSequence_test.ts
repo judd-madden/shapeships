@@ -196,7 +196,7 @@ describe('health-bar sequence preparation and elapsed sampling', () => {
               expect(!!desktop[layer]).toBe(!!mobile[layer]);
               if (desktop[layer] && mobile[layer]) {
                 expect(desktop[layer]!.height).toBeCloseTo(mobile[layer]!.width);
-                expect(desktop[layer]!.top + desktop[layer]!.height + mobile[layer]!.left).toBeCloseTo(324);
+                expect(desktop[layer]!.top + desktop[layer]!.height + mobile[layer]!.left).toBeCloseTo(desktop.height);
               }
             }
             if (frame[side].health <= 0) expect(desktop.white).toBeNull();

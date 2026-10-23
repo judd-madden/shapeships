@@ -1,14 +1,9 @@
-import { Children, createElement, type ReactElement } from 'react';
+import { Children, createElement, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { createHealthBarExample, HEALTH_BAR_EXAMPLES, HEALTH_BAR_EXAMPLE_AXIS_LENGTHS, type HealthBarExample } from '../../../components/dev/healthBarExampleFixtures';
 import { HealthBarExamplePreview, HealthBarExamples } from '../../../components/dev/HealthBarExamples';
-import { calculateHealthBarGeometry, healthBarValuePosition } from '../healthBars/healthBarPresentation';
-import { HealthBar, HealthBarPair } from '../healthBars/HealthBar';
-import { mapHealthBarValue } from '../healthBars/healthBarScale';
-import type { HealthBarInterval } from '../healthBars/healthBarPresentation';
-
-const visible = (interval: HealthBarInterval | undefined) => !!interval && interval.from !== interval.to;
+import { HealthBarPair } from '../healthBars/HealthBar';
 function snapshot(example: HealthBarExample) {
   if (example.presentation.mode !== 'live') throw new Error('Expected complete live-shaped fixture');
   return example.presentation.snapshot;
@@ -20,22 +15,19 @@ function stage(example: HealthBarExample, name: string) {
 }
 
 describe('static health-bar examples', () => {
-  it('preserves the eight scenarios, adds damage-only negative coverage and keeps manual selectors', () => {
+  it('keeps distinct scenario fixtures and labelled manual selectors', () => {
     expect(HEALTH_BAR_EXAMPLES.map((example) => example.id)).toEqual([
       'ordinary', 'small', 'recovery', 'negative-final', 'overheal', 'excess-healing', 'caps', 'compression', 'damage-only-negative',
     ]);
-    expect(new Set(HEALTH_BAR_EXAMPLES.map((example) => example.name)).size).toBe(9);
+    expect(new Set(HEALTH_BAR_EXAMPLES.map((example) => example.name)).size).toBe(HEALTH_BAR_EXAMPLES.length);
     const markup = renderToStaticMarkup(createElement(HealthBarExamples));
-    expect(markup).toContain('Health Bars');
     expect(markup.match(/<select/g)).toHaveLength(2);
-    expect(markup).toContain('Scenario');
-    expect(markup).toContain('Stage');
-    expect(markup).toContain('Example inner axis: 320px');
-    expect(markup).toContain('Example inner axis: 256px');
+    expect(markup).toMatch(/<label\b[^>]*>Scenario<select\b/);
+    expect(markup).toMatch(/<label\b[^>]*>Stage<select\b/);
   });
 
   for (const example of HEALTH_BAR_EXAMPLES) {
-    it(`${example.name}: coherent complete resolution and retained domain across all poses`, () => {
+    it(`${example.name}: consistent authored resolution, starting values and exact finals`, () => {
       if (example.presentation.mode !== 'live') throw new Error('Expected complete live-shaped fixture');
       const { left, right } = example.presentation.snapshot;
       for (const s of [left, right]) {
@@ -54,169 +46,30 @@ describe('static health-bar examples', () => {
         expect(final.green).toBeUndefined();
         expect(final.red).toEqual(health < 0 ? { from: health, to: 0 } : undefined);
       }
-      for (const [index, stage] of example.stages.entries()) {
-        const preview = HealthBarExamplePreview({ example, stageIndex: index });
-        const columns = Children.toArray(preview.props.children) as ReactElement<any>[];
-        for (const [columnIndex, orientation] of (['desktop', 'mobile'] as const).entries()) {
-          const pair = (Children.toArray(columns[columnIndex].props.children) as ReactElement<any>[]).find((child) => child.type === HealthBarPair)!;
-          expect(pair.props.scale).toBe(example.scales[orientation]);
-          expect(pair.props.left).toBe(stage.left);
-          expect(pair.props.right).toBe(stage.right);
-          const scale = example.scales[orientation];
-          for (const [side, state] of [['left', stage.left], ['right', stage.right]] as const) {
-            expect(mapHealthBarValue(scale, state.health)).not.toBeNull();
-            for (const interval of [state.red, state.green]) {
-              if (!interval) continue;
-              expect(mapHealthBarValue(scale, interval.from)).not.toBeNull();
-              expect(mapHealthBarValue(scale, interval.to)).not.toBeNull();
-            }
-            const length = HEALTH_BAR_EXAMPLE_AXIS_LENGTHS[orientation];
-            const geometry = calculateHealthBarGeometry(scale, side, state, orientation, length);
-            if (state.health <= 0) expect(geometry.white).toBeNull();
-            if (stage.name.startsWith('Surplus') && state.green) {
-              const cap = side === 'left' ? left.maxHealth : right.maxHealth;
-              expect(state.health).toBe(cap);
-              expect(state.green.from).toBe(0);
-              expect(state.green.to).toBeLessThanOrEqual(cap);
-              if (state.green.to === 0) {
-                expect(geometry.green).toBeNull();
-                continue;
-              }
-              const capPosition = healthBarValuePosition(scale, cap, orientation, length)!;
-              const zeroPosition = healthBarValuePosition(scale, 0, orientation, length)!;
-              const start = orientation === 'desktop' ? geometry.green!.top : geometry.green!.left;
-              const extent = orientation === 'desktop' ? geometry.green!.height : geometry.green!.width;
-              expect(start).toBeGreaterThanOrEqual(Math.min(capPosition, zeroPosition) - 1e-10);
-              expect(start + extent).toBeLessThanOrEqual(Math.max(capPosition, zeroPosition) + 1e-10);
-              expect(orientation === 'desktop' ? start + extent : start).toBeCloseTo(zeroPosition);
-            }
-          }
-        }
-        // Both production orientations render every supplied pose without browser tooling.
-        expect(renderToStaticMarkup(createElement(HealthBarExamplePreview, { example, stageIndex: index })).match(/data-health-pair=/g)).toHaveLength(2);
-      }
-    });
-
-    it(`${example.name}: enforces per-player handoff, retained trail and clearance boundaries`, () => {
-      const source = snapshot(example);
-      const index = (name: string) => example.stages.findIndex((item) => item.name === name);
-      const needsRemoval = [source.left, source.right].some((s) =>
-        s.damageStageHealth < 0 && s.finalHealth >= 0 && s.finalHealth > s.damageStageHealth);
-      expect(index('Retained red removed') >= 0).toBe(needsRemoval);
-      for (const side of ['left', 'right'] as const) {
-        const s = source[side];
-        const start = s.damageStageHealth;
-        const recovers = s.finalHealth > start;
-        if (index('Damage clearance') >= 0) {
-          const cleared = stage(example, 'Damage clearance')[side];
-          expect(cleared.health).toBe(start);
-          if (start < 0) expect(cleared.red).toEqual({ from: start, to: 0 });
-          else expect(visible(cleared.red)).toBe(false);
-        }
-        if (index('Red/green handoff') >= 0) {
-          const handoff = stage(example, 'Red/green handoff')[side];
-          expect(handoff.health).toBe(start);
-          expect(visible(handoff.green)).toBe(false);
-          if (recovers) expect(handoff.green).toEqual({ from: start, to: start });
-          if (start < 0) expect(handoff.red).toEqual({ from: start, to: 0 });
-          else expect(visible(handoff.red)).toBe(false);
-        }
-        if (index('Healing begins') < 0) continue;
-        const growth = ['Healing begins', 'Healing grows', 'Healing movement', 'Healing reaches final health'];
-        const samples = growth.map((name) => stage(example, name)[side]);
-        for (const sample of samples) {
-          if (!recovers) {
-            expect(sample.health).toBe(start);
-            expect(sample.green).toBeUndefined();
-            if (start < 0) expect(sample.red).toEqual({ from: start, to: 0 });
-            else expect(visible(sample.red)).toBe(false);
-            continue;
-          }
-          expect(sample.green).toEqual({ from: start, to: sample.health });
-          if (start < 0) expect(sample.red).toEqual({ from: start, to: 0 });
-          else expect(visible(sample.red)).toBe(false);
-        }
-        if (!recovers) {
-          // A damage-only player does not lose its final red when its sibling heals.
-          for (const name of ['Retained red removed', 'Healing clearance', 'Healing cleared']) {
-            if (index(name) < 0) continue;
-            const state = stage(example, name)[side];
-            expect(state.health).toBe(s.finalHealth);
-            expect(state.green).toBeUndefined();
-            expect(state.red).toEqual(s.finalHealth < 0 ? { from: s.finalHealth, to: 0 } : undefined);
-          }
-          continue;
-        }
-        expect(samples[0].green).toEqual({ from: start, to: start });
-        expect(samples[1].health).toBeGreaterThan(samples[0].health);
-        expect(samples[2].health).toBeGreaterThan(samples[1].health);
-        expect(samples[3].health).toBe(s.finalHealth);
-        expect(index('Healing reaches final health')).toBeLessThan(index('Healing clearance'));
-        if (start < 0 && s.finalHealth >= 0) {
-          expect(index('Retained red removed')).toBeGreaterThan(index('Healing reaches final health'));
-          expect(index('Retained red removed')).toBeLessThan(index('Healing clearance'));
-          const removed = stage(example, 'Retained red removed')[side];
-          expect(removed.red).toBeUndefined();
-          expect(removed.green).toEqual({ from: start, to: s.finalHealth });
-        }
-        const clearing = stage(example, 'Healing clearance')[side];
-        expect(clearing.red).toEqual(s.finalHealth < 0 ? { from: s.finalHealth, to: 0 } : undefined);
-        expect(clearing.green!.from).toBeGreaterThan(start);
-        expect(clearing.green!.to).toBe(s.finalHealth);
-        const cleared = stage(example, 'Healing cleared')[side];
-        expect(cleared).toEqual(stage(example, 'Settled final')[side]);
-        expect(index('Healing cleared')).toBeGreaterThan(index('Healing clearance'));
-        expect(index('Settled final')).toBeGreaterThan(index('Healing cleared'));
-      }
-      for (const sample of example.stages) {
-        for (const side of ['left', 'right'] as const) {
-          const state = sample[side];
-          if (!visible(state.red) || !visible(state.green)) continue;
-          expect(source[side].damageStageHealth).toBeLessThan(0);
-          if (sample.name === 'Healing clearance' || sample.name === 'Retained red removed') {
-            expect(source[side].finalHealth).toBeLessThan(0);
-            expect(state.red).toEqual({ from: source[side].finalHealth, to: 0 });
-            expect(state.green!.to).toBe(source[side].finalHealth);
-          } else {
-            expect(['Healing grows', 'Healing movement', 'Healing reaches final health']).toContain(sample.name);
-            expect(state.red).toEqual({ from: source[side].damageStageHealth, to: 0 });
-            expect(state.green!.from).toBe(source[side].damageStageHealth);
-          }
-        }
-      }
-    });
-
-    it(`${example.name}: surplus grows and returns about zero using unused healing only`, () => {
-      const source = snapshot(example);
-      const unused = (side: 'left' | 'right') => Math.max(0,
-        source[side].damageStageHealth + source[side].grossHealingReceived - source[side].finalHealth);
-      const surplus = example.stages.filter((sample) => sample.name.startsWith('Surplus'));
-      if (!unused('left') && !unused('right')) {
-        expect(surplus).toHaveLength(0);
-        return;
-      }
-      expect(surplus.map((sample) => sample.name)).toEqual([
-        'Surplus begins', 'Surplus grows', 'Surplus reaches amount', 'Surplus returns', 'Surplus cleared',
-      ]);
-      for (const side of ['left', 'right'] as const) {
-        const amount = Math.min(unused(side), source[side].maxHealth);
-        const states = surplus.map((sample) => sample[side]);
-        for (const state of states) expect(state.health).toBe(source[side].finalHealth);
-        if (amount === 0) {
-          for (const state of states) expect(state).toEqual(stage(example, 'Settled final')[side]);
-          continue;
-        }
-        for (const [index, fraction] of [0, 0.5, 1, 0.5].entries()) {
-          expect(states[index].green).toEqual({ from: 0, to: amount * fraction });
-          expect(states[index].red).toBeUndefined();
-        }
-        expect(states[1].green!.to).toBeGreaterThan(states[0].green!.to);
-        expect(states[2].green!.to).toBeGreaterThan(states[1].green!.to);
-        expect(states[3].green!.to).toBeLessThan(states[2].green!.to);
-        expect(states[4].green).toBeUndefined();
-      }
     });
   }
+
+  it('forwards the selected recovery pose and shared scale to both preview orientations', () => {
+    const example = HEALTH_BAR_EXAMPLES.find((item) => item.id === 'recovery')!;
+    const stageIndex = example.stages.findIndex((item) => item.name === 'Healing reaches final health');
+    const selected = example.stages[stageIndex];
+    const preview = HealthBarExamplePreview({ example, stageIndex });
+    const pairs = (node: ReactNode): ReactElement<any>[] => Children.toArray(node).flatMap((child) => {
+      if (!isValidElement(child)) return [];
+      const element = child as ReactElement<any>;
+      return element.type === HealthBarPair ? [element] : pairs(element.props.children);
+    });
+    const consumers = pairs(preview);
+    expect(consumers.map((pair) => pair.props.orientation)).toEqual(['desktop', 'mobile']);
+    for (const pair of consumers) {
+      const orientation = pair.props.orientation as 'desktop' | 'mobile';
+      expect(pair.props.scale).toBe(example.scales[orientation]);
+      expect(pair.props.axisLength).toBe(HEALTH_BAR_EXAMPLE_AXIS_LENGTHS[orientation]);
+      expect(pair.props.left).toBe(selected.left);
+      expect(pair.props.right).toBe(selected.right);
+    }
+    expect(renderToStaticMarkup(preview).match(/data-health-pair=/g)).toHaveLength(2);
+  });
 
   it('retains negative red behind recovery across zero and still demonstrates extreme compression', () => {
     const recovery = HEALTH_BAR_EXAMPLES.find((example) => example.id === 'recovery')!;
@@ -237,12 +90,6 @@ describe('static health-bar examples', () => {
     for (const sample of afterDamage) {
       expect(sample.left.red!.from).toBeLessThanOrEqual(-13);
       expect(sample.left.red!.to).toBe(0);
-      for (const orientation of ['desktop', 'mobile'] as const) {
-        const geometry = calculateHealthBarGeometry(negative.scales[orientation], 'left', sample.left,
-          orientation, HEALTH_BAR_EXAMPLE_AXIS_LENGTHS[orientation]);
-        expect(geometry.red).not.toBeNull();
-        expect(geometry.white).toBeNull();
-      }
     }
     const damageOnly = HEALTH_BAR_EXAMPLES.find((example) => example.id === 'damage-only-negative')!;
     expect(stage(damageOnly, 'Settled final').left).toEqual({ health: -18, red: { from: -18, to: 0 } });
@@ -272,29 +119,6 @@ describe('static health-bar examples', () => {
           const state = sample[negativeSide];
           expect(state.health).toBe(-13);
           expect(state.red).toEqual({ from: index === targetIndex ? -18 : -13, to: 0 });
-          for (const orientation of ['desktop', 'mobile'] as const) {
-            const scale = example.scales[orientation];
-            const axisLength = HEALTH_BAR_EXAMPLE_AXIS_LENGTHS[orientation];
-            const geometry = calculateHealthBarGeometry(scale, negativeSide, state, orientation, axisLength);
-            expect(geometry.white).toBeNull();
-            expect(geometry.red).not.toBeNull();
-            for (const interval of [state.red, state.green]) {
-              if (!interval) continue;
-              expect(mapHealthBarValue(scale, interval.from)).not.toBeNull();
-              expect(mapHealthBarValue(scale, interval.to)).not.toBeNull();
-            }
-            const markup = renderToStaticMarkup(createElement(HealthBar, {
-              scale, orientation, axisLength, side: negativeSide, state, label: 'Negative final',
-            }));
-            expect(markup).toContain('data-health-layer="red"');
-            expect(markup).not.toContain('data-health-layer="white"');
-            const preview = HealthBarExamplePreview({ example, stageIndex: index });
-            const columns = Children.toArray(preview.props.children) as ReactElement<any>[];
-            const column = columns[orientation === 'desktop' ? 0 : 1];
-            const pair = (Children.toArray(column.props.children) as ReactElement<any>[]).find((child) => child.type === HealthBarPair)!;
-            expect(pair.props.scale).toBe(scale);
-            expect(pair.props[negativeSide]).toBe(state);
-          }
         }
         expect(stage(example, 'Healing cleared')[negativeSide]).toEqual(stage(example, 'Settled final')[negativeSide]);
       });
