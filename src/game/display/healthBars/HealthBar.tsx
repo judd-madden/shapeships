@@ -12,8 +12,8 @@ import type { HealthBarTransitionLabel } from './healthBarScaleTransition';
 import type { HealthBarOutcomeLabel, HealthBarOutcomePresentation } from './healthBarOutcomePresentation';
 
 /** Gap from mapped zero toward positive health; owner-tunable, independent of health endpoints. */
-const HEALTH_BAR_OUTCOME_DESKTOP_ZERO_OFFSET_PX = 4;
-const HEALTH_BAR_OUTCOME_MOBILE_ZERO_OFFSET_PX = 4;
+const HEALTH_BAR_OUTCOME_DESKTOP_ZERO_OFFSET_PX = 8;
+const HEALTH_BAR_OUTCOME_MOBILE_ZERO_OFFSET_PX = 8;
 
 interface HealthBarSharedProps {
   readonly scale: Readonly<PreparedHealthBarScale>;

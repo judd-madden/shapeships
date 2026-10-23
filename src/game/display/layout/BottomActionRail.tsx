@@ -17,6 +17,7 @@ interface BottomActionRailProps {
 
 export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomActionRailProps) {
   const isBack = mainPhaseControl.mode === 'back';
+  const isGameOver = vm.subphaseTitle === 'Game Over';
 
   return (
     <div
@@ -27,7 +28,8 @@ export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomAction
       <div className="basis-0 grow min-h-px min-w-px relative shrink-0" data-name="Subphase Info">
         <div className="content-stretch flex flex-col gap-[3px] items-start leading-[normal] pl-[20px] pr-0 py-0 relative text-white w-full min-[768px]:max-[1599px]:pl-[12px]">
           <p
-            className="font-black relative shrink-0 text-[36px] w-full min-[768px]:max-[1599px]:text-[30px]"
+            aria-hidden={isGameOver || undefined}
+            className={`font-black relative shrink-0 text-[36px] w-full min-[768px]:max-[1599px]:text-[30px]${isGameOver ? ' invisible' : ''}`}
           >
             {vm.subphaseTitle}
             {vm.subphaseTitleSuffix ? (
@@ -58,7 +60,11 @@ export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomAction
         {!vm.canUndoActions && (
           <div className="w-[130px] min-[768px]:max-[1599px]:w-[40px]" />
         )}
-        {vm.readyButtonVisible ? (
+        {isGameOver ? (
+          <p className="flex h-[50px] w-[300px] shrink-0 items-center justify-center font-black leading-[normal] text-[36px] text-white min-[768px]:max-[1599px]:text-[30px]">
+            {vm.subphaseTitle}
+          </p>
+        ) : vm.readyButtonVisible ? (
           <div className="w-[300px] ">
             <ReadyButton
               label={isBack ? 'BACK' : vm.readyButtonLabel}

@@ -63,7 +63,7 @@ function PlayerHeader({ vm, side }: PlayerHeaderProps) {
         }`}
       >
         {statusTone !== 'hidden' ? (
-          <div className="flex size-full items-center justify-center rounded-[10px] bg-[var(--shapeships-grey-90)] px-[8px] min-[1400px]:px-[12px] min-[1920px]:px-[20px]">
+          <div className="flex size-full items-center justify-center mt-[4px] rounded-[10px] bg-[var(--shapeships-grey-90)] px-[8px] min-[1400px]:px-[12px] min-[1920px]:px-[20px]">
             <FitSingleLineText
               text={statusText ?? ''}
               maxFontSize={18}
@@ -78,7 +78,7 @@ function PlayerHeader({ vm, side }: PlayerHeaderProps) {
       </div>
 
       <div
-        className={`order-2 flex h-[36px] w-[7ch] shrink-0 items-center justify-center whitespace-nowrap font-bold text-[16px] leading-normal tabular-nums min-[1400px]:h-[42px] min-[1400px]:text-[20px] min-[1920px]:h-[50px] min-[1920px]:text-[28px] max-[1199px]:h-[40px] max-[1199px]:items-start ${
+        className={`order-2 flex h-[36px] w-[7ch] shrink-0 mt-[4px] items-center justify-center whitespace-nowrap font-bold text-[16px] leading-normal tabular-nums min-[1400px]:h-[42px] min-[1400px]:text-[20px] min-[1920px]:h-[50px] min-[1920px]:text-[28px] max-[1199px]:h-[40px] max-[1199px]:items-start ${
           isReady ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]'
         }`}
       >
@@ -92,7 +92,7 @@ function PlayerHeader({ vm, side }: PlayerHeaderProps) {
       </div>
 
       <div
-        className={`min-w-0 max-w-[176px] flex-1 min-[1400px]:max-w-[240px] min-[1920px]:max-w-[320px] max-[1199px]:order-1 max-[1199px]:w-full max-[1199px]:flex-none max-[1199px]:pb-[15px] ${
+        className={`min-w-0 max-w-[160px] flex-1 min-[1400px]:max-w-[200px] min-[1920px]:max-w-[300px] max-[1199px]:order-1 max-[1199px]:w-full max-[1199px]:flex-none max-[1199px]:pb-[8px] ${
           isLeft ? 'order-3' : 'order-1'
         }`}
       >
@@ -104,10 +104,10 @@ function PlayerHeader({ vm, side }: PlayerHeaderProps) {
               text={name}
               maxFontSize={36}
               align={isLeft ? 'right' : 'left'}
-              className="w-full min-w-0 font-normal leading-[1.1] text-[16px] text-white min-[1400px]:text-[24px] min-[1920px]:text-[36px]"
+              className="w-full min-w-0 font-normal leading-[1] text-[16px] text-white min-[1400px]:text-[24px] min-[1920px]:text-[36px]"
             />
             {/* Anchor species to the fitted name box, not the fixed control slot. */}
-            <p className={`absolute inset-x-0 top-full mt-[2px] truncate text-[10px] font-normal capitalize leading-[1.1] text-white min-[1400px]:text-[12px] min-[1920px]:text-[15px] ${isLeft ? 'text-right' : 'text-left'}`} title={species}>
+            <p className={`absolute inset-x-0 top-full truncate text-[10px] font-normal capitalize leading-[1] text-white min-[1400px]:text-[12px] min-[1920px]:text-[15px] ${isLeft ? 'text-right' : 'text-left'}`} title={species}>
               {species}
             </p>
           </div>

@@ -793,6 +793,7 @@ export function BoardStage({
         ancientSolarEntries={vm.myAncientSolarEntries}
         isBattleReveal={isBattleReveal}
         voidShips={vm.myVoidFleet}
+        voidSlotClassName="box-border h-[56px] shrink-0 pb-[12px]"
         order={vm.myFleetRenderOrder}
         species={mySpeciesKey}
         animTokens={vm.fleetAnim.my}
@@ -826,6 +827,7 @@ export function BoardStage({
         ancientSolarEntries={vm.opponentAncientSolarEntries}
         isBattleReveal={isBattleReveal}
         voidShips={vm.opponentVoidFleet}
+        voidSlotClassName="box-border h-[56px] shrink-0 pb-[12px]"
         order={vm.opponentFleetRenderOrder} 
         species={opponentSpeciesKey}
         animTokens={vm.fleetAnim.opponent}
