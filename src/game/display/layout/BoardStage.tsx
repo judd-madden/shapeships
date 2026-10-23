@@ -175,7 +175,7 @@ function Metric({
       )}
     >
       <p
-        className="font-bold leading-none relative shrink-0 text-[20px] min-[1400px]:text-[24px] min-[1920px]:text-[28px] min-[2220px]:text-[32px] min-w-[32px] whitespace-nowrap"
+        className="font-bold leading-none relative shrink-0 text-[20px] min-[1400px]:text-[24px] min-[1920px]:text-[28px] min-[2220px]:text-[32px] whitespace-nowrap"
       >
         {value}
       </p>
@@ -637,7 +637,7 @@ export function BoardStage({
             {vm.showTurnStartEconomyPresentation ? (<>
             {/* P1 */}
             <div className="content-stretch flex items-start justify-end relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]" data-name="P1 Saved Wrapper">
-              <div className="content-stretch flex items-start relative shrink-0">
+              <div className="content-stretch flex items-start relative shrink-0 gap-[4px] min-[1400px]:gap-[6px] min-[1920px]:gap-[8px]">
                 <Metric value={String(vm.myDisplayedSavedLines)} align="right" toneClass="text-white" />
                 {vm.myDisplayedSavedJoiningLines > 0 ? (
                   <Metric
@@ -660,7 +660,7 @@ export function BoardStage({
           
             {/* P2 */}
             <div className="content-stretch flex items-start relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]" data-name="P2 Saved Wrapper">
-              <div className="content-stretch flex items-start relative shrink-0">
+              <div className="content-stretch flex items-start relative shrink-0 gap-[4px] min-[1400px]:gap-[6px] min-[1920px]:gap-[8px]">
                 <Metric value={String(vm.opponentDisplayedSavedLines)} align="left" toneClass="text-white" />
                 {vm.opponentDisplayedSavedJoiningLines > 0 ? (
                   <Metric
@@ -688,7 +688,7 @@ export function BoardStage({
                 onHoverLeave={statHover.onLeave}
                 onFocus={statHover.onFocus}
                 onBlur={statHover.onBlur}
-                className="flex gap-[4px] items-center justify-end w-max shrink-0"
+                className="flex gap-[4px] min-[1400px]:gap-[6px] min-[1920px]:gap-[8px] items-center justify-end w-max shrink-0"
               >
                 {myOrdinaryCentaurBonusLines !== 0 ? (
                   <div ref={myBonusAnchorRef} className="shrink-0">
@@ -738,7 +738,7 @@ export function BoardStage({
                 onHoverLeave={statHover.onLeave}
                 onFocus={statHover.onFocus}
                 onBlur={statHover.onBlur}
-                className="flex gap-[4px] items-start w-max shrink-0"
+                className="flex gap-[4px] min-[1400px]:gap-[6px] min-[1920px]:gap-[8px] items-start w-max shrink-0"
               >
                 {opponentOrdinaryCentaurBonusLines !== 0 ? (
                   <div ref={opponentBonusPrimaryAnchorRef} className="shrink-0">

@@ -758,7 +758,15 @@ export function FleetArea({
   );
 
   return (
-    <div className="basis-0 grow h-full min-h-px min-w-px relative shrink-0 px-[8px] overflow-visible">
+    <div
+        className={cx(
+          'basis-0 grow h-full min-h-px min-w-px relative shrink-0 overflow-visible',
+          'max-[767px]:px-[8px]',
+          side === 'my'
+            ? 'min-[768px]:pr-[16px]'
+            : 'min-[768px]:pl-[16px]'
+        )}
+      >
       <div className="absolute inset-0 z-0 pointer-events-none">
         <FleetAreaHealthDeltaFlash vm={healthDeltaFlash} shape={healthDeltaFlashShape} />
       </div>
