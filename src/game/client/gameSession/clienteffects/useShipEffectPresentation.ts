@@ -49,6 +49,8 @@ export function createShipEffectPresentationState(context = ''): ShipEffectPrese
 interface Input {
   context: string;
   enabled: boolean;
+  /** Genuine recovery discards history; temporary synchronization only suspends eligibility. */
+  resetBaseline?: boolean;
   batches: readonly ShipActivationCueBatch[] | null;
   previous: ShipEffectFleetFrame;
   fleet: ShipEffectFleetFrame;
@@ -69,13 +71,13 @@ function startReadyGroups(groups: EffectGroup[], now: number): EffectGroup[] {
 /** Accepts only resolved DTOs. Fleet data supplies appearance, never effect success. */
 export function reconcileShipEffects(current: ShipEffectPresentationState, input: Input,
   now: number): ShipEffectPresentationState {
-  if (current.context !== input.context || !input.enabled) {
-    const empty = createShipEffectPresentationState(input.context);
-    if (!input.enabled) return current.context === input.context && !current.initialized &&
-      current.groups.length === 0 ? current : empty;
-    current = empty;
+  if (current.context !== input.context) current = createShipEffectPresentationState(input.context);
+  if (input.resetBaseline) {
+    return !current.initialized && current.groups.length === 0
+      ? current : createShipEffectPresentationState(input.context);
   }
-  if (input.batches === null) return current;
+  // A visible-window refocus must not consume outcomes before synchronization validates.
+  if (!input.enabled || input.batches === null) return current;
   let changed = !current.initialized;
   let groups = [...current.groups];
   let seen = current.seen.map((batch) => ({ ...batch, identities: [...batch.identities] }));
@@ -203,10 +205,10 @@ export function useShipEffectPresentation(input: Input) {
   }
   return {
     retained: [...retainedById.values()], effects, pending: state.groups.length > 0,
-    audio: { scopeKey: JSON.stringify([input.context, input.enabled]), impactKey: state.impactKey,
+    audio: { scopeKey: JSON.stringify([input.context, !!input.resetBaseline]), impactKey: state.impactKey,
       suppressedVoidInstanceIds: state.groups.filter((group) => group.kind === 'destroy').flatMap((group) => group.targets.map((target) => target.instanceId)),
       authoritativeVoidInstanceIds: [...input.voidFleet.my, ...input.voidFleet.opponent].flatMap((ship) => ship.memberInstanceIds),
-      baseline: !input.enabled || !stored.initialized || stored.context !== input.context },
+      baseline: !!input.resetBaseline || !input.enabled || !stored.initialized || stored.context !== input.context },
     onImpact: (key: string) => {
       setStored((current) => impactShipEffect(current, key));
     },

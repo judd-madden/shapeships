@@ -122,7 +122,7 @@ Deno.test('rejoin, background and recovery establish a baseline and release pend
   input.batches = [effectBatch([resolved()])];
   state = reconcileShipEffects(state, input, 100);
   const oldKey = state.groups[0].key;
-  state = reconcileShipEffects(state, { ...input, enabled: false }, 200);
+  state = reconcileShipEffects(state, { ...input, enabled: false, resetBaseline: true }, 200);
   assertEquals(state.groups, [], 'recovery immediately releases result waiting and retention');
   state = reconcileShipEffects(state, { ...input, context: 'new-session' }, 300);
   assertEquals(state.groups, [], 'historical outcomes do not replay');
@@ -131,12 +131,109 @@ Deno.test('rejoin, background and recovery establish a baseline and release pend
   assertEquals(reconcileShipEffects(state, input, 500).groups.map((group) => group.kind), ['copy'], 'new live outcomes resume');
 });
 
+for (const validation of ['accepted_full', 'unchanged_head'] as const) {
+  for (const outcomeInValidation of [true, false]) {
+    Deno.test(`visible refocus preserves unseen outcomes (${validation}, in validating response: ${outcomeInValidation})`, () => {
+      let sync = { failures: 0, recovering: false, version: 0, validatedResumeToken: 0 as number | null };
+      const input = effectInput([effectBatch([resolved('copy', ['other'])])]);
+      input.context = JSON.stringify(['game:viewer', sync.version]);
+      let state = reconcileShipEffects(createShipEffectPresentationState(), input, 0);
+      const established = state;
+      // Refocus changes the synchronization token, but not presentation identity.
+      const resumeToken = 1;
+      input.enabled = sync.validatedResumeToken === resumeToken;
+      if (outcomeInValidation) input.batches = [effectBatch([resolved('copy', ['other']), resolved()])];
+      state = reconcileShipEffects(state, input, 100);
+      assertSame(state, established, 'suspension neither consumes outcomes nor replaces the baseline');
+      assertSame(reconcileShipEffects(state, input, 200), state, 'repeated suspension preserves all consumption state');
+      sync = observeShipEffectSync(sync, validation, resumeToken);
+      input.context = JSON.stringify(['game:viewer', sync.version]);
+      input.enabled = sync.validatedResumeToken === resumeToken;
+      state = reconcileShipEffects(state, input, 300);
+      if (!outcomeInValidation) {
+        assertEquals(state.groups, [], 'validation alone does not replay established history');
+        input.batches = [effectBatch([resolved('copy', ['other']), resolved()])];
+        state = reconcileShipEffects(state, input, 400);
+      }
+      assertEquals(state.groups.map((group) => group.kind), ['destroy'], 'only the unseen outcome plays');
+      assertSame(reconcileShipEffects(state, input, 500), state, 'duplicate response preserves the effect and deadline');
+      state = settleShipEffect(state, state.groups[0].key, null, 2500);
+      assertSame(reconcileShipEffects(state, input, 2600), state, 'settled outcomes cannot replay');
+    });
+  }
+}
+
+Deno.test('visible suspension preserves active effects, impact consumption and the original deadline', () => {
+  const input = effectInput();
+  let state = reconcileShipEffects(createShipEffectPresentationState(), input, 0);
+  input.batches = [effectBatch([resolved()])];
+  state = reconcileShipEffects(state, input, 100);
+  const key = state.groups[0].key;
+  state = impactShipEffect(state, key);
+  const active = state;
+  input.enabled = false;
+  assertSame(reconcileShipEffects(state, input, 500), active, 'refocus preserves active claims and sound consumption');
+  assertSame(impactShipEffect(state, key), active, 'duplicate impacts remain consumed during suspension');
+  input.enabled = true;
+  assertSame(reconcileShipEffects(state, input, 1000), active, 'validation does not restart a consumed effect');
+  input.enabled = false;
+  state = expireShipEffects(reconcileShipEffects(state, input, 2000), 2100);
+  assertEquals(state.groups, [], 'original deadline releases retention even while suspended');
+  input.enabled = true;
+  assertSame(reconcileShipEffects(state, input, 2200), state, 'validation cannot restart an expired effect');
+});
+
+for (const recovery of ['hidden', 'disconnect', 'game', 'session', 'viewer']) {
+  Deno.test(`${recovery} recovery still establishes a silent baseline`, () => {
+    const input = effectInput();
+    let state = reconcileShipEffects(createShipEffectPresentationState(), input, 0);
+    input.batches = [effectBatch([resolved()])];
+    state = reconcileShipEffects(state, input, 100);
+    const oldKey = state.groups[0].key;
+    state = impactShipEffect(state, oldKey);
+    input.enabled = false;
+    if (recovery === 'hidden') input.resetBaseline = true;
+    else if (recovery === 'disconnect') {
+      let sync = { failures: 0, recovering: false, version: 0, validatedResumeToken: 0 as number | null };
+      for (let i = 0; i < 3; i++) sync = observeShipEffectSync(sync, 'transport_failure', 0);
+      input.context = JSON.stringify(['game:viewer', sync.version]);
+      input.resetBaseline = sync.recovering;
+    } else input.context = `${recovery}:changed`;
+    state = reconcileShipEffects(state, input, 200);
+    assertEquals([state.initialized, state.groups, state.seen, state.impactKey], [false, [], [], null],
+      'genuine recovery clears baseline, retention and impact');
+    assertSame(reconcileShipEffects(state, input, 250), state, 'repeated reset is idempotent');
+    input.resetBaseline = false;
+    state = reconcileShipEffects(state, input, 300);
+    assertEquals(state.initialized, false, 'recovery awaits synchronization');
+    input.enabled = true;
+    state = reconcileShipEffects(state, input, 400);
+    assertEquals([state.initialized, state.groups], [true, []], 'validating history is silent');
+    input.batches = [effectBatch([resolved()], 1), effectBatch([resolved('copy')], 2)];
+    state = reconcileShipEffects(state, input, 500);
+    assertEquals(state.groups.map((group) => group.kind), ['copy'], 'later live outcomes resume');
+    assertSame(settleShipEffect(state, oldKey, null, 600), state, 'stale callback cannot settle a new live outcome');
+  });
+}
+
+Deno.test('initial synchronization defers baseline establishment until playback is eligible', () => {
+  const input = effectInput([effectBatch([resolved()])]);
+  input.enabled = false;
+  let state = reconcileShipEffects(createShipEffectPresentationState(), input, 0);
+  assertEquals([state.initialized, state.seen], [false, []], 'ineligible first response consumes nothing');
+  input.enabled = true;
+  state = reconcileShipEffects(state, input, 100);
+  assertEquals([state.initialized, state.groups], [true, []], 'first eligible history stays silent');
+});
+
 Deno.test('consumption retains eight batches and cannot replay evicted historical outcomes', () => {
   const input = effectInput();
   let state = reconcileShipEffects(createShipEffectPresentationState(), input, 0);
   for (let seq = 1; seq <= 10; seq++) state = reconcileShipEffects(state,
     { ...input, batches: [effectBatch([], seq)] }, seq);
   assertEquals(state.seen.length, 8, 'history remains bounded');
+  assertSame(reconcileShipEffects(state, { ...input, enabled: false }, 15), state,
+    'suspension preserves bounded history and the eviction watermark');
   const stale = reconcileShipEffects(state, { ...input, batches: [effectBatch([resolved()], 1)] }, 20);
   assertSame(stale, state, 'eviction does not permit stale replay');
 });

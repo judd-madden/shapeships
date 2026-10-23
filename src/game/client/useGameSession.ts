@@ -5390,13 +5390,16 @@ useEffect(() => {
       : []
   );
   const lastShipEffectFleetFrameRef = useRef<{ context: string; fleet: ShipEffectFleetFrame } | null>(null);
-  const shipEffectContext = JSON.stringify([activationHardContinuityKey, foregroundResumeToken, shipEffectSync.version]);
+  const shipEffectContext = JSON.stringify([activationHardContinuityKey, shipEffectSync.version]);
+  const resetShipEffectBaseline = untimedPollingMode === 'hidden' || shipEffectSync.recovering;
+  const shipEffectPlaybackEnabled = rawActivationCueBatches !== null && !resetShipEffectBaseline && !resumeSyncLocked &&
+    shipEffectSync.validatedResumeToken === foregroundResumeToken;
   const shipEffects = useShipEffectPresentation({
     context: shipEffectContext,
-    enabled: rawActivationCueBatches !== null && untimedPollingMode !== 'hidden' && !resumeSyncLocked &&
-      !shipEffectSync.recovering && shipEffectSync.validatedResumeToken === foregroundResumeToken,
+    enabled: shipEffectPlaybackEnabled,
+    resetBaseline: resetShipEffectBaseline,
     batches: rawActivationCueBatches,
-    previous: lastShipEffectFleetFrameRef.current?.context === shipEffectContext
+    previous: !resetShipEffectBaseline && lastShipEffectFleetFrameRef.current?.context === shipEffectContext
       ? lastShipEffectFleetFrameRef.current.fleet : { my: [], opponent: [] },
     fleet: { my: localFleetBeforeExactTargetProjection, opponent: opponentFleetBeforeExactTargetProjection },
     voidFleet: { my: displayLeftVoidFleet, opponent: displayRightVoidFleet },
@@ -5449,6 +5452,11 @@ useEffect(() => {
   const presentedLocalFleet = projectedMyTargetPresentation.fleet;
   const presentedOpponentFleet = projectedOpponentTargetPresentation.fleet;
   useLayoutEffect(() => {
+    if (resetShipEffectBaseline || lastShipEffectFleetFrameRef.current?.context !== shipEffectContext) {
+      lastShipEffectFleetFrameRef.current = null;
+    }
+    // Preserve the last eligible appearance while visible-window synchronization is pending.
+    if (!shipEffectPlaybackEnabled) return;
     lastShipEffectFleetFrameRef.current = { context: shipEffectContext,
       fleet: { my: orderFleetSummariesByRenderKey(presentedLocalFleet, projectedMyTargetPresentation.renderOrder),
         opponent: orderFleetSummariesByRenderKey(presentedOpponentFleet, projectedOpponentTargetPresentation.renderOrder) } };

@@ -108,11 +108,70 @@ it('ship-effect deadlines release terminal waiting when no display component mou
     targets: [{ playerId: 'p2', shipInstanceId: 'victim' }],
   }] }];
   const active = read(); expect(active.pending).toBe(true);
-  vi.advanceTimersByTime(1200); expect(read().pending).toBe(true);
-  vi.advanceTimersByTime(800); expect(read().pending).toBe(false);
+  vi.advanceTimersByTime(1200);
+  input.enabled = false;
+  const suspended = read();
+  expect(suspended.pending).toBe(true);
+  expect(suspended.retained).toEqual(active.retained);
+  expect(suspended.audio.scopeKey).toBe(active.audio.scopeKey);
+  expect(suspended.audio.baseline).toBe(true);
+  vi.advanceTimersByTime(400);
+  input.enabled = true;
+  expect(read().effects).toEqual(active.effects);
+  input.enabled = false; read();
+  vi.advanceTimersByTime(400); expect(read().pending).toBe(false);
   expect(read().retained).toEqual([]);
+  input.enabled = true;
+  expect(read().pending).toBe(false);
   active.onComplete(Object.values(active.effects.opponent)[0].activationKey, 'victim');
   expect(read().pending).toBe(false);
+});
+
+it.each(['hidden', 'disconnect'] as const)('visible suspension preserves effect audio and %s recovery cleans it up', (recovery) => {
+  const ship = { shipDefId: 'DEF', stackKey: 'DEF', renderKey: 'def', count: 1, memberInstanceIds: ['victim'] };
+  const input: Parameters<typeof useShipEffectPresentation>[0] = { context: 'game', enabled: true, batches: [],
+    previous: { my: [], opponent: [ship] }, fleet: { my: [], opponent: [] }, voidFleet: { my: [], opponent: [] },
+    leftPlayerId: 'p1', rightPlayerId: 'p2' };
+  const read = () => effectsHarness.render(() => {
+    const presentation = useShipEffectPresentation(input);
+    useGameSound({ active: true, enabled: true, diceAnimateKey: 0, shipEffects: presentation.audio });
+    return presentation;
+  });
+  read();
+  input.batches = [{ key: 'b', seq: 1, turnNumber: 3, phaseKey: 'battle.first_strike', sources: [], resolvedOutcomes: [{
+    playerId: 'p1', kind: 'destroy', source: { type: 'ship', shipDefId: 'GUA', instanceId: 'gua', effectId: 'e' },
+    targets: [{ playerId: 'p2', shipInstanceId: 'victim' }],
+  }] }];
+  input.voidFleet.opponent = [ship];
+  const active = read();
+  const key = Object.values(active.effects.opponent)[0].activationKey;
+  active.onImpact(key); read(); vi.advanceTimersByTime(0);
+  const destroyAudio = audioInstances[1];
+  expect(destroyAudio.play).toHaveBeenCalledTimes(1); // Effect impact owns the sound, not the Void diff.
+  const pauses = destroyAudio.pause.mock.calls.length;
+  input.enabled = false;
+  const suspended = read();
+  expect(suspended.audio.scopeKey).toBe(active.audio.scopeKey);
+  expect(suspended.audio.baseline).toBe(true);
+  expect(destroyAudio.pause).toHaveBeenCalledTimes(pauses);
+  read(); input.enabled = true; read();
+  active.onImpact(key); read(); vi.advanceTimersByTime(0);
+  expect(destroyAudio.play).toHaveBeenCalledTimes(1);
+  input.enabled = false;
+  input.resetBaseline = true;
+  if (recovery === 'disconnect') input.context = 'game:recovery-1';
+  const reset = read();
+  expect(reset.pending).toBe(false);
+  expect(reset.retained).toEqual([]);
+  expect(reset.audio.scopeKey).not.toBe(active.audio.scopeKey);
+  expect(destroyAudio.pause).toHaveBeenCalledTimes(pauses + 1);
+  expect(vi.getTimerCount()).toBe(0);
+  active.onImpact(key); active.onComplete(key, 'victim');
+  input.resetBaseline = false; read();
+  input.enabled = true;
+  expect(read().pending).toBe(false); // Validating recovery history stays silent.
+  vi.advanceTimersByTime(0);
+  expect(destroyAudio.play).toHaveBeenCalledTimes(1);
 });
 
 it('recovery cancels ship-effect audio without stopping dice or legacy destroy cues', () => {
