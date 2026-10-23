@@ -400,6 +400,38 @@ Deno.test('preview route key is learned separately and stale-key retry happens o
   assert(envelopes.length === 3, 'stale key retried more than once');
 });
 
+Deno.test('foreground recovery retries unavailable previews once without changing request identity', async () => {
+  const clock = new FakeClock();
+  let calls = 0;
+  const scheduler = createCurrentTurnPreviewScheduler({ clock, onStateChange: () => {},
+    transport: async (_gameId, envelope) => {
+      calls += 1;
+      return calls <= 2 ? { status: 503, body: { reason: 'temporarily_unavailable' } }
+        : { status: 200, body: estimate(envelope, 'recovered') };
+    },
+  });
+  const unchanged = candidate(1);
+  scheduler.setCandidate(unchanged, 0);
+  clock.advance(225);
+  await flush();
+  assert(scheduler.getState().kind === 'unavailable');
+  scheduler.setCandidate(unchanged, 0);
+  clock.advance(1000);
+  assert(calls === 1, 'ordinary observation retried an unavailable preview');
+  scheduler.setCandidate(unchanged, 1);
+  clock.advance(225);
+  await flush();
+  assert(scheduler.getState().kind === 'unavailable');
+  scheduler.setCandidate(unchanged, 1);
+  clock.advance(1000);
+  assert(calls === 2, 'recovery signal retried more than once');
+  scheduler.setCandidate(unchanged, 2);
+  clock.advance(225);
+  await flush();
+  assert(scheduler.getState().kind === 'estimated', 'foreground recovery required a user action');
+  scheduler.dispose();
+});
+
 Deno.test('pause invalidates in-flight acceptance and resume recovers the draft', async () => {
   const clock = new FakeClock();
   const pending = deferred<any>();

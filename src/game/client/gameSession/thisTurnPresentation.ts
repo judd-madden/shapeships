@@ -15,6 +15,17 @@ import {
   type CanonicalBuildSubmitPayload,
 } from './intents';
 import type { ProvisionalEvolverConversion } from './provisionalBuild';
+import { isResolvedHealthBoundary } from './resolvedHealth';
+import {
+  getLastTurnDamageDealtBreakdownByPlayerId,
+  getLastTurnHealingReceivedBreakdownByPlayerId,
+  getLastTurnResolvedHealthFacts,
+  getPlayerIdentityKey,
+  getPlayers,
+  getResultReason,
+  getTurnNumber,
+  isGameFinished,
+} from './selectors';
 import type {
   BattleLogHistoryResponse,
   BoardStatBreakdownRowVm,
@@ -32,6 +43,205 @@ export interface LastTurnPresentationInput {
   turnNumber: number;
   me: { damage: MetricInput; healing: MetricInput };
   opponent: { damage: MetricInput; healing: MetricInput };
+}
+
+interface ResolutionFacts {
+  damageTaken: number;
+  healReceived: number;
+  netHealthDelta: number;
+  healthEnd: number;
+}
+
+export interface ResolvedTurnPresentationInput extends LastTurnPresentationInput {
+  gameId: string;
+  mePlayerId: string;
+  opponentPlayerId: string;
+  factsByPlayerId: Record<string, ResolutionFacts>;
+}
+
+const HEALTH_FINISH_REASONS = new Set(['decisive', 'narrow', 'mutual_destruction']);
+const finite = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+
+/** Contribution totals can differ from target damage/gross healing (e.g. self-damage). */
+function resolvedMetric(rows: unknown): MetricInput {
+  if (!Array.isArray(rows) || rows.some((row) =>
+    !isRecord(row) || typeof row.label !== 'string' || !finite(row.amount) ||
+    !['ship', 'adjustment', 'solar_power'].includes(row.rowKind) ||
+    (row.rowKind === 'solar_power' && typeof row.solarPowerId !== 'string')
+  )) return null;
+  const normalized = normalizeRows(rows);
+  const total = normalized.reduce((sum, row) => sum + row.amount, 0);
+  return finite(total) ? { total, rows: normalized } : null;
+}
+
+/** Read one authoritative aggregate envelope; never borrow provenance from another. */
+export function readResolvedTurnPresentationInput(args: {
+  state: any;
+  gameId: string;
+  mePlayerId: string | null;
+  opponentPlayerId: string | null;
+}): ResolvedTurnPresentationInput | null {
+  const { state, gameId, mePlayerId, opponentPlayerId } = args;
+  if (state?.gameId !== gameId || !mePlayerId || !opponentPlayerId ||
+      mePlayerId === opponentPlayerId) return null;
+  const ids = [mePlayerId, opponentPlayerId];
+  const players = getPlayers(state);
+  const facts = getLastTurnResolvedHealthFacts(state);
+  const resolution = facts.healthResolution;
+  const currentTurn = getTurnNumber(state);
+  const atBoundary = isResolvedHealthBoundary(state, currentTurn);
+  // Legacy boundary responses have unambiguous period identity without metadata.
+  if (resolution === undefined ? !atBoundary :
+      !isRecord(resolution) || !Number.isInteger(resolution.resolvedTurnNumber) ||
+      resolution.resolvedTurnNumber < 1 || resolution.resolvedTurnNumber > currentTurn ||
+      (isGameFinished(state) && HEALTH_FINISH_REASONS.has(getResultReason(state)) &&
+        resolution.resolvedTurnNumber !== currentTurn) ||
+      ![resolution.finalHealthByPlayerId, resolution.maxHealthByPlayerId].every((map) =>
+        isRecord(map) && Object.keys(map).length === 2 && ids.every((id) => finite(map[id]))) ||
+      !ids.every((id) => resolution.maxHealthByPlayerId[id] > 0)) return null;
+  const resolvedTurnNumber = isRecord(resolution) ? resolution.resolvedTurnNumber : currentTurn;
+  const factsByPlayerId: Record<string, ResolutionFacts> = {};
+  for (const id of ids) {
+    const matches = players.filter((player) => getPlayerIdentityKey(player) === id);
+    const damageTaken = isRecord(facts.damage) ? facts.damage[id] : undefined;
+    const healReceived = isRecord(facts.healing) ? facts.healing[id] : undefined;
+    const netHealthDelta = isRecord(facts.net) ? facts.net[id] : undefined;
+    if (matches.length !== 1 || !finite(damageTaken) || damageTaken < 0 ||
+        !finite(healReceived) || healReceived < 0 || !finite(netHealthDelta) ||
+        !finite(matches[0].health) ||
+        (isRecord(resolution) && matches[0].health !== resolution.finalHealthByPlayerId[id])) return null;
+    factsByPlayerId[id] = { damageTaken, healReceived, netHealthDelta,
+      healthEnd: matches[0].health };
+  }
+  const damage = getLastTurnDamageDealtBreakdownByPlayerId(state);
+  const healing = getLastTurnHealingReceivedBreakdownByPlayerId(state);
+  const side = (id: string) => ({
+    damage: resolvedMetric(damage?.[id]),
+    healing: resolvedMetric(healing?.[id]),
+  });
+  return { gameId, turnNumber: resolvedTurnNumber, mePlayerId, opponentPlayerId,
+    me: side(mePlayerId), opponent: side(opponentPlayerId), factsByPlayerId };
+}
+
+/** Recovery is a derived view only. It must never enter live capture/animation state. */
+export function recoverThisTurnBreakdowns(presentation: ThisTurnPresentationVm, args: {
+  gameId: string;
+  turnNumber: number;
+  isFinished: boolean;
+  resultReason: string | null;
+  mePlayerId: string | null;
+  opponentPlayerId: string | null;
+  currentHealthByPlayerId: Readonly<Record<string, unknown>>;
+  resolvedTurn: ResolvedTurnPresentationInput | null;
+  history: BattleLogHistoryResponse | null;
+  resolutionSnapshot: ThisTurnResolutionSnapshot | null;
+}): ThisTurnPresentationVm {
+  const { mePlayerId, opponentPlayerId } = args;
+  if (!mePlayerId || !opponentPlayerId || mePlayerId === opponentPlayerId) return presentation;
+  const healthFinish = args.isFinished && HEALTH_FINISH_REASONS.has(args.resultReason ?? '');
+  const full = args.resolvedTurn?.gameId === args.gameId &&
+      args.resolvedTurn.mePlayerId === mePlayerId &&
+      args.resolvedTurn.opponentPlayerId === opponentPlayerId
+    ? args.resolvedTurn : null;
+  const snapshot = args.resolutionSnapshot?.gameId === args.gameId &&
+    args.resolutionSnapshot.me.playerId === mePlayerId &&
+    args.resolutionSnapshot.opponent.playerId === opponentPlayerId &&
+    args.resolutionSnapshot.resolvedTurnNumber <= args.turnNumber
+    ? args.resolutionSnapshot : null;
+  const history = args.history?.gameId === args.gameId ? args.history : null;
+  const archiveFor = (turnNumber: number) => {
+    const matches = history?.turns.filter((turn) => turn.turnNumber === turnNumber) ?? [];
+    const turn = matches.length === 1 ? matches[0] : null;
+    if (!turn || turnNumber < 1 || turn.players.length !== 2 ||
+        ![mePlayerId, opponentPlayerId].every((id) => {
+          const players = turn.players.filter((player) => player.playerId === id);
+          const analysis = turn.analysisByPlayerId?.[id];
+          return players.length === 1 && finite(players[0].healthEnd) &&
+            finite(players[0].healthDelta) && analysis && finite(analysis.damageTaken) &&
+            finite(analysis.healReceived) && finite(analysis.netHealthDelta) &&
+            players[0].healthDelta === analysis.netHealthDelta;
+        })) return null;
+    if (args.isFinished && turnNumber === args.turnNumber && turn.players.some((player) =>
+      !finite(args.currentHealthByPlayerId[player.playerId]) ||
+      player.healthEnd !== args.currentHealthByPlayerId[player.playerId])) return null;
+    if (full?.turnNumber === turnNumber && ![mePlayerId, opponentPlayerId].every((id) => {
+      const player = turn.players.find((candidate) => candidate.playerId === id)!;
+      const analysis = turn.analysisByPlayerId?.[id];
+      const facts = full.factsByPlayerId[id];
+      return analysis && facts && player.healthEnd === facts.healthEnd &&
+        player.healthDelta === facts.netHealthDelta && analysis.netHealthDelta === facts.netHealthDelta &&
+        analysis.damageTaken === facts.damageTaken && analysis.healReceived === facts.healReceived;
+    })) return null;
+    return turn;
+  };
+  const metricsFor = (turnNumber: number): LastTurnPresentationInput => {
+    const archive = archiveFor(turnNumber);
+    const capturedMetric = (key: 'me' | 'opponent', kind: 'damage' | 'healing'): MetricInput => {
+      const value = snapshot?.resolvedTurnNumber === turnNumber ? snapshot[key][kind].current : null;
+      return value && (value.state === 'zero' || value.state === 'value') &&
+        value.turnNumber === turnNumber && (value.rows.length > 0 || value.total === 0)
+        ? { total: value.total, rows: value.rows } : null;
+    };
+    const side = (id: string, key: 'me' | 'opponent') => ({
+      damage: (full?.turnNumber === turnNumber ? full[key].damage : null) ??
+        capturedMetric(key, 'damage') ??
+        resolvedMetric(archive?.analysisByPlayerId?.[id]?.damageDealtBreakdown),
+      healing: (full?.turnNumber === turnNumber ? full[key].healing : null) ??
+        capturedMetric(key, 'healing') ??
+        resolvedMetric(archive?.analysisByPlayerId?.[id]?.healingReceivedBreakdown),
+    });
+    return { turnNumber, me: side(mePlayerId, 'me'), opponent: side(opponentPlayerId, 'opponent') };
+  };
+  const captured = snapshot && snapshot.resolvedTurnNumber === presentation.turnNumber &&
+    (!args.isFinished || (healthFinish && snapshot.isTerminalTurn && snapshot.resolvedTurnNumber === args.turnNumber));
+  const presentationTurnNumber = args.isFinished ? args.turnNumber : presentation.turnNumber;
+  let lastTurnNumber = Math.max(0, presentationTurnNumber - 1);
+  if (args.isFinished && !healthFinish && !captured) {
+    lastTurnNumber = full?.turnNumber ?? Math.max(snapshot?.resolvedTurnNumber ?? 0, ...(history?.turns ?? [])
+      .filter((turn) => turn.turnNumber <= args.turnNumber && archiveFor(turn.turnNumber))
+      .map((turn) => turn.turnNumber));
+  }
+  const last = metricsFor(lastTurnNumber);
+  const actual = metricsFor(presentationTurnNumber);
+  const enrich = (existing: ThisTurnMetricVm, input: MetricInput, turnNumber: number,
+    source: 'last_actual' | 'held_actual' | 'final_actual'): ThisTurnMetricVm => {
+    if (existing.turnNumber !== turnNumber || existing.state === 'concealed') return existing;
+    if (existing.state === 'value' || existing.state === 'zero') {
+      if (existing.rows.length > 0 || existing.total === 0) return existing;
+      // A captured aggregate is not permission to substitute different contribution facts.
+      return input?.total === existing.total
+        ? { ...existing, rows: input.rows }
+        : metric(null, turnNumber, source);
+    }
+    return metric(input, turnNumber, source);
+  };
+  const side = (key: 'me' | 'opponent'): ThisTurnPlayerMetricsVm => {
+    const existing = presentation[key];
+    const pair = (kind: 'damage' | 'healing') => {
+      const current = captured
+        ? enrich(existing[kind].current, actual[key][kind], presentation.turnNumber,
+            snapshot!.isTerminalTurn ? 'final_actual' : 'held_actual')
+        : healthFinish
+          ? metric(actual[key][kind], args.turnNumber, 'final_actual')
+          : args.isFinished
+            ? metric(null, args.turnNumber, 'final_actual')
+            : existing[kind].current;
+      return { current, last: captured
+        ? enrich(existing[kind].last, last[key][kind], lastTurnNumber, 'last_actual')
+        : metric(last[key][kind], lastTurnNumber, 'last_actual') };
+    };
+    return { ...existing, damage: pair('damage'), healing: pair('healing') };
+  };
+  const resolvedTurnNumber = captured || healthFinish ? presentationTurnNumber : lastTurnNumber;
+  const hasEvidence = snapshot?.resolvedTurnNumber === resolvedTurnNumber ||
+    full?.turnNumber === resolvedTurnNumber || archiveFor(resolvedTurnNumber);
+  return { ...presentation, turnNumber: presentationTurnNumber, me: side('me'), opponent: side('opponent'),
+    resolvedBreakdownPeriod: hasEvidence ? {
+      turnNumber: resolvedTurnNumber,
+      slot: captured || healthFinish ? 'current' : 'last',
+      kind: healthFinish || (captured && snapshot!.isTerminalTurn) ? 'final_turn' : 'last_turn',
+    } : null };
 }
 
 export interface ThisTurnPresentationArgs {
@@ -852,7 +1062,11 @@ export function buildThisTurnPresentation(args: ThisTurnPresentationArgs): ThisT
     args.history?.turns.some(
       (turn) => turn.turnNumber === args.resolutionSnapshot!.resolvedTurnNumber,
     );
-  if (args.resolutionSnapshot?.gameId === args.gameId) {
+  if (args.resolutionSnapshot?.gameId === args.gameId &&
+      args.resolutionSnapshot.me.playerId === args.mePlayerId &&
+      args.resolutionSnapshot.opponent.playerId === args.opponentPlayerId &&
+      (!args.isFinished || (args.resolutionSnapshot.isTerminalTurn &&
+        args.resolutionSnapshot.resolvedTurnNumber === args.turnNumber))) {
     return {
       turnNumber: args.resolutionSnapshot.resolvedTurnNumber,
       phaseKey: args.phaseKey,

@@ -111,6 +111,16 @@ function selectSource(args: {
     return null;
   }
 
+  // Recovery already checked game, players and resolution provenance. Totals alone
+  // must not select another period (especially final versus preceding turns).
+  if (thisTurn.resolvedBreakdownPeriod !== undefined) {
+    const period = thisTurn.resolvedBreakdownPeriod;
+    return period && period.turnNumber > 0 && period.turnNumber <= boardVm.turnNumber
+      ? { heading: period.kind === 'final_turn' ? 'FINAL TURN' : 'LAST TURN',
+          turnNumber: period.turnNumber }
+      : null;
+  }
+
   const heldTurnNumber = matchMetricSource({
     boardVm,
     thisTurn,
@@ -226,22 +236,28 @@ export function buildHealthBreakdownPresentation(args: {
   }
 
   const labels = getHealthContributionLabels(args.viewer, args.gameStats);
+  const contributionText = (side: 'my' | 'opponent', tone: 'damage' | 'healing', fallback: number) => {
+    const period = args.thisTurn?.resolvedBreakdownPeriod;
+    const selected = period ? getAffectedHealthMetrics(args.thisTurn, side)[tone]?.[period.slot] : null;
+    return selected && isAvailableMetric(selected) && selected.turnNumber === period?.turnNumber
+      ? String(selected.total) : formatUnsignedTotal(fallback);
+  };
   return {
     my: {
       ...source,
       healingLabel: labels.viewerHealing,
-      healingText: formatUnsignedTotal(args.boardVm.myLastTurnHeal),
+      healingText: contributionText('my', 'healing', args.boardVm.myLastTurnHeal),
       damageLabel: labels.opponentDamage,
-      damageText: formatUnsignedTotal(args.boardVm.opponentLastTurnDamage),
+      damageText: contributionText('my', 'damage', args.boardVm.opponentLastTurnDamage),
       changeText: formatHealthChange(args.boardVm.myLastTurnNet),
       changeTone: getChangeTone(args.boardVm.myLastTurnNet),
     },
     opponent: {
       ...source,
       healingLabel: labels.opponentHealing,
-      healingText: formatUnsignedTotal(args.boardVm.opponentLastTurnHeal),
+      healingText: contributionText('opponent', 'healing', args.boardVm.opponentLastTurnHeal),
       damageLabel: labels.viewerDamage,
-      damageText: formatUnsignedTotal(args.boardVm.myLastTurnDamage),
+      damageText: contributionText('opponent', 'damage', args.boardVm.myLastTurnDamage),
       changeText: formatHealthChange(args.boardVm.opponentLastTurnNet),
       changeTone: getChangeTone(args.boardVm.opponentLastTurnNet),
     },

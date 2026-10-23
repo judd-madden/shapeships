@@ -89,7 +89,9 @@ export function buildMobileCombatBreakdowns(args: {
 }): { current: BoardCombatBreakdownVm; last: BoardCombatBreakdownVm } {
   const current = buildCurrentBoardCombatBreakdown(args);
   const metrics = getAffectedHealthMetrics(args.presentation, args.side);
-  const turnNumber = (args.presentation?.turnNumber ?? 1) - 1;
+  const period = args.presentation?.resolvedBreakdownPeriod;
+  const turnNumber = period?.slot === 'last'
+    ? period.turnNumber : (args.presentation?.turnNumber ?? 1) - 1;
   const column = (tone: MobileMetricKind, label: string): BoardCombatColumnVm => {
     const last = metrics[tone]?.last;
     const totalText = formatBoardStatMetric(last, 'last');

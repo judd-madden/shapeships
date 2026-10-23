@@ -511,6 +511,12 @@ export type ResolvedHealthCompletionIdentity = Pick<ResolvedHealthSnapshot,
 export interface ThisTurnPresentationVm {
   turnNumber: number;
   phaseKey: string;
+  /** Settled inspection provenance; absent on the original live capture VM. */
+  resolvedBreakdownPeriod?: {
+    turnNumber: number;
+    slot: 'current' | 'last';
+    kind: 'final_turn' | 'last_turn';
+  } | null;
   liveLog: ThisTurnLiveLogVm | null;
   me: ThisTurnPlayerMetricsVm;
   opponent: ThisTurnPlayerMetricsVm;

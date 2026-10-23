@@ -11,6 +11,7 @@ export function useCurrentTurnPreview(args: {
   gameId: string | null;
   candidate: CurrentTurnPreviewCandidateInput | null;
   pausedReason: string | null;
+  recoveryKey: number;
   transport: CurrentTurnPreviewTransport;
 }): CurrentTurnPreviewState {
   const [state, setState] = useState<CurrentTurnPreviewState>({ kind: 'idle' });
@@ -36,10 +37,11 @@ export function useCurrentTurnPreview(args: {
       scheduler.pause(args.pausedReason);
     } else if (scheduler.getState().kind === 'paused') {
       scheduler.resume(args.candidate);
+      scheduler.setCandidate(args.candidate, args.recoveryKey);
     } else {
-      scheduler.setCandidate(args.candidate);
+      scheduler.setCandidate(args.candidate, args.recoveryKey);
     }
-  }, [args.candidate, args.pausedReason]);
+  }, [args.candidate, args.pausedReason, args.recoveryKey]);
 
   return state;
 }

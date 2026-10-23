@@ -3,6 +3,8 @@ declare const Deno: { test(name: string, fn: () => void | Promise<void>): void }
 import {
   buildResolvedThisTurnSnapshot,
   buildThisTurnPresentation,
+  readResolvedTurnPresentationInput,
+  recoverThisTurnBreakdowns,
 } from '../../gameSession/thisTurnPresentation';
 import {
   getCurrentTurnPreviewCandidateIdentity,
@@ -22,7 +24,12 @@ import {
   buildBoardStatHoverSections,
   formatBoardStatMetric,
 } from '../../../display/layout/boardStage/boardStatPresentation';
-import { buildMobileHudMetricPair } from '../../../display/mobile/mobileStatPresentation';
+import { buildMobileCombatBreakdowns, buildMobileHudMetricPair } from '../../../display/mobile/mobileStatPresentation';
+import {
+  buildHealthBreakdownPresentation,
+  buildResolvedBoardCombatBreakdown,
+} from '../../../display/layout/boardStage/healthBreakdownPresentation';
+import type { BattleLogHistoryResponse, BoardViewModel } from '../../gameSession/types';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
   if (!condition) throw new Error(message);
@@ -137,6 +144,189 @@ function historyFor(turnNumber: number) {
     }],
   };
 }
+
+function recoveryState(turnNumber = 5, resolvedTurnNumber = 4, resultReason: string | null = null) {
+  return {
+    gameId: 'game-1', turnNumber, phaseKey: resultReason ? 'game.finished' : 'build.drawing',
+    status: resultReason ? 'finished' : 'active', resultReason,
+    publicState: {
+      players: [{ id: 'p1', health: 20 }, { id: 'p2', health: 15 }],
+      lastTurnStats: {
+        healthResolution: { resolvedTurnNumber,
+          finalHealthByPlayerId: { p1: 20, p2: 15 }, maxHealthByPlayerId: { p1: 25, p2: 25 } },
+        damageByPlayerId: { p1: 10, p2: 7 }, healByPlayerId: { p1: 6, p2: 0 },
+        netByPlayerId: { p1: -4, p2: -7 },
+      },
+    },
+    requester: {
+      lastTurnDamageDealtBreakdownByPlayerId: {
+        p1: [{ rowKind: 'ship', label: 'Your attacker', amount: 7 }],
+        p2: [{ rowKind: 'ship', label: 'Their attacker', amount: 8 }],
+      } as Record<string, unknown>,
+      lastTurnHealingReceivedBreakdownByPlayerId: {
+        p1: [{ rowKind: 'ship', label: 'Healing', amount: 6 },
+          { rowKind: 'adjustment', label: 'Self damage', amount: -2 }], p2: [],
+      } as Record<string, unknown>,
+    },
+  };
+}
+
+function recoveryHistory(turnNumber = 4): BattleLogHistoryResponse {
+  const history: BattleLogHistoryResponse = historyFor(turnNumber);
+  history.turns[0].players[0] = { ...history.turns[0].players[0], healthEnd: 20, healthDelta: -4 };
+  history.turns[0].players[1] = { ...history.turns[0].players[1], healthEnd: 15, healthDelta: -7 };
+  const rows = recoveryState().requester;
+  history.turns[0].analysisByPlayerId = {
+    p1: { damageTaken: 10, healReceived: 6, netHealthDelta: -4, savedLinesEnd: 0, savedJoiningLinesEnd: 0,
+      damageDealtBreakdown: rows.lastTurnDamageDealtBreakdownByPlayerId.p1 as any,
+      healingReceivedBreakdown: rows.lastTurnHealingReceivedBreakdownByPlayerId.p1 as any },
+    p2: { damageTaken: 7, healReceived: 0, netHealthDelta: -7, savedLinesEnd: 0, savedJoiningLinesEnd: 0,
+      damageDealtBreakdown: rows.lastTurnDamageDealtBreakdownByPlayerId.p2 as any,
+      healingReceivedBreakdown: [] },
+  };
+  return history;
+}
+
+function recover(presentation: ReturnType<typeof base>, state = recoveryState(),
+  history: BattleLogHistoryResponse | null = null,
+  resolutionSnapshot: Parameters<typeof buildThisTurnPresentation>[0]['resolutionSnapshot'] = null) {
+  const identity = { gameId: 'game-1', mePlayerId: 'p1', opponentPlayerId: 'p2' };
+  return recoverThisTurnBreakdowns(presentation, {
+    ...identity, turnNumber: state.turnNumber, isFinished: state.status === 'finished',
+    resultReason: state.resultReason,
+    currentHealthByPlayerId: Object.fromEntries(state.publicState.players.map((player) => [player.id, player.health])),
+    resolvedTurn: readResolvedTurnPresentationInput({ state, ...identity }), history, resolutionSnapshot,
+  });
+}
+
+Deno.test('ongoing return restores available previous details without an action and preserves current privacy', () => {
+  const raw = base({ kind: 'idle' }, 'build.drawing', 'player', false, { turnNumber: 5 });
+  const restored = recover(raw);
+  assert(restored.me.damage.last.state === 'value' && restored.me.damage.last.turnNumber === 4);
+  assert(restored.me.damage.last.total === 7 && restored.me.damage.last.rows[0]?.label === 'Your attacker');
+  assert(restored.me.healing.last.state === 'value' && restored.me.healing.last.total === 4);
+  assert(restored.me.healing.last.rows[1]?.amount === -2, 'sustain contribution was replaced by gross healing');
+  assert(restored.me.damage.current === raw.me.damage.current);
+  assert(restored.opponent.damage.current.state === 'concealed');
+  const missing = recoveryState();
+  delete missing.requester.lastTurnDamageDealtBreakdownByPlayerId.p1;
+  assert(recover(raw, missing).me.damage.last.state === 'unavailable');
+  assert(recover(raw, missing, recoveryHistory()).me.damage.last.state === 'value');
+});
+
+Deno.test('reopened health finish selects final and preceding rows independently on desktop and mobile', () => {
+  const state = recoveryState(4, 4, 'decisive');
+  const raw = base({ kind: 'idle' }, 'game.finished', 'player', true);
+  const immediate = recover(raw, state);
+  assert(immediate.me.damage.current.state === 'value' && immediate.me.damage.current.source === 'final_actual');
+  assert(immediate.me.damage.current.turnNumber === 4 && immediate.me.damage.current.total === 7);
+  assert(immediate.me.damage.last.state === 'unavailable', 'final rows leaked into preceding period');
+  const previous = recoveryHistory(3);
+  previous.turns[0].analysisByPlayerId!.p1.damageDealtBreakdown![0].label = 'Preceding attacker';
+  const restored = recover(raw, state, previous);
+  const mobile = buildMobileCombatBreakdowns({ presentation: restored, side: 'opponent',
+    damageLabel: 'Your Damage', healingLabel: 'Their Healing' });
+  assert(mobile.current.heading === 'FINAL TURN');
+  assert(mobile.current.damage.section?.rows[0]?.label === 'Your attacker');
+  assert(mobile.last.damage.section?.rows[0]?.label === 'Preceding attacker');
+  const health = buildHealthBreakdownPresentation({
+    boardVm: { mode: 'board', turnNumber: 4, myHealth: 20, opponentHealth: 15,
+      myLastTurnDamage: 7, myLastTurnHeal: 4, myLastTurnNet: -4,
+      opponentLastTurnDamage: 8, opponentLastTurnHeal: 0, opponentLastTurnNet: -7 } as Extract<BoardViewModel, { mode: 'board' }>,
+    thisTurn: restored, gameStats: null,
+    viewer: { viewerMode: 'p1_player', isSpectator: false, isPlayerViewer: true, p1Name: 'One', p2Name: 'Two' },
+  });
+  const desktop = buildResolvedBoardCombatBreakdown({ card: health.opponent, thisTurn: restored, side: 'opponent' });
+  assert(desktop?.heading === 'FINAL TURN' && desktop.damage.section?.rows[0]?.label === 'Your attacker');
+  // A legacy finishing boundary is also sufficient; no unnecessary history wait.
+  delete (state.publicState.lastTurnStats as any).healthResolution;
+  assert(recover(raw, state).me.damage.current.state === 'value');
+});
+
+Deno.test('late history fills missing details only for a consistent matching game, turn and players', () => {
+  const state = recoveryState(4, 4, 'narrow');
+  delete state.requester.lastTurnDamageDealtBreakdownByPlayerId.p1;
+  const raw = base({ kind: 'idle' }, 'game.finished', 'player', true);
+  assert(recover(raw, state).me.damage.current.state === 'unavailable');
+  const matching = recoveryHistory();
+  assert(recover(raw, state, matching).me.damage.current.state === 'value');
+  const wrongPlayer = recoveryHistory();
+  wrongPlayer.turns[0].players[0].playerId = 'someone-else';
+  const inconsistent = recoveryHistory();
+  inconsistent.turns[0].analysisByPlayerId!.p2.damageTaken = 9;
+  for (const invalid of [{ ...matching, gameId: 'other-game' }, recoveryHistory(3), wrongPlayer, inconsistent]) {
+    assert(recover(raw, state, invalid).me.damage.current.state === 'unavailable', 'mismatched archive supplied rows');
+  }
+  const noFacts = recoveryState(4, 4, 'decisive');
+  delete (noFacts.publicState.lastTurnStats as any).healthResolution;
+  delete (noFacts.publicState.lastTurnStats as any).damageByPlayerId;
+  const wrongHealth = recoveryHistory();
+  wrongHealth.turns[0].players[0].healthEnd = 99;
+  assert(recover(raw, noFacts, wrongHealth).me.damage.current.state === 'unavailable');
+  assert(recover(raw, noFacts, matching).me.damage.current.state === 'value', 'valid finalized history required full-state facts');
+  const wrongPeriod = recoveryState(4, 3, 'decisive');
+  assert(readResolvedTurnPresentationInput({ state: wrongPeriod, gameId: 'game-1',
+    mePlayerId: 'p1', opponentPlayerId: 'p2' }) === null, 'stale full-state resolution was relabelled as final');
+});
+
+Deno.test('non-health finishes preserve completed period identity and missing versus empty details', () => {
+  for (const resolvedTurn of [3, 4]) {
+    const state = recoveryState(4, resolvedTurn, 'timeout');
+    const raw = base({ kind: 'idle' }, 'game.finished', 'player', true);
+    const restored = recover(raw, state);
+    assert(restored.me.damage.current.state === 'unavailable');
+    assert(restored.me.damage.last.turnNumber === resolvedTurn);
+    const mobile = buildMobileCombatBreakdowns({ presentation: restored, side: 'opponent',
+      damageLabel: 'Your Damage', healingLabel: 'Their Healing' });
+    assert(mobile.current.damage.section === null && mobile.last.damage.section?.heading === 'LAST TURN');
+    delete state.requester.lastTurnDamageDealtBreakdownByPlayerId.p1;
+    assert(recover(raw, state).me.damage.last.state === 'unavailable');
+    state.requester.lastTurnDamageDealtBreakdownByPlayerId.p1 = [];
+    assert(recover(raw, state).me.damage.last.state === 'zero');
+    state.requester.lastTurnDamageDealtBreakdownByPlayerId.p1 = [{ label: 'Malformed', amount: NaN }];
+    assert(recover(raw, state).me.damage.last.state === 'unavailable');
+  }
+  const previous = base({ kind: 'idle' });
+  const captured = buildResolvedThisTurnSnapshot({ gameId: 'game-1', resolvedTurnNumber: 4,
+    isTerminalTurn: false, mePlayerId: 'p1', opponentPlayerId: 'p2', previous,
+    actualMe: { damage: { total: 7, rows: [{ rowKind: 'ship', label: 'Completed', amount: 7, amountText: '+7' }] }, healing: null },
+    actualOpponent: { damage: null, healing: { total: 0, rows: [] } },
+  });
+  const raw = base({ kind: 'idle' }, 'game.finished', 'player', true, { resolutionSnapshot: captured });
+  const state = recoveryState(4, 4, 'resignation');
+  delete (state.publicState.lastTurnStats as any).healthResolution;
+  const restored = recover(raw, state, null, captured);
+  assert(restored.me.damage.current.state === 'unavailable', 'non-health finish reused a live current resolution');
+  assert(restored.me.damage.last.state === 'value' && restored.me.damage.last.turnNumber === 4);
+  assert(restored.me.damage.last.rows[0]?.label === 'Completed');
+  assert(restored.resolvedBreakdownPeriod?.kind === 'last_turn');
+});
+
+Deno.test('derived history enrichment leaves frozen accepted snapshots and complete captured facts intact', () => {
+  const previous = base({ kind: 'idle' });
+  const snapshot = buildResolvedThisTurnSnapshot({ gameId: 'game-1', resolvedTurnNumber: 4,
+    isTerminalTurn: true, mePlayerId: 'p1', opponentPlayerId: 'p2', previous,
+    actualMe: { damage: { total: 7, rows: [] }, healing: null },
+    actualOpponent: { damage: { total: 8, rows: [{ rowKind: 'ship', label: 'Captured', amount: 8, amountText: '+8' }] },
+      healing: { total: 0, rows: [] } },
+  });
+  const freeze = (value: any): void => {
+    if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); }
+  };
+  freeze(snapshot);
+  const before = JSON.stringify(snapshot);
+  const raw = base({ kind: 'idle' }, 'game.finished', 'player', true, { resolutionSnapshot: snapshot });
+  const state = recoveryState(4, 4, 'decisive');
+  delete state.requester.lastTurnDamageDealtBreakdownByPlayerId.p1;
+  const restored = recover(raw, state, recoveryHistory(), snapshot);
+  assert(restored.me.damage.current.state === 'value' && restored.me.damage.current.rows[0]?.label === 'Your attacker');
+  assert(restored.opponent.damage.current === snapshot.opponent.damage.current, 'complete captured facts were replaced');
+  assert(JSON.stringify(snapshot) === before && raw.me === snapshot.me, 'accepted snapshot was mutated');
+  const inconsistent = recoveryHistory();
+  inconsistent.turns[0].analysisByPlayerId!.p1.damageDealtBreakdown![0].amount = 9;
+  assert(recover(raw, state, inconsistent, snapshot).me.damage.current.state === 'unavailable');
+  assert(JSON.stringify(snapshot) === before);
+});
 
 Deno.test('raw Battle Log advances while turn stat presentation remains held', () => {
   const orientationKey = getTurnStartStatOrientationKey({

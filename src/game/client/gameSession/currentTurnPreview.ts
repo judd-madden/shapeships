@@ -132,7 +132,7 @@ export interface PreviewSchedulerClock {
 }
 
 export interface CurrentTurnPreviewScheduler {
-  setCandidate(candidate: CurrentTurnPreviewCandidateInput | null): void;
+  setCandidate(candidate: CurrentTurnPreviewCandidateInput | null, recoveryKey?: number): void;
   pause(reason: string): void;
   resume(candidate: CurrentTurnPreviewCandidateInput | null): void;
   getState(): CurrentTurnPreviewState;
@@ -595,9 +595,14 @@ export function createCurrentTurnPreviewScheduler(args: {
     timer = clock.setTimeout(() => settle(current!), debounceMs);
   };
 
+  let lastRecoveryKey: number | undefined;
   return {
-    setCandidate(candidate) {
-      if (!disposed) scheduleInput(candidate);
+    setCandidate(candidate, recoveryKey) {
+      const recover = recoveryKey !== undefined && recoveryKey !== lastRecoveryKey &&
+        state.kind === 'unavailable';
+      lastRecoveryKey = recoveryKey;
+      // Same-identity failures are retried only for a new synchronization context.
+      if (!disposed) scheduleInput(candidate, recover);
     },
     pause(reason) {
       if (disposed) return;

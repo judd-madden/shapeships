@@ -172,6 +172,8 @@ import { useCurrentTurnPreview } from './gameSession/clienteffects/useCurrentTur
 import {
   buildResolvedThisTurnSnapshot,
   buildThisTurnPresentation,
+  readResolvedTurnPresentationInput,
+  recoverThisTurnBreakdowns,
   type LastTurnPresentationInput,
 } from './gameSession/thisTurnPresentation';
 import {
@@ -4399,7 +4401,9 @@ useEffect(() => {
   const currentTurnPreview = useCurrentTurnPreview({
     gameId: effectiveGameId,
     candidate: currentTurnPreviewCandidate,
-    pausedReason: currentTurnPreviewPausedReason,
+    pausedReason: currentTurnPreviewPausedReason ??
+      (resumeSyncLocked || untimedPollingMode === 'hidden' ? 'session_sync_pending' : null),
+    recoveryKey: foregroundResumeToken,
     transport: currentTurnPreviewTransport,
   });
 
@@ -5210,7 +5214,30 @@ useEffect(() => {
       settled: settledResolvedHealth,
     } : null, [resolvedHealthContinuityKey, settledResolvedHealth, observedResolvedHealthTurn,
       pendingResolvedHealthCapture, rawState]);
-  const thisTurnPresentation = buildThisTurnVm(thisTurnResolutionSnapshot);
+  // Keep recovery out of the snapshot/animation capture path and its previous-presentation ref.
+  const capturedThisTurnPresentation = buildThisTurnVm(thisTurnResolutionSnapshot);
+  const thisTurnPresentation = capturedThisTurnPresentation && effectiveGameId
+    ? recoverThisTurnBreakdowns(capturedThisTurnPresentation, {
+        gameId: effectiveGameId,
+        turnNumber,
+        isFinished,
+        resultReason: terminalResultReason,
+        mePlayerId: getPlayerIdentityKey(displayLeftPlayer),
+        opponentPlayerId: getPlayerIdentityKey(displayRightPlayer),
+        currentHealthByPlayerId: {
+          [getPlayerIdentityKey(displayLeftPlayer) ?? '']: displayLeftPlayer?.health,
+          [getPlayerIdentityKey(displayRightPlayer) ?? '']: displayRightPlayer?.health,
+        },
+        resolvedTurn: readResolvedTurnPresentationInput({
+          state: rawState,
+          gameId: effectiveGameId,
+          mePlayerId: getPlayerIdentityKey(displayLeftPlayer),
+          opponentPlayerId: getPlayerIdentityKey(displayRightPlayer),
+        }),
+        history: battleLogHistory,
+        resolutionSnapshot: thisTurnResolutionSnapshot,
+      })
+    : capturedThisTurnPresentation;
   const thisTurnStatOrientationKey = getTurnStartStatOrientationKey({
     viewerRole: healthResolutionViewerRole,
     leftPlayerId: getPlayerIdentityKey(displayLeftPlayer),
@@ -5276,10 +5303,10 @@ useEffect(() => {
     );
   }, [hardRefreshThisTurnResolutionSnapshot, battleLogHistory]);
   useLayoutEffect(() => {
-    lastPresentedThisTurnRef.current = effectiveGameId && thisTurnPresentation
-      ? { gameId: effectiveGameId, presentation: thisTurnPresentation }
+    lastPresentedThisTurnRef.current = effectiveGameId && capturedThisTurnPresentation
+      ? { gameId: effectiveGameId, presentation: capturedThisTurnPresentation }
       : null;
-  }, [effectiveGameId, thisTurnPresentation]);
+  }, [effectiveGameId, capturedThisTurnPresentation]);
   const shouldSuppressCurrentTurnCreatedLocalShips =
     board.mode === 'board' &&
     me?.role === 'player' &&
