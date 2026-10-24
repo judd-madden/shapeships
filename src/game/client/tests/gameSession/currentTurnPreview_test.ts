@@ -432,15 +432,65 @@ Deno.test('foreground recovery retries unavailable previews once without changin
   scheduler.dispose();
 });
 
-Deno.test('pause invalidates in-flight acceptance and resume recovers the draft', async () => {
+Deno.test('equivalent pauses preserve the published state while changed candidates and reasons notify', () => {
+  const clock = new FakeClock();
+  let notifications = 0;
+  let requests = 0;
+  const scheduler = createCurrentTurnPreviewScheduler({
+    clock,
+    onStateChange: () => { notifications += 1; },
+    transport: async () => { requests += 1; throw new Error('paused preview launched'); },
+  });
+  try {
+    scheduler.setCandidate(candidate(1));
+    scheduler.pause('submission_pending');
+    const paused = scheduler.getState();
+    const before = notifications;
+    for (let index = 0; index < 60; index += 1) {
+      scheduler.setCandidate(candidate(1));
+      scheduler.pause('submission_pending');
+    }
+    assert(scheduler.getState() === paused, 'equivalent pause replaced the published state');
+    assert(notifications === before, 'equivalent pause notified subscribers');
+    clock.advance(1000);
+    assert(requests === 0, 'pause did not cancel the pending deadline');
+
+    scheduler.setCandidate(candidate(2));
+    const changedCandidate = scheduler.getState();
+    assert(changedCandidate.kind === 'paused' && changedCandidate.candidate?.draft?.builds[0]?.count === 2,
+      'changed candidate was not published while paused');
+    assert(notifications === before + 1, 'changed candidate did not notify');
+    scheduler.pause('submission_pending');
+    assert(scheduler.getState() === changedCandidate, 'changed candidate was republished by pause');
+
+    scheduler.pause('session_sync_pending');
+    const changedReason = scheduler.getState();
+    assert(changedReason.kind === 'paused' && changedReason.reason === 'session_sync_pending');
+    assert(notifications === before + 2, 'changed pause reason did not notify');
+
+    scheduler.setCandidate(null);
+    scheduler.pause('session_sync_pending');
+    const cleared = scheduler.getState();
+    assert(cleared.kind === 'paused' && cleared.candidate === null, 'cleared candidate remained published');
+    assert(notifications === before + 3, 'clearing the paused candidate did not notify');
+    scheduler.pause('session_sync_pending');
+    assert(scheduler.getState() === cleared, 'equivalent empty pause was republished');
+  } finally {
+    scheduler.dispose();
+  }
+});
+
+Deno.test('repeated pauses invalidate in-flight acceptance and resume uses a fresh token', async () => {
   const clock = new FakeClock();
   const pending = deferred<any>();
   let calls = 0;
+  const envelopes: CurrentTurnPreviewEnvelope[] = [];
   const scheduler = createCurrentTurnPreviewScheduler({
     clock,
     onStateChange: () => {},
     transport: (_gameId, envelope) => {
       calls += 1;
+      envelopes.push(envelope);
       return calls === 1
         ? pending.promise
         : Promise.resolve({ status: 200, body: estimate(envelope, 'route-b') });
@@ -449,6 +499,9 @@ Deno.test('pause invalidates in-flight acceptance and resume recovers the draft'
   scheduler.setCandidate(candidate(1));
   clock.advance(225);
   scheduler.pause('submission_pending');
+  const paused = scheduler.getState();
+  for (let index = 0; index < 60; index += 1) scheduler.pause('submission_pending');
+  assert(scheduler.getState() === paused, 'repeated in-flight pause replaced state');
   pending.resolve({ status: 200, body: estimate({
     observed: { turnNumber: 4, phaseKey: 'build.drawing' },
     draft: candidate(1).draft!,
@@ -457,8 +510,11 @@ Deno.test('pause invalidates in-flight acceptance and resume recovers the draft'
   await flush();
   assert(scheduler.getState().kind === 'paused', 'paused response was accepted');
   scheduler.resume(candidate(1));
-  clock.advance(225);
+  clock.advance(224);
+  assert(calls === 1, 'resume bypassed the normal debounce deadline');
+  clock.advance(1);
   await flush();
+  assert(envelopes[1].requestToken !== envelopes[0].requestToken, 'resume reused the invalidated request token');
   assert(scheduler.getState().kind === 'estimated', 'rejected Ready recovery did not resume');
   scheduler.dispose();
   scheduler.setCandidate(candidate(2));

@@ -5271,6 +5271,19 @@ useEffect(() => {
         thisTurnResolutionSnapshot?.resolvedTurnNumber ?? null,
     }));
   useLayoutEffect(() => {
+    // Skip equivalent dispatches before React can schedule/replay pending work.
+    const nextPresentationState = syncTurnStartStatPresentation(turnStartStatPresentationState, {
+      gameId: effectiveGameId,
+      orientationKey: thisTurnStatOrientationKey,
+      turnNumber,
+      presentation: thisTurnPresentation,
+      settledTurnNumber: presentedTurnDiceSettledTurnNumber,
+      firstTurnRollPresentationActive: firstTurnRollStatPresentationActive,
+      resolvedPresentationTurnNumber:
+        thisTurnResolutionSnapshot?.resolvedTurnNumber ?? null,
+    });
+    if (nextPresentationState === turnStartStatPresentationState) return;
+
     setTurnStartStatPresentationState((current) =>
       syncTurnStartStatPresentation(current, {
         gameId: effectiveGameId,
@@ -5284,6 +5297,7 @@ useEffect(() => {
       })
     );
   }, [
+    turnStartStatPresentationState,
     effectiveGameId,
     thisTurnStatOrientationKey,
     turnNumber,

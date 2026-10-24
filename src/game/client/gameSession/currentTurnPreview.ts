@@ -606,6 +606,7 @@ export function createCurrentTurnPreviewScheduler(args: {
     },
     pause(reason) {
       if (disposed) return;
+      if (state.kind === 'paused' && state.reason === reason && state.candidate === current) return;
       pausedReason = reason;
       invalidationEpoch += 1;
       clearTimer();
