@@ -231,7 +231,7 @@ function buildEconomySections({
       rows: streakBonusCount ? withoutWinStreakBreakdownRow(bonusRows) : bonusRows,
       streakBonusCount,
       secondaryRows: [
-        ...(bonusOnEven !== undefined ? [{ label: 'Lines on even turns', amountText: String(bonusOnEven) }] : []),
+        ...(bonusOnEven !== undefined ? [{ label: 'Lines on even', amountText: String(bonusOnEven) }] : []),
         ...(joiningBonus > 0 ? [{ label: 'Joining lines', amountText: String(joiningBonus) }] : []),
       ],
     },

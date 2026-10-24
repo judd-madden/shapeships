@@ -26,15 +26,15 @@ export function WinStreakPanelContent({
   const bonusCount = shouldUseNextGameBonusCopy(vm) ? vm.displayCount : vm.appliedBonus.count;
 
   return (
-    <section className={`flex min-w-0 flex-col items-start ${className}`}>
-      <div className="flex max-w-full items-center gap-[4px] text-left text-[var(--shapeships-pastel-green)]">
+    <section className={`flex min-w-0 flex-col items-center ${className}`}>
+      <div className="flex max-w-full items-center gap-[4px] text-center  text-[var(--shapeships-pastel-green)]">
         <span className="shrink-0 text-[40px] sm:text-[50px] font-black leading-none">{vm.displayCount}</span>
-        <h2 className="min-w-0 text-[18px] sm:text-[22px] font-black leading-[22px]">
+        <h2 className="min-w-0 text-[18px] sm:text-[22px] text-center font-black leading-[22px]">
           {ended ? 'WIN STREAK ENDED' : 'WIN STREAK'}
         </h2>
       </div>
 
-      <p className="mt-[4px] text-[16px] font-medium leading-[20px] text-white">
+      <p className="mt-[4px] text-[16px] font-medium text-center leading-[20px] text-white">
         {ended ? 'Well done!' : getWinStreakBonusCopy(bonusCount, shouldUseNextGameBonusCopy(vm))}
       </p>
 
@@ -60,7 +60,7 @@ export function WinStreakPanelContent({
             Reset Win Streak
           </GameMenuButton>
           {vm.reset.error ? (
-            <p className="mt-[10px] text-[14px] leading-[18px] text-[var(--shapeships-pastel-red)]">
+            <p className="mt-[10px] text-[14px] text-center leading-[18px] text-[var(--shapeships-pastel-red)]">
               The previous reset needs recovery before another action can be submitted.
             </p>
           ) : null}
@@ -95,14 +95,14 @@ export function WinStreakFinishedGameContent({
   const bonusCount = useNextGameCopy ? vm.displayCount : vm.appliedBonus.count;
 
   return (
-    <section className={`flex min-w-0 flex-col items-stretch ${className}`}>
+    <section className={`flex min-w-0 flex-col items-center ${className}`}>
       <div className="flex min-w-0 items-center justify-between gap-[12px]">
-        <h2 className="min-w-0 text-left text-[20px] font-black leading-[22px] text-[var(--shapeships-pastel-green)]">
+        <h2 className="min-w-0 text-center text-[20px] font-black leading-[22px] text-[var(--shapeships-pastel-green)]">
           {vm.displayCount} {ended ? 'WIN STREAK ENDED' : 'WIN STREAK'}
         </h2>
       </div>
 
-      <p className="mt-[8px] text-[16px] font-medium leading-[20px] text-white">
+      <p className="mt-[8px] text-[16px] text-center font-medium leading-[20px] text-white">
         {ended ? 'Well done!' : getWinStreakBonusCopy(bonusCount, useNextGameCopy)}
       </p>
 
@@ -111,7 +111,7 @@ export function WinStreakFinishedGameContent({
           href={WIN_STREAK_DISCORD_URL}
           target="_blank"
           rel="noreferrer"
-          className="mt-[20px] sm:mt-[32px] flex min-h-[36px] max-w-full self-start items-center justify-center rounded-[10px] bg-[var(--shapeships-grey-20)] px-[20px] py-[9px] text-[14px] font-normal leading-normal text-black transition-colors hover:bg-white"
+          className="mt-[20px] sm:mt-[32px] flex min-h-[36px] items-center justify-center rounded-[10px] bg-[var(--shapeships-grey-20)] px-[20px] py-[9px] text-[14px] font-normal leading-normal text-black transition-colors hover:bg-white"
         >
           Join Discord to Share
         </a>

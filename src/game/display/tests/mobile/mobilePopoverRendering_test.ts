@@ -381,7 +381,7 @@ describe('paired mobile inspection', () => {
     expect(current[1]).toContain('>42<');
     expect(current[0]).toContain('Saved joining lines');
     expect(current[0]).toContain('Joining lines');
-    expect(current[0]).toContain('Lines on even turns');
+    expect(current[0]).toContain('Lines on even');
     expect(current[0]).toContain('Computer opponent gains 4 bonus lines');
     expect(current[0]).not.toContain('>Win streak<');
   });
