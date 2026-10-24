@@ -368,7 +368,7 @@ describe('mobile health playback and interaction integration', () => {
 });
 
 describe('paired mobile inspection', () => {
-  it('keeps economy identical across tabs, including Fleet, joining, even-zero and streak explanations', () => {
+  it('keeps economy identical across tabs, including Fleet, joining and streak explanations without Lines on even', () => {
     const economy = (period: 'current' | 'last') => frames(props({ period })).map((frame) => {
       const content = invoke(frame.props.children);
       const grid = Children.toArray(content.props.children)[0] as Element;
@@ -381,9 +381,56 @@ describe('paired mobile inspection', () => {
     expect(current[1]).toContain('>42<');
     expect(current[0]).toContain('Saved joining lines');
     expect(current[0]).toContain('Joining lines');
-    expect(current[0]).toContain('Lines on even');
+    for (const card of current) expect(card).not.toContain('Lines on even');
     expect(current[0]).toContain('Computer opponent gains 4 bonus lines');
     expect(current[0]).not.toContain('>Win streak<');
+  });
+
+  it('preserves both Centaur bonus totals and Vigor/Power contributions with their even suffix', () => {
+    const bonusRows: typeof board.myBonusBreakdownRows = [
+      { rowKind: 'ship', label: 'Vigor', count: 1, amount: 2, amountText: '2e' },
+      { rowKind: 'ship', label: 'Power', count: 1, amount: 3, amountText: '3e' },
+    ];
+    for (const total of [0, 5]) {
+      const input = props({
+        boardVm: { ...board, mySpeciesId: 'centaur', opponentSpeciesId: 'centaur',
+          myBonusLines: total, opponentBonusLines: total,
+          myBonusLinesOnEven: 5, opponentBonusLinesOnEven: 5,
+          myBonusBreakdownRows: bonusRows, opponentBonusBreakdownRows: bonusRows },
+        winStreak: { ...winStreak, appliedBonus: { ...winStreak.appliedBonus, count: 0 } },
+      });
+      for (const frame of frames(input)) {
+        const content = invoke(frame.props.children);
+        const grid = Children.toArray(content.props.children)[0] as Element;
+        const bonusSection = Children.toArray(invoke(grid).props.children)[1] as Element;
+        const markup = renderToStaticMarkup(bonusSection);
+        expect(markup).toMatch(new RegExp(`Bonus lines</h3><span[^>]*>${total}</span>`));
+        expect(markup).toContain('Vigor');
+        expect(markup).toContain('Power');
+        expect(markup).toContain('>2e<');
+        expect(markup).toContain('>3e<');
+        expect(markup).not.toContain('Lines on even');
+      }
+    }
+  });
+
+  it('renders Bonus lines 0 without child rows when neither player has bonus contributions', () => {
+    const input = props({
+      boardVm: { ...board, mySpeciesId: 'centaur', opponentSpeciesId: 'centaur',
+        myBonusLines: 0, opponentBonusLines: 0,
+        myBonusLinesOnEven: 0, opponentBonusLinesOnEven: 0,
+        myBonusBreakdownRows: [], opponentBonusBreakdownRows: [],
+        myJoiningBonusLines: 0, opponentJoiningBonusLines: 0 },
+      winStreak: { ...winStreak, appliedBonus: { ...winStreak.appliedBonus, count: 0 } },
+    });
+    for (const frame of frames(input)) {
+      const content = invoke(frame.props.children);
+      const grid = Children.toArray(content.props.children)[0] as Element;
+      const bonusSection = invoke(Children.toArray(invoke(grid).props.children)[1] as Element);
+      expect(Children.toArray(bonusSection.props.children)).toHaveLength(1);
+      expect(elements(bonusSection).find((node) => node.type === 'h3')?.props.children).toBe('Bonus lines');
+      expect(elements(bonusSection).find((node) => node.type === 'span')?.props.children).toBe('0');
+    }
   });
 
   it('omits unavailable Fleet values, but renders an available zero', () => {

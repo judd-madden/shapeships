@@ -100,7 +100,6 @@ export function MobileStatBreakdownPopovers({
     savedJoiningLines: boardVm.opponentDisplayedSavedJoiningLines,
     fleetValue: boardVm.presentedFleetValue?.opponent,
     joiningBonus: boardVm.opponentJoiningBonusLines,
-    bonusOnEven: boardVm.opponentSpeciesId === 'centaur' ? boardVm.opponentBonusLinesOnEven : undefined,
     streakBonusCount: shouldShowWinStreakBonusDetail(winStreak)
       ? winStreak.appliedBonus.count : undefined,
   });
@@ -111,7 +110,6 @@ export function MobileStatBreakdownPopovers({
     savedJoiningLines: boardVm.myDisplayedSavedJoiningLines,
     fleetValue: boardVm.presentedFleetValue?.my,
     joiningBonus: boardVm.myJoiningBonusLines,
-    bonusOnEven: boardVm.mySpeciesId === 'centaur' ? boardVm.myBonusLinesOnEven : undefined,
   });
 
   return (
@@ -199,7 +197,6 @@ function buildEconomySections({
   savedJoiningLines,
   fleetValue,
   joiningBonus,
-  bonusOnEven,
   streakBonusCount,
 }: {
   bonus: number;
@@ -208,7 +205,6 @@ function buildEconomySections({
   savedJoiningLines: number;
   fleetValue?: number;
   joiningBonus: number;
-  bonusOnEven?: number;
   streakBonusCount?: number;
 }): StatSectionVm[] {
   return [
@@ -231,7 +227,6 @@ function buildEconomySections({
       rows: streakBonusCount ? withoutWinStreakBreakdownRow(bonusRows) : bonusRows,
       streakBonusCount,
       secondaryRows: [
-        ...(bonusOnEven !== undefined ? [{ label: 'Lines on even', amountText: String(bonusOnEven) }] : []),
         ...(joiningBonus > 0 ? [{ label: 'Joining lines', amountText: String(joiningBonus) }] : []),
       ],
     },
