@@ -616,12 +616,15 @@ export function useDestroyTargetingRuntime(
       exactTargetIdsBySourceInstanceId:
         allocatedDestroyTargetIdsBySourceInstanceId,
     };
+    if (areDestroyTargetDraftStatesEqual(destroyTargetDraft, reconciledDraft)) return;
+
     setDestroyTargetDraft((prev) =>
       areDestroyTargetDraftStatesEqual(prev, reconciledDraft)
         ? prev
         : reconciledDraft
     );
   }, [
+    destroyTargetDraft,
     allocatedDestroyTargetIdsBySourceInstanceId,
     cleanedDestroyTargetLocatorKeysBySourceInstanceId,
   ]);

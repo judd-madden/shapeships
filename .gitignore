@@ -73,3 +73,5 @@ supabase/.branches/
 
 # Keep actual Supabase project config tracked
 # supabase/config.tomlg
+
+/tmp/maximum-update-depth/
