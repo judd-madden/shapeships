@@ -809,3 +809,116 @@ Deno.test('concurrent repeated recovery calls are idempotent', async () => {
   assert(store.getSnapshot().trackedGame?.gameId === 'RECOVERED');
   assert(store.getSnapshot().creationReservation === null);
 });
+
+Deno.test('reset preparation verifies and settles the same finished loss before reserving zero', async () => {
+  for (const alreadyObserved of [false, true]) {
+    const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
+    await store.mutate((profile) => {
+      profile.currentCount = 4;
+      registerTrackedGameDraft(profile, 'SOURCE', 'human');
+    });
+    const state = publicGameState({ gameId: 'SOURCE', status: 'finished', winner: 'bot', reason: 'surrender' });
+    if (alreadyObserved) {
+      await observeAuthoritativeWinStreakGame(store, projectAuthoritativeWinStreakGame(state)!, { allowDiscovery: false });
+    }
+    let reads = 0;
+    const prepared = await prepareBotGameCreation({
+      store, kind: 'rematch', sourceGameId: 'SOURCE',
+      requiredSettledSource: { gameId: 'SOURCE', humanPlayerId: 'human' },
+      transport: { getGameState: async () => { reads += 1; return new Response(JSON.stringify(state)); } },
+    });
+    assert(reads === 1, 'Even an already settled source must be verified with the server');
+    assert(prepared.kind === 'reserved');
+    assert(prepared.reservation.requestedCount === 0);
+    assert(prepared.reservation.baseTrackedGameStatus === 'settled');
+    assert(store.getSnapshot().currentCount === 0);
+  }
+});
+
+Deno.test('reset preparation blocks failed reconciliation without retiring the tracked game', async () => {
+  const states = [
+    publicGameState({ gameId: 'SOURCE' }),
+    publicGameState({ gameId: 'OTHER', status: 'finished', winner: 'bot' }),
+    publicGameState({ gameId: 'SOURCE', requesterPlayerId: 'other', status: 'finished', winner: 'bot' }),
+    publicGameState({ gameId: 'SOURCE', status: 'finished', winner: 'human' }),
+    publicGameState({ gameId: 'SOURCE', status: 'finished', reason: 'agreement' }),
+    publicGameState({ gameId: 'SOURCE', status: 'finished', reason: 'restart' }),
+  ];
+  const responses = [
+    async (): Promise<Response> => { throw new Error('timeout'); },
+    ...[401, 403, 404, 503].map((status) => async () => new Response(null, { status })),
+    async () => new Response('{'),
+    ...states.map((state) => async () => new Response(JSON.stringify(state))),
+  ];
+  for (const getGameState of responses) {
+    const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
+    await store.mutate((profile) => {
+      profile.currentCount = 4;
+      registerTrackedGameDraft(profile, 'SOURCE', 'human');
+    });
+    const prepared = await prepareBotGameCreation({
+      store, kind: 'rematch', sourceGameId: 'SOURCE', transport: { getGameState },
+      requiredSettledSource: { gameId: 'SOURCE', humanPlayerId: 'human' },
+    });
+    assert(prepared.kind === 'error');
+    assert(store.getSnapshot().creationReservation === null);
+    assert(store.getSnapshot().trackedGame?.status === 'unfinished');
+    assert(store.getSnapshot().currentCount === 4);
+  }
+});
+
+Deno.test('reset preparation rejects a concurrent generation change without retrying or reserving', async () => {
+  const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
+  await store.mutate((profile) => {
+    profile.currentCount = 4;
+    registerTrackedGameDraft(profile, 'SOURCE', 'human');
+  });
+  let reads = 0;
+  const prepared = await prepareBotGameCreation({
+    store, kind: 'rematch', sourceGameId: 'SOURCE',
+    requiredSettledSource: { gameId: 'SOURCE', humanPlayerId: 'human' },
+    transport: { getGameState: async () => {
+      reads += 1;
+      await store.mutate((profile) => registerTrackedGameDraft(profile, 'NEWER', 'human'));
+      return new Response(JSON.stringify(publicGameState({ gameId: 'SOURCE', status: 'finished', winner: 'bot' })));
+    } },
+  });
+  assert(prepared.kind === 'error');
+  assert(reads === 1);
+  assert(store.getSnapshot().creationReservation === null);
+  assert(store.getSnapshot().trackedGame?.gameId === 'NEWER');
+  assert(store.getSnapshot().currentCount === 4);
+});
+
+Deno.test('reset preparation preserves ambiguous reservations and rejects wrong source identity', async () => {
+  for (const ambiguous of [false, true]) {
+    const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
+    await store.mutate((profile) => registerTrackedGameDraft(profile, 'SOURCE', 'human'));
+    if (ambiguous) {
+      const reservation = await reserve(store, 'rematch', 'SOURCE');
+      await failBotGameCreation(store, reservation, { ambiguous: true, error: 'lost response' });
+    }
+    const prepared = await prepareBotGameCreation({
+      store, kind: 'rematch', sourceGameId: 'SOURCE',
+      requiredSettledSource: { gameId: 'SOURCE', humanPlayerId: ambiguous ? 'human' : 'different-human' },
+      transport: { getGameState: async () => { throw new Error('must not fetch'); } },
+    });
+    assert(prepared.kind === 'error');
+    assert(store.getSnapshot().creationReservation?.status === (ambiguous ? 'ambiguous' : undefined));
+    assert(store.getSnapshot().trackedGame?.humanPlayerId === 'human');
+  }
+});
+
+Deno.test('creation checks the current session again after awaiting the profile lock', async () => {
+  const store = new WinStreakProfileStore(new FakeStorage(), serialRunner());
+  const reservation = await reserve(store, 'rematch', 'SOURCE');
+  let requests = 0;
+  const result = await executeReservedBotGameCreation({
+    store, reservation, canStart: () => false,
+    request: async () => { requests += 1; return new Response(JSON.stringify({ gameId: 'UNWANTED' })); },
+    getHumanPlayerId: async () => 'human', invalidResponseMessage: 'Invalid creation response.',
+  });
+  assert(result.kind === 'stale_preflight');
+  assert(requests === 0);
+  assert(store.getSnapshot().creationReservation === null);
+});

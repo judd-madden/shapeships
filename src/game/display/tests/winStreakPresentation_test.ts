@@ -1,5 +1,12 @@
 declare const Deno: { test(name: string, fn: () => void | Promise<void>): void };
 
+import { Children, isValidElement, type ComponentProps, type ReactElement, type ReactNode } from 'react';
+import { vi } from 'vitest';
+import { LeftRail } from '../layout/LeftRail';
+import { MobileMenuTakeover } from '../mobile/takeovers/MobileMenuTakeover';
+import { MenuActionPanel } from '../actionPanel/panels/MenuActionPanel';
+import { GameMenuButton } from '../../../components/ui/primitives/buttons/GameMenuButton';
+import { WinStreakPanelContent } from '../winStreak/WinStreakContent';
 import type { WinStreakGameViewModel } from '../../client/winStreak/types';
 import {
   canSubmitInGameWinStreakReset,
@@ -13,6 +20,20 @@ import {
   shouldUseNextGameBonusCopy,
   withoutWinStreakBreakdownRow,
 } from '../winStreak/winStreakPresentation';
+
+// Inspect real caller elements in Node; effects and child components need no DOM.
+vi.mock('react', async (original) => ({
+  ...await original<typeof import('react')>(),
+  useState: (initial: unknown) => [typeof initial === 'function' ? initial() : initial, () => {}],
+  useRef: (initial: unknown) => ({ current: initial }),
+  useEffect: () => {},
+  useLayoutEffect: () => {},
+}));
+
+function elements(node: ReactNode): ReactElement<any>[] {
+  return Children.toArray(node).flatMap((child) => isValidElement(child)
+    ? [child as ReactElement<any>, ...elements((child as ReactElement<any>).props.children)] : []);
+}
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
   if (!condition) throw new Error(message);
@@ -77,11 +98,44 @@ Deno.test('in-game eligibility requires canResign and reset actions remain disti
 
   const resign = () => undefined;
   const localReset = async () => undefined;
-  assert(getInGameWinStreakResetAction({ onResignGame: resign }) === resign);
+  const inGameReset = async () => undefined;
+  const actions = { onResignGame: resign, onResetWinStreak: inGameReset };
+  assert(getInGameWinStreakResetAction(actions) === inGameReset);
   assert(getMenuWinStreakResetAction({ onResetWinStreak: localReset }) === localReset);
 });
 
 Deno.test('left rail selects restored two-tab spacing only when XW is absent', () => {
   assert(getWinStreakTabLayout(false) === 'two-tab');
   assert(getWinStreakTabLayout(true) === 'three-tab');
+});
+
+Deno.test('desktop and mobile callers bind Reset to the shared reset action and preserve ordinary Resign', async () => {
+  const reset = vi.fn(async () => {});
+  const resign = vi.fn(() => {});
+  const retry = vi.fn(async () => {});
+  const actions = { onResetWinStreak: reset, onResignGame: resign, onRetryWinStreakReset: retry };
+  const desktop = LeftRail({
+    vm: {}, turnPhases: {}, turnPhasePresentation: {}, actions,
+    winStreak: gameVm(), canResign: true, isFinished: false, isPlayerViewer: true,
+  } as unknown as ComponentProps<typeof LeftRail>);
+  const mobile = MobileMenuTakeover({
+    vm: { canResign: true }, actions, winStreak: gameVm(),
+  } as unknown as ComponentProps<typeof MobileMenuTakeover>);
+
+  for (const tree of [desktop, mobile]) {
+    const panel = elements(tree).find((element) => element.type === WinStreakPanelContent);
+    assert(panel?.props.canReset === true);
+    assert(panel.props.onReset === reset);
+    assert(panel.props.onRetryRecovery === retry);
+    await panel.props.onReset();
+  }
+  assert(reset.mock.calls.length === 2);
+  assert(resign.mock.calls.length === 0);
+
+  const desktopMenu = MenuActionPanel({ canResign: true, onResignGame: resign } as unknown as ComponentProps<typeof MenuActionPanel>);
+  for (const tree of [desktopMenu, mobile]) {
+    const button = elements(tree).find((element) =>
+      element.type === GameMenuButton && element.props.confirmLabel === 'Resign Game (Confirm)');
+    assert(button?.props.onClick === resign);
+  }
 });

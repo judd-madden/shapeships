@@ -45,7 +45,7 @@ import {
   observeAuthoritativeWinStreakGame,
   projectAuthoritativeWinStreakGame,
 } from './winStreak/authoritative';
-import { useWinStreakGame } from './winStreak/useWinStreakGame';
+import { useWinStreakGame, type WinStreakResignationResult } from './winStreak/useWinStreakGame';
 import { WIN_STREAK_RECONCILIATION_TIMEOUT_MS } from './winStreak/workflow';
 import { getMajorPhaseLabel, getSubphaseLabelFromPhaseKey } from './gameSession/phaseLabels';
 import {
@@ -1986,12 +1986,14 @@ export function useGameSession(
     return Array.isArray(latestAvailableActions) ? latestAvailableActions : null;
   }
 
-  async function submitMenuIntent(intentType: 'SURRENDER' | 'DRAW_OFFER' | 'DRAW_ACCEPT' | 'DRAW_REFUSE') {
+  async function submitMenuIntent(
+    intentType: 'SURRENDER' | 'DRAW_OFFER' | 'DRAW_ACCEPT' | 'DRAW_REFUSE',
+  ): Promise<WinStreakResignationResult> {
     const latest = getLatestIntentContext();
 
     if (!latest.gameId) {
       console.error(`[useGameSession] ${intentType} blocked: missing gameId`);
-      return;
+      return { ok: false, error: 'Missing game ID.' };
     }
 
     try {
@@ -2005,7 +2007,7 @@ export function useGameSession(
         const errorText = await response.text();
         console.error(`[useGameSession] ${intentType} failed:`, response.status, errorText);
         await refreshGameStateOnce();
-        return;
+        return { ok: false, error: errorText || `${intentType} failed (${response.status}).` };
       }
 
       const result = await response.json();
@@ -2017,24 +2019,29 @@ export function useGameSession(
           result.rejected?.message
         );
         await refreshGameStateOnce();
-        return;
+        return { ok: false, error: result.rejected?.message || result.rejected?.code || `${intentType} rejected.` };
       }
 
       appendEventsToTape(setEventTape, result.events ?? [], { label: intentType });
       void enqueueWinStreakObservation(result.state, false);
       await refreshGameStateOnce();
+      return { ok: true, state: result.state };
     } catch (err: any) {
       console.error(`[useGameSession] ${intentType} error:`, err.message);
       await refreshGameStateOnce();
+      return { ok: false, error: err?.message || `${intentType} failed.` };
     }
   }
 
-  async function handleResignGame() {
-    if (resignSubmissionRef.current) return;
+  async function handleResignGame(expectedGameId?: string): Promise<WinStreakResignationResult> {
+    if (expectedGameId !== undefined && getLatestIntentContext().gameId !== expectedGameId) {
+      return { ok: false, error: 'The current game changed before resignation.' };
+    }
+    if (resignSubmissionRef.current) return { ok: false, error: 'Resignation is already in progress.' };
     resignSubmissionRef.current = true;
     setIsResignSubmitting(true);
     try {
-      await submitMenuIntent('SURRENDER');
+      return await submitMenuIntent('SURRENDER');
     } finally {
       resignSubmissionRef.current = false;
       setIsResignSubmitting(false);
@@ -6623,6 +6630,9 @@ useEffect(() => {
     effectivePlayerName,
     humanPlayerId: mySessionId,
     authoritativeGame: authoritativeWinStreakGame,
+    getLatestAuthoritativeGame: () => projectAuthoritativeWinStreakGame(rawStateRef.current, mySessionId),
+    resignGame: handleResignGame,
+    isResigning: () => resignSubmissionRef.current,
     awaitPendingObservation: async () => {
       await enqueueWinStreakObservation(rawStateRef.current, false);
       await winStreakSettlementQueueRef.current;

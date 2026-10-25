@@ -31,9 +31,9 @@ export function canSubmitInGameWinStreakReset(
 }
 
 export function getInGameWinStreakResetAction(
-  actions: Pick<GameSessionActions, 'onResignGame'>,
+  actions: Pick<GameSessionActions, 'onResetWinStreak'>,
 ) {
-  return actions.onResignGame;
+  return actions.onResetWinStreak;
 }
 
 export function getMenuWinStreakResetAction(

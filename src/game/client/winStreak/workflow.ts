@@ -87,7 +87,11 @@ function projectStrictTrackedGame(
 export async function reconcileTrackedWinStreakGame(
   store: WinStreakProfileStore,
   transport: ReconcileTransport,
-  options: { expectedTrackedGameId?: string } = {},
+  options: {
+    expectedTrackedGameId?: string;
+    expectedHumanPlayerId?: string;
+    requireFinishedLoss?: boolean;
+  } = {},
 ): Promise<ReconcileResult> {
   const captured = await store.inspect((profile) => ({
     preflight: creationPreflight(profile),
@@ -104,12 +108,15 @@ export async function reconcileTrackedWinStreakGame(
   }
   const tracked = captured.trackedGame;
   if (
-    options.expectedTrackedGameId !== undefined &&
-    tracked?.gameId !== options.expectedTrackedGameId
+    (options.expectedTrackedGameId !== undefined && tracked?.gameId !== options.expectedTrackedGameId) ||
+    (options.expectedHumanPlayerId !== undefined && tracked?.humanPlayerId !== options.expectedHumanPlayerId)
   ) {
     return { kind: 'stale' };
   }
-  if (!tracked || tracked.status !== 'unfinished' || !tracked.resultEligible) {
+  if (!tracked || (
+    !(options.requireFinishedLoss && tracked.status === 'settled') &&
+    (tracked.status !== 'unfinished' || !tracked.resultEligible)
+  )) {
     return { kind: 'clear', preflight: captured.preflight };
   }
 
@@ -163,6 +170,16 @@ export async function reconcileTrackedWinStreakGame(
     (profile.creationReservation?.token ?? null) === (captured.reservation?.token ?? null)
   );
   if (!associationStillCurrent) return { kind: 'stale' };
+  if (options.requireFinishedLoss && (
+    game.status !== 'finished' || game.outcome !== 'loss' || game.restartLifecycle != null
+  )) {
+    return {
+      kind: 'error',
+      gameId: tracked.gameId,
+      error: 'The resigned game has not been confirmed as a finished loss.',
+      preflight: captured.preflight,
+    };
+  }
   if (game.resultReason === 'restart' || game.restartLifecycle?.kind === 'source') {
     return { kind: 'restart', game, preflight: captured.preflight };
   }
@@ -173,6 +190,10 @@ export async function reconcileTrackedWinStreakGame(
     });
     if (observed === 'stale') return { kind: 'stale' };
     const settledPreflight = await store.inspect((profile) => creationPreflight(profile));
+    if (options.requireFinishedLoss &&
+      settledPreflight.generation !== captured.preflight.generation + (observed === 'settled' ? 1 : 0)) {
+      return { kind: 'stale' };
+    }
     return settledPreflight.trackedGameId === tracked.gameId
       ? { kind: 'clear', preflight: settledPreflight }
       : { kind: 'stale' };
@@ -307,19 +328,42 @@ export async function prepareBotGameCreation(args: {
   kind: 'create' | 'rematch';
   sourceGameId: string | null;
   activeReservationToken?: string | null;
+  requiredSettledSource?: { gameId: string; humanPlayerId: string };
 }): Promise<PrepareBotGameCreationResult> {
-  const existing = await resolvePersistedCreationReservation(
-    args.store,
-    args.transport,
-    args.activeReservationToken ?? null,
-  );
-  if (existing.kind === 'blocked') return existing;
+  // Reset must not release or replay an earlier non-idempotent creation request.
+  if (!args.requiredSettledSource) {
+    const existing = await resolvePersistedCreationReservation(
+      args.store,
+      args.transport,
+      args.activeReservationToken ?? null,
+    );
+    if (existing.kind === 'blocked') return existing;
+  }
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const reconciled = await reconcileTrackedWinStreakGame(args.store, args.transport);
+  for (let attempt = 0; attempt < (args.requiredSettledSource ? 1 : 2); attempt += 1) {
+    const reconciled = await reconcileTrackedWinStreakGame(args.store, args.transport, {
+      expectedTrackedGameId: args.requiredSettledSource?.gameId,
+      expectedHumanPlayerId: args.requiredSettledSource?.humanPlayerId,
+      requireFinishedLoss: args.requiredSettledSource != null,
+    });
     if (reconciled.kind === 'stale') continue;
 
     if (reconciled.kind === 'clear') {
+      if (args.requiredSettledSource) {
+        const source = args.requiredSettledSource;
+        const ready = await args.store.inspect((profile) =>
+          matchesPreflight(profile, reconciled.preflight) &&
+          args.sourceGameId === source.gameId &&
+          profile.trackedGame?.gameId === source.gameId &&
+          profile.trackedGame.humanPlayerId === source.humanPlayerId &&
+          profile.trackedGame.status === 'settled' &&
+          !profile.trackedGame.resultEligible &&
+          profile.currentCount === 0
+        );
+        if (!ready) {
+          return { kind: 'error', error: 'The resigned game streak has not been safely reconciled to zero.' };
+        }
+      }
       const reserved = await reserveBotGameCreation(
         args.store,
         args.kind,
@@ -329,6 +373,13 @@ export async function prepareBotGameCreation(args: {
       if (reserved.kind === 'reserved') return reserved;
       if (reserved.kind === 'stale') continue;
       return { kind: 'blocked', error: 'A bot-game creation request is already in progress.' };
+    }
+
+    if (args.requiredSettledSource) {
+      return {
+        kind: 'error',
+        error: 'error' in reconciled ? reconciled.error : 'The resigned game is not ready for a new game.',
+      };
     }
 
     const resetCount = reconciled.kind === 'unfinished';
@@ -484,8 +535,9 @@ export async function executeReservedBotGameCreation(args: {
   request: (winStreakCount: number) => Promise<Response>;
   getHumanPlayerId: () => Promise<string>;
   invalidResponseMessage: string;
+  canStart?: () => boolean;
 }): Promise<CreationExecutionResult> {
-  if (!(await markBotGameCreationStarted(args.store, args.reservation))) {
+  if (!(await markBotGameCreationStarted(args.store, args.reservation)) || args.canStart?.() === false) {
     await failBotGameCreation(args.store, args.reservation, {
       ambiguous: false,
       error: 'The win-streak profile changed before game creation started.',

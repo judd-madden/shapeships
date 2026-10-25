@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   deriveWinStreakGameViewModel,
+  projectAuthoritativeWinStreakGame,
   type AuthoritativeWinStreakGame,
 } from './authoritative';
 import {
@@ -12,14 +13,22 @@ import { useWinStreakProfile } from './useWinStreakProfile';
 import {
   completeWinStreakRestart,
   executeReservedBotGameCreation,
+  failBotGameCreation,
   prepareBotGameCreation,
 } from './workflow';
+
+export type WinStreakResignationResult =
+  | { ok: true; state: unknown }
+  | { ok: false; error: string };
 
 interface UseWinStreakGameArgs {
   effectiveGameId: string | null;
   effectivePlayerName: string;
   humanPlayerId: string | null;
   authoritativeGame: AuthoritativeWinStreakGame | null;
+  getLatestAuthoritativeGame: () => AuthoritativeWinStreakGame | null;
+  resignGame: (sourceGameId: string) => Promise<WinStreakResignationResult>;
+  isResigning: () => boolean;
   awaitPendingObservation: () => Promise<void>;
   getGameState: (gameId: string) => Promise<Response>;
   createBotRematch: (sourceGameId: string, winStreakCount: number) => Promise<Response>;
@@ -43,18 +52,24 @@ export function useWinStreakGame(args: UseWinStreakGameArgs): {
   const store = args.store ?? getWinStreakProfileStore();
   const profile = useWinStreakProfile(store);
   const [resetBusy, setResetBusy] = useState(false);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetRetryAvailable, setResetRetryAvailable] = useState(false);
-  const creationSubmissionRef = useRef(false);
+  // Creation, Reset and automatic restart recovery share one synchronous guard.
+  const submissionRef = useRef(false);
   const activeCreationTokenRef = useRef<string | null>(null);
-  const resetSubmissionRef = useRef(false);
+  const dedicatedRecoverySourceRef = useRef<string | null>(null);
   const recoveredRestartRef = useRef<string | null>(null);
+  const latestArgsRef = useRef(args);
+  latestArgsRef.current = args;
   const navigateToGameRef = useRef(args.navigateToGame);
   navigateToGameRef.current = args.navigateToGame;
 
   const requestBotRematch = useCallback(async (): Promise<void> => {
-    if (!args.effectiveGameId || creationSubmissionRef.current) return;
-    creationSubmissionRef.current = true;
+    const args = latestArgsRef.current;
+    if (!args.effectiveGameId || submissionRef.current || args.isResigning()) return;
+    submissionRef.current = true;
+    setResetBusy(true);
     try {
       await args.awaitPendingObservation();
       const prepared = await prepareBotGameCreation({
@@ -85,44 +100,127 @@ export function useWinStreakGame(args: UseWinStreakGameArgs): {
       console.error('[WinStreak] New game creation failed:', error);
     } finally {
       activeCreationTokenRef.current = null;
-      creationSubmissionRef.current = false;
+      submissionRef.current = false;
+      setResetBusy(false);
     }
-  }, [args, store]);
+  }, [store]);
 
   const resetWinStreak = useCallback(async (): Promise<void> => {
-    if (!args.effectiveGameId || !args.humanPlayerId || resetSubmissionRef.current) return;
-    if (!args.authoritativeGame?.serverCanRestart && !resetRetryAvailable) return;
-    resetSubmissionRef.current = true;
+    const args = latestArgsRef.current;
+    const sourceGameId = args.effectiveGameId;
+    const humanPlayerId = args.humanPlayerId;
+    if (!sourceGameId || !humanPlayerId || submissionRef.current || args.isResigning()) return;
+    const isCurrent = () => latestArgsRef.current.effectiveGameId === sourceGameId &&
+      latestArgsRef.current.humanPlayerId === humanPlayerId;
+    submissionRef.current = true;
     setResetBusy(true);
     setResetError(null);
+    setResetRetryAvailable(false);
+    let dedicatedAttempt = dedicatedRecoverySourceRef.current === sourceGameId;
     try {
       await args.awaitPendingObservation();
+      if (!isCurrent()) return;
+      const game = latestArgsRef.current.getLatestAuthoritativeGame();
+      if (!game || game.gameId !== sourceGameId || game.humanPlayerId !== humanPlayerId) {
+        setResetError('The current bot game could not be verified.');
+        return;
+      }
+      dedicatedAttempt = dedicatedAttempt || game.serverCanRestart || game.restartLifecycle?.kind === 'source';
+      if (!dedicatedAttempt && (game.status === 'finished' || game.restartLifecycle != null)) return;
       const preflight = await store.inspect((current) => ({
         generation: current.generation,
         trackedGameId: current.trackedGame?.gameId ?? null,
+        trackedHumanPlayerId: current.trackedGame?.humanPlayerId,
+        trackedStatus: current.trackedGame?.status,
+        resultEligible: current.trackedGame?.resultEligible,
         hasCreationReservation: current.creationReservation != null,
       }));
+      if (!isCurrent()) return;
       if (
         preflight.hasCreationReservation ||
-        (preflight.trackedGameId !== null && preflight.trackedGameId !== args.effectiveGameId)
+        (preflight.trackedGameId !== null && (preflight.trackedGameId !== sourceGameId ||
+          preflight.trackedHumanPlayerId !== humanPlayerId))
       ) {
         setResetError('The win-streak profile changed before the restart request started.');
         return;
       }
-      const response = await args.resetWinStreak(args.effectiveGameId);
+      if (!dedicatedAttempt) {
+        if (preflight.trackedGameId !== sourceGameId ||
+          preflight.trackedHumanPlayerId !== humanPlayerId ||
+          preflight.trackedStatus !== 'unfinished' || !preflight.resultEligible) {
+          setResetError('The current game is no longer tracked for this win streak.');
+          return;
+        }
+        const resigned = await args.resignGame(sourceGameId);
+        if (!isCurrent()) return;
+        if (!resigned.ok) {
+          setResetError(resigned.error);
+          return;
+        }
+        const finished = projectAuthoritativeWinStreakGame(resigned.state, humanPlayerId);
+        if (!finished || finished.gameId !== sourceGameId || finished.humanPlayerId !== humanPlayerId ||
+          finished.status !== 'finished' || finished.outcome !== 'loss' || finished.restartLifecycle != null) {
+          setResetError('Resignation did not confirm a finished loss for the current player.');
+          return;
+        }
+        await args.awaitPendingObservation();
+        if (!isCurrent()) return;
+        const prepared = await prepareBotGameCreation({
+          store,
+          transport: { getGameState: args.getGameState },
+          kind: 'rematch',
+          sourceGameId,
+          requiredSettledSource: { gameId: sourceGameId, humanPlayerId },
+        });
+        if (prepared.kind !== 'reserved') {
+          setResetError(prepared.error);
+          return;
+        }
+        activeCreationTokenRef.current = prepared.reservation.token;
+        if (!isCurrent()) {
+          await failBotGameCreation(store, prepared.reservation, {
+            ambiguous: false, error: 'The current game changed before creation.',
+          });
+          return;
+        }
+        const result = await executeReservedBotGameCreation({
+          store,
+          reservation: prepared.reservation,
+          canStart: isCurrent,
+          request: (count) => args.createBotRematch(sourceGameId, count),
+          getHumanPlayerId: async () => {
+            const currentId = await args.getCurrentHumanPlayerId(args.effectivePlayerName);
+            if (currentId !== humanPlayerId) throw new Error('The player identity changed during reset.');
+            return currentId;
+          },
+          invalidResponseMessage: 'New game request returned an invalid payload.',
+        });
+        if (result.kind === 'registered') {
+          if (isCurrent()) args.navigateToGame(result.gameId);
+        } else {
+          setResetError(result.error ?? 'New game creation needs recovery.');
+          console.error('[WinStreak] Reset game creation failed:', result.error);
+        }
+        return;
+      }
+      dedicatedRecoverySourceRef.current = sourceGameId;
+      const response = await args.resetWinStreak(sourceGameId);
+      if (!isCurrent()) return;
       if (!response.ok) {
         const message = await response.text();
         setResetError(message || `Win-streak reset failed (${response.status}).`);
         setResetRetryAvailable(response.status >= 500);
+        if (response.status < 500) dedicatedRecoverySourceRef.current = null;
         await args.refreshGameStateOnce();
         return;
       }
       const body = await response.json().catch(() => null);
+      if (!isCurrent()) return;
       const replacementGameId = typeof body?.gameId === 'string' ? body.gameId : null;
-      const sourceGameId = typeof body?.sourceGameId === 'string' ? body.sourceGameId : null;
+      const returnedSourceGameId = typeof body?.sourceGameId === 'string' ? body.sourceGameId : null;
       if (
         !replacementGameId ||
-        sourceGameId !== args.effectiveGameId ||
+        returnedSourceGameId !== sourceGameId ||
         body?.resetStatus !== 'completed'
       ) {
         setResetError('Win-streak reset returned an invalid response.');
@@ -131,9 +229,9 @@ export function useWinStreakGame(args: UseWinStreakGameArgs): {
       }
       const completion = await completeWinStreakRestart(
         store,
-        args.effectiveGameId,
+        sourceGameId,
         replacementGameId,
-        args.humanPlayerId,
+        humanPlayerId,
         preflight.generation,
       );
       if (completion !== 'registered') {
@@ -142,27 +240,37 @@ export function useWinStreakGame(args: UseWinStreakGameArgs): {
         return;
       }
       setResetRetryAvailable(false);
-      args.navigateToGame(replacementGameId);
+      dedicatedRecoverySourceRef.current = null;
+      recoveredRestartRef.current = `${sourceGameId}:${replacementGameId}`;
+      if (isCurrent()) args.navigateToGame(replacementGameId);
     } catch (error) {
       setResetError(error instanceof Error ? error.message : 'Win-streak reset may not have completed.');
-      setResetRetryAvailable(true);
+      setResetRetryAvailable(dedicatedAttempt);
     } finally {
-      resetSubmissionRef.current = false;
+      activeCreationTokenRef.current = null;
+      submissionRef.current = false;
       setResetBusy(false);
     }
-  }, [args, resetRetryAvailable, store]);
+  }, [store]);
 
   useEffect(() => {
     const lifecycle = args.authoritativeGame?.restartLifecycle;
-    if (!lifecycle || lifecycle.kind !== 'source' || !args.humanPlayerId) return;
+    if (!lifecycle || lifecycle.kind !== 'source' || !args.humanPlayerId ||
+      args.effectiveGameId !== lifecycle.sourceGameId ||
+      args.authoritativeGame?.humanPlayerId !== args.humanPlayerId) return;
     if (lifecycle.status === 'pending') {
+      dedicatedRecoverySourceRef.current = lifecycle.sourceGameId;
       setResetRetryAvailable(true);
       setResetError('The win-streak restart is pending recovery.');
       return;
     }
     const key = `${lifecycle.sourceGameId}:${lifecycle.replacementGameId}`;
     if (recoveredRestartRef.current === key) return;
+    if (submissionRef.current || args.isResigning()) return;
+    submissionRef.current = true;
+    setRecoveryBusy(true);
     recoveredRestartRef.current = key;
+    const humanPlayerId = args.humanPlayerId;
     void completeWinStreakRestart(
       store,
       lifecycle.sourceGameId,
@@ -170,7 +278,13 @@ export function useWinStreakGame(args: UseWinStreakGameArgs): {
       args.humanPlayerId,
     ).then((completion) => {
       if (completion === 'registered') {
-        navigateToGameRef.current(lifecycle.replacementGameId);
+        dedicatedRecoverySourceRef.current = null;
+        setResetRetryAvailable(false);
+        setResetError(null);
+        if (latestArgsRef.current.effectiveGameId === lifecycle.sourceGameId &&
+          latestArgsRef.current.humanPlayerId === humanPlayerId) {
+          navigateToGameRef.current(lifecycle.replacementGameId);
+        }
         return;
       }
       recoveredRestartRef.current = null;
@@ -180,11 +294,16 @@ export function useWinStreakGame(args: UseWinStreakGameArgs): {
       setResetError(
         error instanceof Error ? error.message : 'Unable to recover the completed win-streak restart.',
       );
+    }).finally(() => {
+      submissionRef.current = false;
+      setRecoveryBusy(false);
     });
   }, [
     args.authoritativeGame?.restartLifecycle,
     args.humanPlayerId,
     profile.creationReservation?.token,
+    resetBusy,
+    args.resignBusy,
     store,
   ]);
 
@@ -196,7 +315,7 @@ export function useWinStreakGame(args: UseWinStreakGameArgs): {
   const viewModel = deriveWinStreakGameViewModel({
     profile,
     game: args.authoritativeGame,
-    resetBusy: resetBusy || args.resignBusy === true,
+    resetBusy: resetBusy || recoveryBusy || args.resignBusy === true,
     resetError,
     resetRetryAvailable,
   });
