@@ -2,6 +2,7 @@ import { Children, isValidElement, type ReactElement, type ReactNode } from 'rea
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useBoardStatHover } from '../../layout/boardStage/useBoardStatHover';
+import { calculateBoardStatHoverLayout } from '../../layout/boardStage/boardStatPresentation';
 import { DesktopDicePresentation, type DesktopDicePresentationProps } from '../../layout/boardStage/DesktopDicePresentation';
 import { BoardStage } from '../../layout/BoardStage';
 import { MainStage } from '../../layout/MainStage';
@@ -140,9 +141,10 @@ describe('desktop health and economy presentation', () => {
     myBonusBreakdownRows: [], opponentBonusBreakdownRows: [], fleetAnim: { my: [], opponent: [] },
     presentedFleetValue: { my: 9, opponent: 10 }, showTurnStartEconomyPresentation: true,
   };
-  const read = (overrides = {}, desktopHealthPresentation: Props['desktopHealthPresentation'] = null) => render(() => BoardStage({
+  const read = (overrides = {}, desktopHealthPresentation: Props['desktopHealthPresentation'] = null,
+    thisTurn: Props['thisTurn'] = null) => render(() => BoardStage({
     vm: { ...baseBoard, ...overrides }, viewer: { isSpectator: false },
-    thisTurn: null, presentedThisTurnStats: null, gameStats: null, desktopHealthPresentation,
+    thisTurn, presentedThisTurnStats: null, gameStats: null, desktopHealthPresentation,
     desktopDicePresentation: {}, hudVm: {}, actions: {}, phaseKey: 'build.drawing', matchupIntro: null,
     winStreak: { appliedBonus: { turnOneHoverEligible: false } },
   } as unknown as Props)) as ReactElement<any>;
@@ -204,6 +206,71 @@ describe('desktop health and economy presentation', () => {
       (element as any).ref === anchors[1].props.anchorRef);
     expect(opponentJoining).toBeDefined();
   });
+
+  it.each([
+    ['LAST TURN', 'my-health', 'left'], ['LAST TURN', 'opponent-health', 'right'],
+    ['FINAL TURN', 'my-health', 'left'], ['FINAL TURN', 'opponent-health', 'right'],
+  ] as const)('anchors %s %s to its summary while retaining button interactions', (heading, key, side) => {
+    const current = (total: number) => ({ state: 'value', total, turnNumber: 1, rows: [],
+      source: heading === 'FINAL TURN' ? 'final_actual' : 'held_actual' });
+    const pair = (total: number) => ({ current: current(total), last: { state: 'unavailable', turnNumber: 0 } });
+    const tree = read({ myLastTurnHeal: 5, opponentLastTurnDamage: 8,
+      opponentLastTurnHeal: 2, myLastTurnDamage: 7 }, null, {
+      turnNumber: 1, phaseKey: heading === 'FINAL TURN' ? 'game.finished' : 'build.drawing',
+      me: { healing: pair(5), damage: pair(7) }, opponent: { healing: pair(2), damage: pair(8) },
+    } as unknown as Props['thisTurn']);
+    const health = elements(tree.props.healthContent).find((element) => element.props.hoverKey === key)!;
+    expect(health.props.hoverTrackable).toBe(true);
+    expect(health.props.previous.heading).toBe(heading);
+    hooks.unmount();
+    hooks.reset();
+    const onHoverEnter = vi.fn();
+    const onFocus = vi.fn();
+    const onHoverLeave = vi.fn();
+    const onBlur = vi.fn();
+    const props = { ...health.props, onHoverEnter, onFocus, onHoverLeave, onBlur };
+    const readTrigger = () => render(() => (health.type as (props: any) => ReactElement<any>)(props));
+    const button = readTrigger();
+    const trigger = new ElementDouble();
+    const event = { currentTarget: trigger };
+    button.props.onMouseEnter(event);
+    expect(onHoverEnter).toHaveBeenLastCalledWith(key, trigger, trigger);
+    const summary = elements(button).find((element) => element.props.previous === true)!;
+    const stack = (summary.type as (props: any) => ReactElement<any>)(summary.props);
+    expect(stack.type).toBe('span');
+    expect(elements(stack).filter((element) => typeof element.props.children === 'string')
+      .map((element) => element.props.children)).toEqual(side === 'left' ? ['8', '5'] : ['7', '2']);
+    const anchor = new ElementDouble();
+    anchor.bounds = rect(side === 'left' ? 340 : 600, 210, 20, 30);
+    (stack as any).ref.current = anchor;
+    button.props.onMouseEnter(event);
+    button.props.onFocus(event);
+    expect(onHoverEnter).toHaveBeenLastCalledWith(key, anchor, trigger);
+    expect(onFocus).toHaveBeenLastCalledWith(key, anchor, trigger);
+    const layout = calculateBoardStatHoverLayout({
+      anchorRect: onHoverEnter.mock.lastCall![1].getBoundingClientRect(), preferredPlacement: side,
+      cardWidth: 240, cardHeight: 100, viewportWidth: 1000, viewportHeight: 800,
+    });
+    expect(layout).toEqual({ left: side === 'left' ? 86 : 634, top: 175, placement: side, tailOffset: 50 });
+    button.props.onMouseLeave();
+    button.props.onBlur();
+    expect(onHoverLeave).toHaveBeenCalledWith(key);
+    expect(onBlur).toHaveBeenCalledWith(key);
+    const focus = vi.fn();
+    vi.stubGlobal('document', { getElementById: vi.fn(() => ({ focus })) });
+    const preventDefault = vi.fn();
+    button.props.onKeyDown({ key: 'ArrowDown', preventDefault });
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(focus).toHaveBeenCalledOnce();
+    props.hoverTrackable = false;
+    const disabled = readTrigger();
+    expect(disabled.props.disabled).toBe(true);
+    for (const handler of ['onMouseEnter', 'onMouseLeave', 'onFocus', 'onBlur', 'onKeyDown']) {
+      expect(disabled.props[handler]).toBeUndefined();
+    }
+    expect(disabled.props['aria-controls']).toBeUndefined();
+    expect(disabled.props['aria-expanded']).toBeUndefined();
+  });
 });
 
 describe('terminal Mission number coordination', () => {
@@ -231,6 +298,50 @@ describe('terminal Mission number coordination', () => {
 
 describe('explicit desktop stat layout refs', () => {
   const renderHover = () => render(() => useBoardStatHover({ boardRootRef, barRegionRef }));
+
+  it.each(['onEnter', 'onFocus'] as const)('%s measures and observes a separate summary anchor', (activate) => {
+    const trigger = new ElementDouble();
+    const triggerBounds = trigger.bounds;
+    const anchor = new ElementDouble();
+    anchor.bounds = rect(360, 210, 20, 30);
+    renderHover()[activate]('my-health', anchor as unknown as HTMLElement, trigger as unknown as HTMLElement);
+    expect(renderHover().state.anchorRect).toBe(anchor.bounds);
+    const observer = ObserverDouble.instances.at(-1)!;
+    expect(observer.observe.mock.calls.map(([element]) => element)).toEqual([anchor, boardRootRef.current, barRegionRef.current]);
+    // Content/layout changes and responsive typography change the stack, not the button.
+    anchor.bounds = rect(350, 220, 30, 42);
+    renderHover();
+    expect(renderHover().state.anchorRect).toBe(anchor.bounds);
+    anchor.bounds = rect(340, 230, 40, 42);
+    observer.notify();
+    expect(renderHover().state.anchorRect).toBe(anchor.bounds);
+    for (const [, listener] of viewport.addEventListener.mock.calls) {
+      anchor.bounds = rect(anchor.bounds.left - 10, anchor.bounds.top + 10, 50, 50);
+      listener();
+      expect(renderHover().state.anchorRect).toBe(anchor.bounds);
+    }
+    expect(trigger.bounds).toBe(triggerBounds);
+  });
+
+  it.each(['disconnected anchor', 'disconnected trigger', 'disabled trigger'])(
+    'clears a separate summary anchor for a %s', (kind) => {
+      const trigger = new ElementDouble();
+      const anchor = new ElementDouble();
+      renderHover().onFocus('opponent-health', anchor as unknown as HTMLElement, trigger as unknown as HTMLElement);
+      renderHover();
+      const observer = ObserverDouble.instances.at(-1)!;
+      if (kind === 'disconnected anchor') anchor.isConnected = false;
+      else if (kind === 'disconnected trigger') trigger.isConnected = false;
+      else trigger.disabled = true;
+      renderHover();
+      expect(renderHover().state.activeKey).toBeNull();
+      expect(observer.disconnect).toHaveBeenCalledOnce();
+      trigger.disabled = false;
+      trigger.isConnected = true;
+      anchor.isConnected = true;
+      expect(renderHover().state.activeKey).toBeNull();
+    },
+  );
 
   it('observes supplied elements and remeasures on layout resize, viewport resize and captured scroll', () => {
     const trigger = new ElementDouble();
@@ -266,10 +377,11 @@ describe('explicit desktop stat layout refs', () => {
     expect(observer.disconnect).toHaveBeenCalledOnce();
   });
 
-  it('retains the 150ms handoff and keyboard/card focus continuity', () => {
+  it.each([false, true])('retains the 150ms handoff and keyboard/card focus continuity (separate anchor: %s)', (separateAnchor) => {
     const trigger = new ElementDouble();
+    const anchor = separateAnchor ? new ElementDouble() : trigger;
     let hover = renderHover();
-    hover.onEnter('my-current', trigger as unknown as HTMLElement);
+    hover.onEnter('my-current', anchor as unknown as HTMLElement, trigger as unknown as HTMLElement);
     hover = renderHover();
     hover.onLeave('my-current');
     vi.advanceTimersByTime(149);

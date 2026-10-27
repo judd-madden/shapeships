@@ -245,13 +245,15 @@ function CombatValues({
   damage,
   healing,
   previous = false,
+  anchorRef,
 }: {
   damage: string;
   healing: string;
   previous?: boolean;
+  anchorRef?: RefObject<HTMLSpanElement | null>;
 }) {
   return (
-    <span className={cx(
+    <span ref={anchorRef} className={cx(
       'inline-flex w-max shrink-0 flex-col gap-[2px] whitespace-nowrap font-bold leading-none',
       previous
         ? 'text-[14px] opacity-[0.66] min-[1400px]:text-[16px] min-[1920px]:text-[20px]'
@@ -337,16 +339,17 @@ function HealthTrigger({
   hoverTrackable: boolean;
   ariaLabel: string;
   isActive: boolean;
-  onHoverEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
+  onHoverEnter: BoardStatHoverController['onEnter'];
   onHoverLeave: (key: BoardStatHoverKey) => void;
-  onFocus: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
+  onFocus: BoardStatHoverController['onFocus'];
   onBlur: (key: BoardStatHoverKey) => void;
 }) {
+  const summaryAnchorRef = useRef<HTMLSpanElement | null>(null);
   const isRight = align === 'right';
   const deltaText = netDelta > 0 ? `+${netDelta}` : netDelta === 0 ? '±0' : `−${Math.abs(netDelta)}`;
   const previousValues = (
     <span className={cx('row-start-1 w-max', isRight ? 'col-start-1 mr-[12px] justify-self-end' : 'col-start-2 ml-[12px] justify-self-start')}>
-      <CombatValues damage={previous?.damage.totalText ?? '0'} healing={previous?.healing.totalText ?? '0'} previous />
+      <CombatValues damage={previous?.damage.totalText ?? '0'} healing={previous?.healing.totalText ?? '0'} previous anchorRef={summaryAnchorRef} />
     </span>
   );
 
@@ -363,9 +366,9 @@ function HealthTrigger({
         'focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white',
         isRight ? 'text-right' : 'text-left',
       )}
-      onMouseEnter={hoverTrackable ? (event) => onHoverEnter(hoverKey, event.currentTarget) : undefined}
+      onMouseEnter={hoverTrackable ? (event) => onHoverEnter(hoverKey, summaryAnchorRef.current ?? event.currentTarget, event.currentTarget) : undefined}
       onMouseLeave={hoverTrackable ? () => onHoverLeave(hoverKey) : undefined}
-      onFocus={hoverTrackable ? (event) => onFocus(hoverKey, event.currentTarget) : undefined}
+      onFocus={hoverTrackable ? (event) => onFocus(hoverKey, summaryAnchorRef.current ?? event.currentTarget, event.currentTarget) : undefined}
       onBlur={hoverTrackable ? () => onBlur(hoverKey) : undefined}
       onKeyDown={hoverTrackable ? focusStatBreakdown : undefined}
     >

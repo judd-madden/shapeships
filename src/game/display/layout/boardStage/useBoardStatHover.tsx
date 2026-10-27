@@ -21,9 +21,9 @@ export interface BoardStatHoverController {
   state: BoardStatHoverState;
   presentState: BoardStatHoverState;
   motionState: HoverPanelMotionState | null;
-  onEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
+  onEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement, triggerEl?: HTMLElement) => void;
   onLeave: (key: BoardStatHoverKey) => void;
-  onFocus: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
+  onFocus: (key: BoardStatHoverKey, anchorEl: HTMLElement, triggerEl?: HTMLElement) => void;
   onBlur: (key: BoardStatHoverKey) => void;
   onCardEnter: (key: BoardStatHoverKey) => void;
   onCardLeave: (key: BoardStatHoverKey) => void;
@@ -47,6 +47,7 @@ export function useBoardStatHover({ boardRootRef, barRegionRef }: {
   const activePresenceState = state.activeKey && state.anchorRect ? state : null;
   const { presentValue, motionState } = useHoverPanelPresence(activePresenceState);
   const anchorRef = useRef<HTMLElement | null>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const pointerKey = useRef<BoardStatHoverKey | null>(null);
   const focusKey = useRef<BoardStatHoverKey | null>(null);
   const cardPointerActive = useRef(false);
@@ -58,10 +59,11 @@ export function useBoardStatHover({ boardRootRef, barRegionRef }: {
     closeTimer.current = null;
   }, []);
 
-  const onEnter = useCallback((key: BoardStatHoverKey, anchorEl: HTMLElement) => {
+  const onEnter = useCallback((key: BoardStatHoverKey, anchorEl: HTMLElement, triggerEl = anchorEl) => {
     cancelClose();
     pointerKey.current = key;
     anchorRef.current = anchorEl;
+    triggerRef.current = triggerEl;
     setState({
       activeKey: key,
       anchorRect: anchorEl.getBoundingClientRect(),
@@ -82,10 +84,11 @@ export function useBoardStatHover({ boardRootRef, barRegionRef }: {
     scheduleClose(key);
   }, [scheduleClose]);
 
-  const onFocus = useCallback((key: BoardStatHoverKey, anchorEl: HTMLElement) => {
+  const onFocus = useCallback((key: BoardStatHoverKey, anchorEl: HTMLElement, triggerEl = anchorEl) => {
     cancelClose();
     focusKey.current = key;
     anchorRef.current = anchorEl;
+    triggerRef.current = triggerEl;
     setState({ activeKey: key, anchorRect: anchorEl.getBoundingClientRect() });
   }, [cancelClose]);
 
@@ -113,7 +116,8 @@ export function useBoardStatHover({ boardRootRef, barRegionRef }: {
 
   const refreshAnchor = useCallback(() => {
     const anchor = anchorRef.current;
-    if (!anchor?.isConnected || (anchor instanceof HTMLButtonElement && anchor.disabled)) {
+    const trigger = triggerRef.current;
+    if (!anchor?.isConnected || !trigger?.isConnected || (trigger instanceof HTMLButtonElement && trigger.disabled)) {
       pointerKey.current = null;
       focusKey.current = null;
       cardPointerActive.current = false;
