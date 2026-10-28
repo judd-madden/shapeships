@@ -15,6 +15,7 @@ import type {
 } from '../../gameSession/types';
 import { useSessionHealthBarPresentation } from '../../../display/healthBars/useSessionHealthBarPresentation';
 import type { HealthBarAnimationScheduler } from '../../../display/healthBars/healthBarAnimationController';
+import { useBoardStatHover } from '../../../display/layout/boardStage/useBoardStatHover';
 
 // Actual ReactDOM scheduling and external-store subscriptions; no mocked hooks.
 // This host supports null-rendering hook probes only, not layout or browser APIs.
@@ -130,7 +131,7 @@ class ProbeBoundary extends React.Component<{
   componentDidCatch(error: Error) { this.props.onError(error); }
   render() { return this.state.failed ? null : this.props.children; }
 }
-function mountProbe(Probe: () => null, errors: Error[], strict = false) {
+function mountProbe(Probe: () => React.ReactElement | null, errors: Error[], strict = false) {
   const root = createRoot(hostDocument.createElement('div') as HTMLElement);
   roots.push(root);
   return () => React.act(async () => {
@@ -278,6 +279,90 @@ it.each([false, true])('settles fresh equivalent paused Charge candidates with n
   expect(state).toEqual({ kind: 'idle' });
   expect(transport).not.toHaveBeenCalled();
   expect(renders).toBeLessThan(50);
+  assertHealthy(errors);
+});
+
+it('settles an unchanged observer measurement followed by one anchor movement during health playback', async () => {
+  reducedMotion = false;
+  const clock = new FrameClock();
+  const motionClock = new FrameClock();
+  vi.stubGlobal('requestAnimationFrame', motionClock.request);
+  vi.stubGlobal('cancelAnimationFrame', motionClock.cancel);
+  vi.stubGlobal('HTMLButtonElement', class {});
+  let measureAnchor: (() => void) | undefined;
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(notify: () => void) { measureAnchor = notify; }
+    observe() {}
+    disconnect() {}
+  });
+
+  // Minimal Turn 8 health facts from NTFOGW's Turn 9 / revision 36 capture.
+  const identity = { gameId: 'NTFOGW', viewerId: 'p1', viewerRole: 'player' as const,
+    leftPlayerId: 'p1', rightPlayerId: 'p2' };
+  const outcome = { isTerminal: false, winnerPlayerId: null, resultReason: null };
+  const snapshot: ResolvedHealthSnapshot = {
+    identity, outcome, continuityKey: 'ctx', presentationKey: 'NTFOGW::health::8',
+    resolvedTurnNumber: 8, source: 'poll', eligibility: 'live',
+    left: { playerId: 'p1', startHealth: 20, damageTaken: 7, damageStageHealth: 13,
+      grossHealingReceived: 14, finalHealth: 27, actualNetDelta: 7, maxHealth: 45 },
+    right: { playerId: 'p2', startHealth: 16, damageTaken: 0, damageStageHealth: 16,
+      grossHealingReceived: 1, finalHealth: 17, actualNetDelta: 1, maxHealth: 35 },
+  };
+  const presentation: ResolvedHealthPresentation = { mode: 'live', snapshot };
+  const session: ResolvedHealthSessionPresentation = {
+    identity, continuityKey: 'ctx', observedResolvedTurnNumber: 8,
+    settled: { mode: 'settled', identity, outcome,
+      left: { playerId: 'p1', health: 27, maxHealth: 45 },
+      right: { playerId: 'p2', health: 17, maxHealth: 35 } },
+  };
+  let top = 100;
+  const anchor = { isConnected: true,
+    getBoundingClientRect: () => ({ left: 100, top, width: 70, height: 80 } as DOMRect),
+  } as HTMLElement;
+  let hover!: ReturnType<typeof useBoardStatHover>;
+  let view: ReturnType<typeof useSessionHealthBarPresentation>;
+  let commits = 0;
+  const errors: Error[] = [];
+  const complete = vi.fn();
+  function HoverProbe() {
+    const boardRootRef = React.useRef<HTMLElement | null>(null);
+    const barRegionRef = React.useRef<HTMLElement | null>(null);
+    hover = useBoardStatHover({ boardRootRef, barRegionRef });
+    React.useLayoutEffect(() => { commits += 1; });
+    return null;
+  }
+  function Probe() {
+    view = useSessionHealthBarPresentation({ presentation, session, canAccept: true,
+      scheduler: clock, onComplete: complete });
+    return React.createElement(HoverProbe);
+  }
+  await mountProbe(Probe, errors)();
+  await React.act(async () => { hover.onEnter('my-health', anchor); });
+  await React.act(async () => { motionClock.advance(16); });
+  expect(hover.motionState).toBe('active');
+  expect(measureAnchor).toBeDefined();
+  const beforeMovement = commits;
+
+  await React.act(async () => {
+    // Leave the equivalent observer update queued at default priority, then let
+    // the real health external store drive a sync render after one movement.
+    measureAnchor!();
+    top = 101;
+    clock.advance(16);
+  });
+  assertHealthy(errors);
+  expect(commits - beforeMovement).toBeLessThan(10);
+  expect(hover.state.activeKey).toBe('my-health');
+  expect(hover.state.anchorRect?.top).toBe(101);
+  await React.act(async () => { motionClock.advance(16); });
+  expect(hover.motionState).toBe('active');
+
+  await React.act(async () => { clock.advance(60_000); });
+  await React.act(async () => { clock.advance(60_000); });
+  expect(view!.presentationComplete).toBe(true);
+  expect(complete).toHaveBeenCalledOnce();
+  expect(clock.frames.size).toBe(0);
+  expect(hover.state.anchorRect?.top).toBe(101);
   assertHealthy(errors);
 });
 

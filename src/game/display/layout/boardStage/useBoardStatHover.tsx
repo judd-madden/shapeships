@@ -44,6 +44,7 @@ export function useBoardStatHover({ boardRootRef, barRegionRef }: {
     activeKey: null,
     anchorRect: null,
   });
+  const committedStateRef = useRef(state);
   const activePresenceState = state.activeKey && state.anchorRect ? state : null;
   const { presentValue, motionState } = useHoverPanelPresence(activePresenceState);
   const anchorRef = useRef<HTMLElement | null>(null);
@@ -122,10 +123,19 @@ export function useBoardStatHover({ boardRootRef, barRegionRef }: {
       focusKey.current = null;
       cardPointerActive.current = false;
       cardFocusActive.current = false;
-      setState((prev) => prev.activeKey ? EMPTY_BOARD_STAT_HOVER_STATE : prev);
+      if (committedStateRef.current.activeKey) {
+        setState((prev) => prev.activeKey ? EMPTY_BOARD_STAT_HOVER_STATE : prev);
+      }
       return;
     }
+    const committed = committedStateRef.current;
+    if (!committed.activeKey) return;
     const rect = anchor.getBoundingClientRect();
+    const old = committed.anchorRect;
+    // Guard before dispatch: an equivalent updater can still queue work and be
+    // replayed with older state while a synchronous health render is pending.
+    if (old?.left === rect.left && old.top === rect.top &&
+      old.width === rect.width && old.height === rect.height) return;
     setState((prev) => {
       const old = prev.anchorRect;
       return !prev.activeKey || (old?.left === rect.left && old.top === rect.top &&
@@ -135,7 +145,10 @@ export function useBoardStatHover({ boardRootRef, barRegionRef }: {
   }, []);
 
   // Content changes can move the anchor without changing the trigger's own size.
-  useLayoutEffect(refreshAnchor);
+  useLayoutEffect(() => {
+    committedStateRef.current = state;
+    refreshAnchor();
+  });
   useEffect(() => {
     if (!state.activeKey) return;
     const observer = new ResizeObserver(refreshAnchor);

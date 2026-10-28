@@ -15,7 +15,7 @@
  * - Passes view-models down to layout components
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo } from 'react';
 import { useGameSound } from '../client/audio/useGameSound';
 import { type GameSessionViewModel, useGameSession } from '../client/useGameSession';
 import { LeftRail } from './layout/LeftRail';
@@ -26,6 +26,7 @@ import { useMobileGameLayout } from './mobile/useMobileGameLayout';
 import { useMatchupIntroPresentation } from './matchup/useMatchupIntroPresentation';
 import type { ResolvedHealthCompletionIdentity } from '../client/gameSession/types';
 import { useSessionHealthBarPresentation } from './healthBars/useSessionHealthBarPresentation';
+import type { ReactUpdateDiagnostic } from '../client/gameSession/clienteffects/useEndOfTurnPresentation';
 
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 const SOUND_ENABLED_STORAGE_KEY = 'shapeships.soundEnabled.v1';
@@ -40,7 +41,149 @@ interface GameScreenProps {
   onNavigateToGame?: (gameId: string) => void;
 }
 
-export default function GameScreen({ gameId, playerName, onBack, onNavigateToGame }: GameScreenProps) {
+type DiagnosticFields = ReturnType<Parameters<ReactUpdateDiagnostic>[1]>;
+interface DiagnosticEvent {
+  label: string;
+  fields: DiagnosticFields;
+  dependencyChanges: Record<string, boolean>;
+  firstSequence: number;
+  lastSequence: number;
+  count: number;
+  firstMs: number;
+  lastMs: number;
+}
+
+/** Stores scalars only. Weak identities never retain dependency objects/DTOs. */
+function createReact185Recorder() {
+  const startedAt = Date.now();
+  let sequence = 0;
+  let identitySerial = 0;
+  let epoch: string | null = null;
+  let context: DiagnosticFields = {};
+  let initial: DiagnosticEvent[] = [];
+  let recent: DiagnosticEvent[] = [];
+  let previousTurn: DiagnosticEvent[] = [];
+  let reported = false;
+  const identities = new WeakMap<object, number>();
+  const sites = new Map<string, {
+    dependencies: DiagnosticFields;
+    signature: string;
+    event: DiagnosticEvent | null;
+    attempts: number;
+  }>();
+  const scalar = (value: unknown): DiagnosticFields[string] => {
+    if (typeof value === 'string') return value.slice(0, 160);
+    if (typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value))) return value;
+    return null;
+  };
+  const record: ReactUpdateDiagnostic = (label, read, dependencies = {}) => {
+    try {
+      if (reported) return;
+      label = label.slice(0, 64);
+      const fields = Object.fromEntries(Object.entries(read()).slice(0, 16)
+        .map(([key, value]) => [key.slice(0, 40), scalar(value)]));
+      // Only the session's render observation advances the epoch. Old timers cannot rewind it.
+      if (label === 'session.context.render') {
+        const nextEpoch = JSON.stringify([fields.gameId, fields.turnNumber]);
+        if (epoch !== nextEpoch) {
+          previousTurn = recent.slice(-16);
+          initial = []; recent = []; sites.clear(); epoch = nextEpoch;
+        }
+        context = { gameId: fields.gameId, turnNumber: fields.turnNumber,
+          phaseKey: fields.phaseKey, stateRevision: fields.stateRevision };
+      }
+      let site = sites.get(label);
+      if (!site) {
+        if (sites.size >= 32) return;
+        site = { dependencies: {}, signature: '', event: null, attempts: 0 };
+        sites.set(label, site);
+      }
+      const dependencyChanges: Record<string, boolean> = {};
+      const nextDependencies: DiagnosticFields = {};
+      for (const [rawKey, value] of Object.entries(dependencies).slice(0, 16)) {
+        const key = rawKey.slice(0, 40);
+        let token: DiagnosticFields[string];
+        if (value !== null && (typeof value === 'object' || typeof value === 'function')) {
+          let id = identities.get(value);
+          if (id === undefined) { id = ++identitySerial; identities.set(value, id); }
+          token = `ref:${id}`;
+        } else token = `${typeof value}:${String(value).slice(0, 160)}`;
+        nextDependencies[key] = token;
+        dependencyChanges[key] = site.attempts === 0 || site.dependencies[key] !== token;
+      }
+      site.dependencies = nextDependencies;
+      site.attempts += 1;
+      const now = Date.now() - startedAt;
+      const currentSequence = ++sequence;
+      const payload = { ...context, ...fields };
+      const signature = JSON.stringify([payload, dependencyChanges]);
+      if (site.signature === signature && site.event &&
+          (initial.includes(site.event) || recent.includes(site.event))) {
+        site.event.count += 1;
+        site.event.lastSequence = currentSequence;
+        site.event.lastMs = now;
+        const index = recent.indexOf(site.event);
+        if (index >= 0) recent.splice(index, 1);
+        recent.push(site.event);
+        if (recent.length > 40) recent.shift();
+        return;
+      }
+      const event: DiagnosticEvent = { label, fields: payload, dependencyChanges,
+        firstSequence: currentSequence, lastSequence: currentSequence, count: 1, firstMs: now, lastMs: now };
+      site.signature = signature; site.event = event;
+      if (initial.length < 24) initial.push(event);
+      recent.push(event);
+      if (recent.length > 40) recent.shift();
+    } catch { /* Recording cannot alter the observed dispatch path. */ }
+  };
+  return {
+    record,
+    fail(error: Error, info: ErrorInfo): void {
+      if (reported) return;
+      reported = true;
+      try {
+        const report = JSON.stringify({ version: 1, capturedAt: new Date().toISOString(),
+          error: { message: String(error.message).slice(0, 2000), stack: error.stack?.slice(0, 16000),
+            componentStack: info.componentStack?.slice(0, 16000) },
+          scripts: Array.from(document.scripts).map((script) => script.src).filter(Boolean).slice(0, 32)
+            .map((src) => src.slice(0, 512)),
+          context, observations: sequence, initial, recent, previousTurn,
+          counters: Object.fromEntries([...sites].map(([label, site]) => [label, site.attempts])),
+          limits: { initial: 24, recent: 40, previousTurn: 16, labels: 32 },
+          interpretation: 'Render observations and dispatch attempts are not committed changes. Repeats may interleave; sequence ranges are not contiguous. The first initiating update may be absent.',
+        });
+        (window as Window & { __shapeshipsReact185Diagnostic?: string }).__shapeshipsReact185Diagnostic = report;
+        console.error('[React185Diagnostic] ' + report);
+      } catch { /* Error reporting must not replace the original failure. */ }
+    },
+  };
+}
+
+class React185DiagnosticBoundary extends Component<GameScreenProps, { failed: boolean }> {
+  state = { failed: false };
+  private readonly recorder = createReact185Recorder();
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(error: Error, info: ErrorInfo) { this.recorder.fail(error, info); }
+  render() {
+    return this.state.failed ? null : <GameScreenContent {...this.props} onReactDiagnostic={this.recorder.record} />;
+  }
+}
+
+function DiagnosticGameScreen(props: GameScreenProps) {
+  return <React185DiagnosticBoundary key={props.gameId} {...props} />;
+}
+
+function react185DiagnosticsEnabled(): boolean {
+  try { return new URLSearchParams(window.location.search).get('react185Diagnostic') === '1'; }
+  catch { return false; }
+}
+
+// Opt in on page load; the normal entry keeps its existing component and hooks.
+const GameScreen = react185DiagnosticsEnabled() ? DiagnosticGameScreen : GameScreenContent;
+export default GameScreen;
+
+function GameScreenContent({ gameId, playerName, onBack, onNavigateToGame, onReactDiagnostic }:
+  GameScreenProps & { onReactDiagnostic?: ReactUpdateDiagnostic }) {
   const [soundEnabled, setSoundEnabled] = useState(() => {
     if (typeof window === 'undefined') {
       return true;
@@ -68,6 +211,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
   const isMobileGameLayout = useMobileGameLayout();
   const [healthBarCompletion, setHealthBarCompletion] = useState<ResolvedHealthCompletionIdentity | null>(null);
   const { vm, actions } = useGameSession(gameId, playerName, {
+    onReactDiagnostic,
     boardFlashEnabled,
     onNavigateToGame,
     healthBarsEnabled: true,
@@ -81,6 +225,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
     isFinished,
   });
   const healthBarPresentation = useSessionHealthBarPresentation({
+    onReactDiagnostic,
     presentation: vm.resolvedHealth, session: vm.resolvedHealthSession,
     orientation: isMobileGameLayout ? 'mobile' : 'desktop',
     canAccept: !vm.isBootstrapping && vm.board.mode === 'board' && !presentedMatchupIntro &&

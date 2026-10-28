@@ -27,6 +27,21 @@ import {
   type TurnStartEconomyPresentation,
 } from './turnStartPresentationGates';
 
+export type ReactUpdateDiagnostic = (
+  label: string,
+  read: () => Record<string, string | number | boolean | null>,
+  dependencies?: Record<string, unknown>,
+) => void;
+
+/** Diagnostic reads and callbacks must never interrupt the existing dispatch path. */
+export function recordReactUpdateDiagnostic(
+  record: ReactUpdateDiagnostic | undefined,
+  ...args: Parameters<ReactUpdateDiagnostic>
+): void {
+  if (!record) return;
+  try { record(...args); } catch { /* Diagnostics are observation only. */ }
+}
+
 export interface ContinueAuthoritativePhaseHoldArgs {
   holdSignature: string;
   holdUntilMs: number;
@@ -94,6 +109,7 @@ export function transitionThisTurnResolutionSnapshot(
 }
 
 interface UseEndOfTurnPresentationArgs {
+  onReactDiagnostic?: ReactUpdateDiagnostic;
   effectiveGameId: string | null;
   hasMatchingAuthoritativeGameId: boolean;
   phaseKey: string;
@@ -321,6 +337,7 @@ function buildFleetAreaHealthDeltaFlashSnapshots(args: {
 
 export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   const {
+    onReactDiagnostic,
     effectiveGameId,
     hasMatchingAuthoritativeGameId,
     phaseKey,
@@ -396,6 +413,12 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     observedResolvedTurnNumber: resolvedHealthPendingTurnNumber,
   });
   useLayoutEffect(() => {
+    recordReactUpdateDiagnostic(args.onReactDiagnostic, 'resolution.health.sync.dispatch', () => ({
+      unchanged: presentedResolvedHealthState === resolvedHealthState,
+      resolvedTurn: resolvedHealthCandidate?.resolvedTurnNumber ?? null,
+      pendingTurn: resolvedHealthPendingTurnNumber ?? null,
+    }), { continuity: resolvedHealthContinuityKey, candidate: resolvedHealthCandidate,
+      pendingTurn: resolvedHealthPendingTurnNumber });
     setResolvedHealthState((current) => transitionResolvedHealth(current, {
       type: 'sync', continuityKey: resolvedHealthContinuityKey, candidate: resolvedHealthCandidate,
       observedResolvedTurnNumber: resolvedHealthPendingTurnNumber,
@@ -679,6 +702,10 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     ) {
       return;
     }
+    recordReactUpdateDiagnostic(args.onReactDiagnostic, 'resolution.snapshot.capture.dispatch', () => ({
+      equivalent: JSON.stringify(thisTurnResolutionSnapshot) === JSON.stringify(thisTurnResolutionTrigger),
+      resolvedTurn: thisTurnResolutionTrigger.resolvedTurnNumber,
+    }), { gameId: effectiveGameId, trigger: thisTurnResolutionTrigger });
     setThisTurnResolutionSnapshot((current) => {
       if (JSON.stringify(current) === JSON.stringify(thisTurnResolutionTrigger)) {
         return current;
@@ -823,6 +850,9 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   }, [boardFlashEnabled]);
 
   function releasePresentedTurn(nextTurnNumber: number): void {
+    recordReactUpdateDiagnostic(args.onReactDiagnostic, 'resolution.turn.release.dispatch', () => ({
+      publishedTurn: nextTurnNumber,
+    }));
     setPresentedTurnReleaseTurnNumber(nextTurnNumber);
     setPresentedTurnReleaseKey((previousKey) => previousKey + 1);
   }
@@ -845,6 +875,9 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       animateChronoswarmDice,
       animateCubeDice,
     } = args;
+    recordReactUpdateDiagnostic(onReactDiagnostic, 'resolution.dice.publish.dispatch', () => ({
+      publishedTurn: publishedTurnNumber, value, animateMainDie, animateChronoswarmDice, animateCubeDice,
+    }));
     setPresentedLeftRailDiceValue(value);
     setPresentedChronoswarmRolls(modifiers.chronoswarmRolls);
     setPresentedCubeDiceValueByPlayerId(modifiers.cubeDiceValueByPlayerId);

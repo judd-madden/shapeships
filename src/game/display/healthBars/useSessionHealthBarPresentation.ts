@@ -17,6 +17,9 @@ import {
 import { useHealthBarAnimation } from './useHealthBarAnimation';
 import { HEALTH_BAR_ANIMATION_CONFIG } from './healthBarAnimationConfig';
 import {
+  recordReactUpdateDiagnostic, type ReactUpdateDiagnostic,
+} from '../../client/gameSession/clienteffects/useEndOfTurnPresentation';
+import {
   prepareHealthBarOutcome, type HealthBarOutcomePair, type HealthBarOutcomePresentation,
 } from './healthBarOutcomePresentation';
 
@@ -157,6 +160,7 @@ export function syncSessionHealthBarController(
 }
 
 export function useSessionHealthBarPresentation(input: {
+  onReactDiagnostic?: ReactUpdateDiagnostic;
   presentation: ResolvedHealthPresentation | null | undefined;
   session: ResolvedHealthSessionPresentation | null | undefined;
   canAccept: boolean;
@@ -176,6 +180,13 @@ export function useSessionHealthBarPresentation(input: {
   const onComplete = useRef(input.onComplete);
   onComplete.current = input.onComplete;
 
+  recordReactUpdateDiagnostic(input.onReactDiagnostic, 'health.playback.render', () => ({
+    resolvedTurn: playback.sequence?.snapshot.resolvedTurnNumber ?? null,
+    observedTurn: input.session?.observedResolvedTurnNumber ?? null,
+    complete: playback.presentationCompletion !== null,
+    canAccept: input.canAccept,
+  }), { playback, presentation: input.presentation, session: input.session });
+
   useLayoutEffect(() => {
     const release = attachSessionHealthBarController(controller, lease);
     const media = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -184,6 +195,9 @@ export function useSessionHealthBarPresentation(input: {
       const enabled = !media?.matches;
       if (motionEnabled.current !== enabled) {
         motionEnabled.current = enabled;
+        recordReactUpdateDiagnostic(input.onReactDiagnostic, 'health.capture.dispatch', () => ({
+          reason: 'motion_change', enabled,
+        }));
         commitCapture((revision) => revision + 1);
       }
       controller.setMotionEnabled(enabled);
@@ -194,22 +208,42 @@ export function useSessionHealthBarPresentation(input: {
   }, [controller]);
 
   useLayoutEffect(() => {
+    const before = controller.getSnapshot();
+    recordReactUpdateDiagnostic(input.onReactDiagnostic, 'health.controller.sync.attempt', () => ({
+      canAccept: input.canAccept,
+      playbackMatches: before === playback,
+    }), { presentation: input.presentation, session: input.session, completion: playback.presentationCompletion });
     syncSessionHealthBarController(controller, input.presentation, input.session, input.canAccept, retention.current);
+    recordReactUpdateDiagnostic(input.onReactDiagnostic, 'health.controller.sync.observe', () => ({
+      snapshotChanged: controller.getSnapshot() !== before,
+    }));
     // Acceptance can precede the external-store subscription on its first commit.
     // Publish the captured starting frame before paint, including its hidden deltas.
-    if (controller.getSnapshot() !== playback) commitCapture((revision) => revision + 1);
+    if (controller.getSnapshot() !== playback) {
+      recordReactUpdateDiagnostic(input.onReactDiagnostic, 'health.capture.dispatch', () => ({
+        reason: 'snapshot_mismatch',
+      }));
+      commitCapture((revision) => revision + 1);
+    }
   }, [controller, input.presentation, input.session, input.canAccept, playback.presentationCompletion]);
 
   useEffect(() => {
     const completion = playback.presentationCompletion;
     if (completion && input.session && matchesSession(completion, input.session) &&
       controller.getSnapshot().presentationCompletion === completion &&
-      completion.resolvedTurnNumber >= (input.session.observedResolvedTurnNumber ?? 0)) onComplete.current(completion);
+      completion.resolvedTurnNumber >= (input.session.observedResolvedTurnNumber ?? 0)) {
+      recordReactUpdateDiagnostic(input.onReactDiagnostic, 'health.completion.callback', () => ({
+        resolvedTurn: completion.resolvedTurnNumber,
+        presentationKey: completion.presentationKey,
+      }), { completion });
+      onComplete.current(completion);
+    }
   }, [controller, playback.presentationCompletion, input.session]);
 
   const floor = retention.current.gameId === input.session?.identity.gameId ? retention.current.negativeFloor : 0;
   const selected = selectSessionHealthBarPresentation(playback, input.presentation, input.session, input.orientation, floor);
   const outcome = useSessionHealthBarOutcome({ selected, session: input.session, scheduler, motionEnabled,
+    onReactDiagnostic: input.onReactDiagnostic,
     selectCurrent: () => selectSessionHealthBarPresentation(controller.getSnapshot(), input.presentation, input.session,
       input.orientation, retention.current.gameId === input.session?.identity.gameId ? retention.current.negativeFloor : 0),
   });
@@ -233,6 +267,7 @@ const outcomeKey = (identity: string | null, pair: HealthBarOutcomePair | null) 
 
 /** Visual-only reveal owned above layout branches; never delays the completion receipt. */
 function useSessionHealthBarOutcome(input: {
+  onReactDiagnostic?: ReactUpdateDiagnostic;
   selected: SessionHealthBarPresentation | null;
   selectCurrent: () => SessionHealthBarPresentation | null;
   session: ResolvedHealthSessionPresentation | null | undefined;
@@ -308,13 +343,21 @@ function useSessionHealthBarOutcome(input: {
               (scheduler.now() - state.startedAt!) / HEALTH_BAR_ANIMATION_CONFIG.outcomeLetterFadeMs));
             state.view = { ...state.pair!, opacity };
             if (opacity < 1) state.handle = scheduler.request(frame);
+            recordReactUpdateDiagnostic(input.onReactDiagnostic, 'health.outcome.publish.dispatch', () => ({
+              reason: 'animation_frame', opacity,
+            }));
             publish((revision) => revision + 1);
           };
           state.handle = scheduler.request(frame);
         }
       }
     }
-    if (previousView !== state.view) publish((revision) => revision + 1);
+    if (previousView !== state.view) {
+      recordReactUpdateDiagnostic(input.onReactDiagnostic, 'health.outcome.publish.dispatch', () => ({
+        reason: 'layout_change', opacity: state.view?.opacity ?? null,
+      }));
+      publish((revision) => revision + 1);
+    }
   });
 
   const identity = input.session ? getResolvedHealthIdentityKey(input.session.identity) : null;

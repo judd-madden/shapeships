@@ -220,6 +220,8 @@ import { deriveMatchupIntroViewModel } from './gameSession/matchupIntro';
 import {
   buildPhaseHoldSignature,
   useEndOfTurnPresentation,
+  recordReactUpdateDiagnostic,
+  type ReactUpdateDiagnostic,
   type ContinueAuthoritativePhaseHoldArgs,
   type ContinueAuthoritativePhaseHoldOutcome,
   type EndOfTurnHealthPresentationInput,
@@ -374,6 +376,7 @@ import {
 // ============================================================================
 
 interface UseGameSessionOptions {
+  onReactDiagnostic?: ReactUpdateDiagnostic;
   boardFlashEnabled?: boolean;
   healthBarsEnabled?: boolean;
   healthBarCompletion?: ResolvedHealthCompletionIdentity | null;
@@ -2264,6 +2267,10 @@ export function useGameSession(
     if (!rawState) return;
     
     const serverTurnNumber = getTurnNumber(rawState);
+
+    recordReactUpdateDiagnostic(options.onReactDiagnostic, 'session.preview.reset.dispatch', () => ({
+      serverTurn: serverTurnNumber,
+    }));
     
     // Turn boundary: any local build preview is now invalid
     setBuildPreviewCounts({});
@@ -5176,6 +5183,14 @@ useEffect(() => {
     displayRightPlayer,
     isFinished,
   ]);
+  recordReactUpdateDiagnostic(options.onReactDiagnostic, 'session.context.render', () => ({
+    gameId: effectiveGameId,
+    turnNumber,
+    phaseKey,
+    stateRevision: typeof rawState?.stateRevision === 'number' ? rawState.stateRevision : null,
+    triggerSource: thisTurnResolutionTrigger ? 'stored' : hardRefreshThisTurnResolutionSnapshot ? 'legacy_fallback' : 'none',
+    legacyHold: authoritativeHoldReason === 'end_of_turn_health',
+  }), { rawState, trigger: thisTurnResolutionTrigger ?? hardRefreshThisTurnResolutionSnapshot });
   const {
     healthResolutionLockActive,
     healthResolutionOverlay,
@@ -5196,6 +5211,7 @@ useEffect(() => {
     thisTurnResolutionSnapshot,
     resolvedHealthSnapshot,
   } = useEndOfTurnPresentation({
+    onReactDiagnostic: options.onReactDiagnostic,
     effectiveGameId,
     hasMatchingAuthoritativeGameId,
     phaseKey,
@@ -5267,7 +5283,7 @@ useEffect(() => {
     turnNumber === 1 &&
     turnStartFleetMaterialisationHoldActive &&
     presentedTurnDiceSettledTurnNumber !== turnNumber;
-  const [turnStartStatPresentationState, setTurnStartStatPresentationState] =
+  const [turnStartStatPresentationState, dispatchTurnStartStatPresentationState] =
     useState(() => createTurnStartStatPresentationState({
       gameId: effectiveGameId,
       orientationKey: thisTurnStatOrientationKey,
@@ -5277,6 +5293,27 @@ useEffect(() => {
       resolvedPresentationTurnNumber:
         thisTurnResolutionSnapshot?.resolvedTurnNumber ?? null,
     }));
+  // Forward the original action untouched; observe attempts outside React's replayable updater.
+  const setTurnStartStatPresentationState: typeof dispatchTurnStartStatPresentationState = (action) => {
+    recordReactUpdateDiagnostic(options.onReactDiagnostic, 'session.stats.sync.dispatch', () => ({
+      preDispatchGuardPassed: true,
+      settledTurn: presentedTurnDiceSettledTurnNumber,
+      resolvedTurn: thisTurnResolutionSnapshot?.resolvedTurnNumber ?? null,
+    }));
+    dispatchTurnStartStatPresentationState(action);
+  };
+  recordReactUpdateDiagnostic(options.onReactDiagnostic, 'session.stats.inputs.render', () => ({
+    wouldDispatch: syncTurnStartStatPresentation(turnStartStatPresentationState, {
+      gameId: effectiveGameId,
+      orientationKey: thisTurnStatOrientationKey,
+      turnNumber,
+      presentation: thisTurnPresentation,
+      settledTurnNumber: presentedTurnDiceSettledTurnNumber,
+      firstTurnRollPresentationActive: firstTurnRollStatPresentationActive,
+      resolvedPresentationTurnNumber: thisTurnResolutionSnapshot?.resolvedTurnNumber ?? null,
+    }) !== turnStartStatPresentationState,
+  }), { state: turnStartStatPresentationState, presentation: thisTurnPresentation,
+    settledTurn: presentedTurnDiceSettledTurnNumber });
   useLayoutEffect(() => {
     // Skip equivalent dispatches before React can schedule/replay pending work.
     const nextPresentationState = syncTurnStartStatPresentation(turnStartStatPresentationState, {
