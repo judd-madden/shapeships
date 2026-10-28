@@ -405,6 +405,10 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     useState<HealthResolutionPresentationVm | undefined>(undefined);
   const [thisTurnResolutionSnapshot, setThisTurnResolutionSnapshot] =
     useState<ThisTurnResolutionSnapshot | null>(null);
+  const committedThisTurnResolutionSnapshotRef = useRef(thisTurnResolutionSnapshot);
+  useLayoutEffect(() => {
+    committedThisTurnResolutionSnapshotRef.current = thisTurnResolutionSnapshot;
+  });
   const [resolvedHealthState, setResolvedHealthState] = useState(createResolvedHealthState);
   // Publish a complete capture on this commit, before dice publication can release
   // its source. The reducer still rejects captures arriving after that boundary.
@@ -706,6 +710,9 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       equivalent: JSON.stringify(thisTurnResolutionSnapshot) === JSON.stringify(thisTurnResolutionTrigger),
       resolvedTurn: thisTurnResolutionTrigger.resolvedTurnNumber,
     }), { gameId: effectiveGameId, trigger: thisTurnResolutionTrigger });
+    // Guard before scheduling equivalent work, without making publication-driven
+    // snapshot release retrigger capture of an unchanged stored trigger.
+    if (JSON.stringify(committedThisTurnResolutionSnapshotRef.current) === JSON.stringify(thisTurnResolutionTrigger)) return;
     setThisTurnResolutionSnapshot((current) => {
       if (JSON.stringify(current) === JSON.stringify(thisTurnResolutionTrigger)) {
         return current;

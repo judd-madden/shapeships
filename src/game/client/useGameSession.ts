@@ -5363,6 +5363,10 @@ useEffect(() => {
         hardRefreshThisTurnResolutionSnapshot.resolvedTurnNumber,
       )
     ) return;
+    if (
+      historyRecoveryExpectation?.gameId === hardRefreshThisTurnResolutionSnapshot.gameId &&
+      historyRecoveryExpectation.missingTurnNumber === hardRefreshThisTurnResolutionSnapshot.resolvedTurnNumber
+    ) return;
     setHistoryRecoveryExpectation((current) =>
       current?.gameId === hardRefreshThisTurnResolutionSnapshot.gameId &&
       current.missingTurnNumber === hardRefreshThisTurnResolutionSnapshot.resolvedTurnNumber
@@ -5372,7 +5376,7 @@ useEffect(() => {
             missingTurnNumber: hardRefreshThisTurnResolutionSnapshot.resolvedTurnNumber,
           }
     );
-  }, [hardRefreshThisTurnResolutionSnapshot, battleLogHistory]);
+  }, [hardRefreshThisTurnResolutionSnapshot, battleLogHistory, historyRecoveryExpectation]);
   useLayoutEffect(() => {
     lastPresentedThisTurnRef.current = effectiveGameId && capturedThisTurnPresentation
       ? { gameId: effectiveGameId, presentation: capturedThisTurnPresentation }

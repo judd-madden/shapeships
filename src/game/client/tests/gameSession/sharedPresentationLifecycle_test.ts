@@ -16,6 +16,11 @@ import type {
 import { useSessionHealthBarPresentation } from '../../../display/healthBars/useSessionHealthBarPresentation';
 import type { HealthBarAnimationScheduler } from '../../../display/healthBars/healthBarAnimationController';
 import { useBoardStatHover } from '../../../display/layout/boardStage/useBoardStatHover';
+import { useEndOfTurnPresentation } from '../../gameSession/clienteffects/useEndOfTurnPresentation';
+import { buildResolvedThisTurnSnapshot } from '../../gameSession/thisTurnPresentation';
+import { historyContainsTurn, type HistoryRecoveryExpectation } from '../../gameSession/historyRecovery';
+import { TURN_START_DICE_PRESENTATION_DELAY_MS } from '../../gameSession/clienteffects/turnPhasePresentationTiming';
+import type { ThisTurnResolutionSnapshot } from '../../gameSession/types';
 
 // Actual ReactDOM scheduling and external-store subscriptions; no mocked hooks.
 // This host supports null-rendering hook probes only, not layout or browser APIs.
@@ -56,6 +61,35 @@ const statsBindings: Array<keyof StatsScope> = [
 ];
 let statsEffect: (scope: StatsScope) => void;
 let unguardedStatsEffect: (scope: StatsScope) => void;
+
+interface RecoveryScope {
+  useEffect: typeof React.useEffect;
+  hardRefreshThisTurnResolutionSnapshot: ThisTurnResolutionSnapshot | null;
+  battleLogHistory: Parameters<typeof historyContainsTurn>[0];
+  historyContainsTurn: typeof historyContainsTurn;
+  historyRecoveryExpectation: HistoryRecoveryExpectation | null;
+  setHistoryRecoveryExpectation: React.Dispatch<React.SetStateAction<HistoryRecoveryExpectation | null>>;
+}
+let recoveryEffect: (scope: RecoveryScope) => void;
+
+function extractRecoveryEffect(source: string) {
+  const file = ts.createSourceFile('useGameSession.ts', source, ts.ScriptTarget.Latest, true);
+  const matches: ts.CallExpression[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && node.expression.getText(file) === 'useEffect' &&
+      node.arguments[0]?.getText(file).includes('hardRefreshThisTurnResolutionSnapshot')) matches.push(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  if (matches.length !== 1) throw new Error('Expected one production fallback history-recovery effect');
+  const bindings: Array<keyof RecoveryScope> = ['useEffect', 'hardRefreshThisTurnResolutionSnapshot',
+    'battleLogHistory', 'historyContainsTurn', 'historyRecoveryExpectation', 'setHistoryRecoveryExpectation'];
+  const javascript = ts.transpileModule(matches[0].getText(file), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const evaluate = new Function(...bindings, javascript);
+  return (scope: RecoveryScope) => evaluate(...bindings.map((name) => scope[name]));
+}
 
 // Execute the production call site, including its dependencies and dispatch guard.
 // Removing only the pre-dispatch return supplies the known failing scheduling control.
@@ -109,6 +143,7 @@ beforeAll(async () => {
   const source = await readFile(new URL('../../useGameSession.ts', import.meta.url), 'utf8');
   statsEffect = extractStatsEffect(source);
   unguardedStatsEffect = extractStatsEffect(source, true);
+  recoveryEffect = extractRecoveryEffect(source);
 });
 beforeEach(() => {
   reducedMotion = true;
@@ -118,6 +153,7 @@ afterEach(async () => {
   try {
     await React.act(async () => { roots.splice(0).forEach((root) => root.unmount()); });
   } finally {
+    vi.useRealTimers();
     consoleError.mockRestore();
   }
 });
@@ -243,6 +279,168 @@ it('keeps the first-turn neutral stats until dice settle', async () => {
   expect(probe.trace.dispatches).toBe(0);
   await probe.update({ ...input, settledTurnNumber: 1, firstTurnRollPresentationActive: false });
   expect(probe.trace.state?.presented).toEqual(input.presentation);
+  assertHealthy(probe.trace.errors);
+});
+
+function resolutionSnapshot(total = 3, terminal = false, turn = 18): ThisTurnResolutionSnapshot {
+  const actual = { damage: { total, rows: [] }, healing: { total: 0, rows: [] } };
+  return buildResolvedThisTurnSnapshot({ gameId: 'g', resolvedTurnNumber: turn, isTerminalTurn: terminal,
+    mePlayerId: 'p1', opponentPlayerId: 'p2', actualMe: actual, actualOpponent: actual,
+    previous: statInput(turn, total).presentation });
+}
+
+function snapshotCaptureProbe(freshFallback = false) {
+  let input: Parameters<typeof useEndOfTurnPresentation>[0] = {
+    effectiveGameId: 'g', hasMatchingAuthoritativeGameId: true,
+    phaseKey: 'battle.end_of_turn_resolution', turnNumber: 18, isFinished: false, isBootstrapping: false,
+    authoritativeHoldPhaseKey: null, authoritativeHoldReason: null, authoritativeHoldUntilMs: null,
+    thisTurnResolutionTrigger: null, economyPresentation: null, boardFlashEnabled: false,
+    healthPresentation: { boardMode: 'board', viewerRole: 'player', meName: 'p1', opponentName: 'p2',
+      myHealth: 20, opponentHealth: 20, myMaxHealth: 30, opponentMaxHealth: 30,
+      hasExplicitProjectedMaxHealth: true, myLastTurnNet: 0, opponentLastTurnNet: 0,
+      spectatorHasTwoPlayers: false, spectatorLeftName: '', spectatorRightName: '',
+      spectatorLeftNet: 0, spectatorRightNet: 0 },
+    leftRail: { authoritativeDiceValue: 1, authoritativeDiceSignature: null,
+      authoritativeChronoswarmRolls: undefined, authoritativeCubeDiceValueByPlayerId: {} },
+    continueAuthoritativePhaseHold: async () => 'released',
+  };
+  const trace = { renders: 0, commits: 0, errors: [] as Error[], overlap: () => {},
+    snapshot: null as ThisTurnResolutionSnapshot | null, publishedTurns: [] as number[] };
+  function Probe() {
+    if (++trace.renders > 200) throw new Error('Snapshot capture probe did not settle');
+    const [, setDraft] = React.useState({ count: 0 });
+    const [, setHover] = React.useState<string | null>(null);
+    const view = useEndOfTurnPresentation({ ...input,
+      thisTurnResolutionTrigger: freshFallback && input.thisTurnResolutionTrigger
+        ? resolutionSnapshot() : input.thisTurnResolutionTrigger,
+      onReactDiagnostic: (label, read) => {
+        if (label === 'resolution.dice.publish.dispatch') trace.publishedTurns.push(Number(read().publishedTurn));
+      },
+    });
+    trace.snapshot = view.thisTurnResolutionSnapshot;
+    React.useLayoutEffect(() => { trace.commits += 1; });
+    trace.overlap = () => {
+      React.startTransition(() => { setDraft((current) => current); setHover('pending'); });
+      flushSync(() => setDraft((current) => ({ ...current, count: 1 })));
+    };
+    return null;
+  }
+  const render = mountProbe(Probe, trace.errors);
+  return { trace, render, update: async (next: Partial<typeof input>) => { input = { ...input, ...next }; await render(); } };
+}
+
+it('settles fresh equivalent legacy fallback captures under overlapping work', async () => {
+  const probe = snapshotCaptureProbe(true);
+  await probe.render();
+  await probe.update({ thisTurnResolutionTrigger: resolutionSnapshot() });
+  const captured = probe.trace.snapshot;
+  const commits = probe.trace.commits;
+  await React.act(async () => { probe.trace.overlap(); });
+  assertHealthy(probe.trace.errors);
+  expect(probe.trace.snapshot).toBe(captured);
+  expect(probe.trace.commits - commits).toBeLessThan(10);
+});
+
+it('accepts changed eligible resolution snapshots while rejecting another game', async () => {
+  const probe = snapshotCaptureProbe();
+  await probe.render();
+  await probe.update({ thisTurnResolutionTrigger: resolutionSnapshot() });
+  const changed = resolutionSnapshot(7);
+  await probe.update({ thisTurnResolutionTrigger: changed });
+  expect(probe.trace.snapshot).toBe(changed);
+  await probe.update({ thisTurnResolutionTrigger: { ...resolutionSnapshot(9), gameId: 'other' } });
+  expect(probe.trace.snapshot).toBe(changed);
+  assertHealthy(probe.trace.errors);
+});
+
+it.each([false, true])('releases N on actual N+1 publication without recapturing its unchanged trigger (delayed %s)', async (delayed) => {
+  vi.useFakeTimers();
+  const probe = snapshotCaptureProbe();
+  await probe.render();
+  if (delayed) await probe.update({ leftRail: { authoritativeDiceValue: 1, authoritativeDiceSignature: 'g::18',
+    authoritativeChronoswarmRolls: undefined, authoritativeCubeDiceValueByPlayerId: {} } });
+  const trigger = resolutionSnapshot();
+  await probe.update({ thisTurnResolutionTrigger: trigger });
+  expect(probe.trace.snapshot).toBe(trigger);
+  await probe.update({ turnNumber: 19, phaseKey: 'build.drawing' });
+  expect(probe.trace.snapshot).toBe(trigger); // DTO arrival alone does not release N.
+  await probe.update({ leftRail: { authoritativeDiceValue: 2, authoritativeDiceSignature: 'g::19',
+    authoritativeChronoswarmRolls: undefined, authoritativeCubeDiceValueByPlayerId: {} } });
+  if (delayed) {
+    expect(probe.trace.snapshot).toBe(trigger);
+    await React.act(async () => { vi.advanceTimersByTime(TURN_START_DICE_PRESENTATION_DELAY_MS); });
+  }
+  expect(probe.trace.publishedTurns).toContain(19);
+  expect(probe.trace.snapshot).toBeNull();
+  for (let index = 0; index < 5; index += 1) await probe.render();
+  expect(probe.trace.snapshot).toBeNull();
+  assertHealthy(probe.trace.errors);
+});
+
+it('retains a terminal resolution across publication, finish and subsequent renders', async () => {
+  const probe = snapshotCaptureProbe();
+  await probe.render();
+  const terminal = resolutionSnapshot(7, true);
+  await probe.update({ thisTurnResolutionTrigger: terminal });
+  // A terminal intent capture can precede the finished DTO; exercise publication too.
+  await probe.update({ turnNumber: 19, leftRail: { authoritativeDiceValue: 2,
+    authoritativeDiceSignature: 'g::19', authoritativeChronoswarmRolls: undefined,
+    authoritativeCubeDiceValueByPlayerId: {} } });
+  expect(probe.trace.publishedTurns).toContain(19);
+  await probe.update({ isFinished: true, phaseKey: 'finished' });
+  for (let index = 0; index < 5; index += 1) await probe.render();
+  expect(probe.trace.snapshot).toBe(terminal);
+  assertHealthy(probe.trace.errors);
+});
+
+function historyRecoveryProbe(initial: HistoryRecoveryExpectation | null) {
+  let turn = 18;
+  let history: RecoveryScope['battleLogHistory'] = null;
+  const trace = { renders: 0, commits: 0, dispatches: 0, errors: [] as Error[], overlap: () => {},
+    expectation: initial };
+  function Probe() {
+    if (++trace.renders > 200) throw new Error('History recovery probe did not settle');
+    const [, setDraft] = React.useState({ count: 0 });
+    const [, setHover] = React.useState<string | null>(null);
+    const [expectation, setExpectation] = React.useState(initial);
+    trace.expectation = expectation;
+    // Isolate this consumer from capture while retaining fresh fallback identities.
+    recoveryEffect({ useEffect: React.useEffect, hardRefreshThisTurnResolutionSnapshot: resolutionSnapshot(3, false, turn),
+      battleLogHistory: history, historyContainsTurn, historyRecoveryExpectation: expectation,
+      setHistoryRecoveryExpectation: (action) => { trace.dispatches += 1; setExpectation(action); } });
+    React.useLayoutEffect(() => { trace.commits += 1; });
+    trace.overlap = () => {
+      React.startTransition(() => { setDraft((current) => current); setHover('pending'); });
+      flushSync(() => setDraft((current) => ({ ...current, count: 1 })));
+    };
+    return null;
+  }
+  const render = mountProbe(Probe, trace.errors);
+  return { trace, render, update: async (nextTurn: number, nextHistory: typeof history = null) => {
+    turn = nextTurn; history = nextHistory; await render();
+  } };
+}
+
+it('settles an already-matching legacy history expectation independently under overlapping work', async () => {
+  const probe = historyRecoveryProbe({ gameId: 'g', missingTurnNumber: 18 });
+  await probe.render();
+  const commits = probe.trace.commits;
+  await React.act(async () => { probe.trace.overlap(); });
+  assertHealthy(probe.trace.errors);
+  expect(probe.trace.dispatches).toBe(0);
+  expect(probe.trace.commits - commits).toBeLessThan(10);
+});
+
+it('requests genuinely missing history and suppresses turns already present in history', async () => {
+  const probe = historyRecoveryProbe(null);
+  await probe.render();
+  expect(probe.trace.expectation).toEqual({ gameId: 'g', missingTurnNumber: 18 });
+  const dispatches = probe.trace.dispatches;
+  await probe.update(19, { turns: [{ turnNumber: 19 }] });
+  expect(probe.trace.dispatches).toBe(dispatches);
+  await probe.update(19);
+  expect(probe.trace.expectation).toEqual({ gameId: 'g', missingTurnNumber: 19 });
+  for (let index = 0; index < 5; index += 1) await probe.render();
   assertHealthy(probe.trace.errors);
 });
 
