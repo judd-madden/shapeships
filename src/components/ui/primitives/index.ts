@@ -36,6 +36,15 @@ export { FirstStrikeIcon } from './icons/FirstStrikeIcon';
 export { ChargesIcon } from './icons/ChargesIcon';
 export { HeartIcon } from './icons/HeartIcon';
 export { InfoIcon } from './icons/InfoIcon';
+export { ExitToAppIcon } from './icons/ExitToAppIcon';
+export { VerifiedUserIcon } from './icons/VerifiedUserIcon';
+export { VolumeUpIcon } from './icons/VolumeUpIcon';
+export { VolumeOffIcon } from './icons/VolumeOffIcon';
+export { VisibilityIcon } from './icons/VisibilityIcon';
+export { VisibilityOffIcon } from './icons/VisibilityOffIcon';
+export { HomeIcon } from './icons/HomeIcon';
+export { BarChartIcon } from './icons/BarChartIcon';
+export { DiscordIcon } from './icons/DiscordIcon';
 
 // Dice
 export { Dice } from './dice/Dice';

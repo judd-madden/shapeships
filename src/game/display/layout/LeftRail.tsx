@@ -7,6 +7,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { CloseIcon } from '../../../components/ui/primitives/icons/CloseIcon';
 import { OpenFullIcon } from '../../../components/ui/primitives/icons/OpenFullIcon';
+import { getPlayerPreference, setPreference } from '../../client/preferences/playerPreferences';
 import type { LeftRailViewModel, GameSessionActions, GameSessionViewModel, TurnPhasePresentationVm, TurnPhaseVm } from '../../client/useGameSession';
 import { BattleLogPanelContent } from '../shared/BattleLogPanelContent';
 import { ChatPanelContent } from '../shared/ChatPanelContent';
@@ -37,60 +38,6 @@ interface LeftRailProps {
 type SisterView = WinStreakSisterView;
 
 const BATTLE_LOG_TRANSITION_MS = 160;
-const BATTLE_LOG_SESSION_PREFERENCE_KEY = 'shapeships.preferBattleLog.v1';
-const CHAT_MINIMIZED_STORAGE_KEY = 'shapeships.chatMinimized.v1';
-
-function readInitialSisterView(): SisterView {
-  if (typeof window === 'undefined') {
-    return 'turnPhases';
-  }
-
-  try {
-    return window.sessionStorage.getItem(BATTLE_LOG_SESSION_PREFERENCE_KEY) === 'true'
-      ? 'battleLog'
-      : 'turnPhases';
-  } catch {
-    return 'turnPhases';
-  }
-}
-
-function persistBattleLogSessionPreference() {
-  try {
-    window.sessionStorage.setItem(BATTLE_LOG_SESSION_PREFERENCE_KEY, 'true');
-  } catch {
-    // Keep the game usable when session storage is unavailable.
-  }
-}
-
-function readInitialChatMinimized(): boolean {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  try {
-    const storedValue = window.localStorage.getItem(CHAT_MINIMIZED_STORAGE_KEY);
-
-    if (storedValue === 'true') {
-      return true;
-    }
-
-    if (storedValue === 'false') {
-      return false;
-    }
-
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-function persistChatMinimizedPreference(isMinimized: boolean) {
-  try {
-    window.localStorage.setItem(CHAT_MINIMIZED_STORAGE_KEY, String(isMinimized));
-  } catch {
-    // Keep the preference in memory if browser storage is unavailable.
-  }
-}
 
 export function LeftRail({
   vm,
@@ -99,12 +46,12 @@ export function LeftRail({
   actions,
   winStreak,
   canResign,
-  isFinished,
-  isPlayerViewer,
 }: LeftRailProps) {
-  const [selectedSisterView, setSelectedSisterView] = useState<SisterView>(readInitialSisterView);
+  // These rail choices take external changes on the next mount, preserving an open game's layout.
+  const [selectedSisterView, setSelectedSisterView] = useState<SisterView>(() =>
+    getPlayerPreference('battleLogPreferred') ? 'battleLog' : 'turnPhases');
   const [isBattleLogExpanded, setIsBattleLogExpanded] = useState(false);
-  const [isChatMinimized, setIsChatMinimized] = useState(readInitialChatMinimized);
+  const [isChatMinimized, setIsChatMinimized] = useState(() => getPlayerPreference('chatMinimized'));
   const [collapsedBattleLogTop, setCollapsedBattleLogTop] = useState<number | null>(null);
   const [collapsedBattleLogBottom, setCollapsedBattleLogBottom] = useState<number | null>(null);
   const railRootRef = useRef<HTMLDivElement | null>(null);
@@ -113,7 +60,6 @@ export function LeftRail({
   const pendingBattleLogScrollRestoreRef = useRef<{ scrollTop: number } | null>(null);
   const battleLogScrollRestoreFrameRef = useRef<number | null>(null);
   const battleLogScrollRestoreTimeoutRef = useRef<number | null>(null);
-  const previousIsFinishedRef = useRef(isFinished);
   const showWinStreak = shouldShowWinStreakContent(winStreak);
   const winStreakTabLayout = getWinStreakTabLayout(showWinStreak);
 
@@ -234,16 +180,6 @@ export function LeftRail({
     setIsBattleLogExpanded(false);
   }, [vm.gameCode]);
 
-  useEffect(() => {
-    const wasFinished = previousIsFinishedRef.current;
-
-    if (!wasFinished && isFinished && isPlayerViewer && selectedSisterView === 'battleLog') {
-      persistBattleLogSessionPreference();
-    }
-
-    previousIsFinishedRef.current = isFinished;
-  }, [isFinished, isPlayerViewer, selectedSisterView]);
-
   function handleBattleLogExpandToggle() {
     const viewport = battleLogViewportRef.current;
     if (viewport && viewport.scrollHeight > viewport.clientHeight) {
@@ -262,11 +198,14 @@ export function LeftRail({
       handleBattleLogExpandToggle();
     }
     setSelectedSisterView(nextView);
+    if (nextView !== 'winStreak') {
+      setPreference('battleLogPreferred', nextView === 'battleLog');
+    }
   }
 
   function handleChatMinimizedChange(nextIsMinimized: boolean) {
     setIsChatMinimized(nextIsMinimized);
-    persistChatMinimizedPreference(nextIsMinimized);
+    setPreference('chatMinimized', nextIsMinimized);
   }
 
   const battleLogOverlayTop = isBattleLogExpanded ? 20 : (collapsedBattleLogTop ?? 0);

@@ -17,6 +17,8 @@
 
 import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo } from 'react';
 import { useGameSound } from '../client/audio/useGameSound';
+import { getPlayerPreference, setPreference } from '../client/preferences/playerPreferences';
+import { usePlayerPreference } from '../client/preferences/usePlayerPreference';
 import { type GameSessionViewModel, useGameSession } from '../client/useGameSession';
 import { LeftRail } from './layout/LeftRail';
 import { MainStage } from './layout/MainStage';
@@ -29,8 +31,6 @@ import { useSessionHealthBarPresentation } from './healthBars/useSessionHealthBa
 import type { ReactUpdateDiagnostic } from '../client/gameSession/clienteffects/useEndOfTurnPresentation';
 
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
-const SOUND_ENABLED_STORAGE_KEY = 'shapeships.soundEnabled.v1';
-const BOARD_FLASH_ENABLED_STORAGE_KEY = 'shapeships.boardFlashEnabled.v1';
 const MOBILE_LANDSCAPE_BLOCKER_QUERY =
   '(orientation: landscape) and (hover: none) and (pointer: coarse)';
 
@@ -184,30 +184,8 @@ export default GameScreen;
 
 function GameScreenContent({ gameId, playerName, onBack, onNavigateToGame, onReactDiagnostic }:
   GameScreenProps & { onReactDiagnostic?: ReactUpdateDiagnostic }) {
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    if (typeof window === 'undefined') {
-      return true;
-    }
-
-    try {
-      const storedValue = window.localStorage.getItem(SOUND_ENABLED_STORAGE_KEY);
-      return storedValue === null ? true : storedValue === 'true';
-    } catch {
-      return true;
-    }
-  });
-  const [boardFlashEnabled, setBoardFlashEnabled] = useState(() => {
-    if (typeof window === 'undefined') {
-      return true;
-    }
-
-    try {
-      const storedValue = window.localStorage.getItem(BOARD_FLASH_ENABLED_STORAGE_KEY);
-      return storedValue === null ? true : storedValue === 'true';
-    } catch {
-      return true;
-    }
-  });
+  const soundEnabled = usePlayerPreference('soundEnabled');
+  const boardFlashEnabled = usePlayerPreference('healthFlashEnabled');
   const isMobileGameLayout = useMobileGameLayout();
   const [healthBarCompletion, setHealthBarCompletion] = useState<ResolvedHealthCompletionIdentity | null>(null);
   const { vm, actions } = useGameSession(gameId, playerName, {
@@ -255,22 +233,6 @@ function GameScreenContent({ gameId, playerName, onBack, onNavigateToGame, onRea
 
   const celebrateOnFinish = isFinished;
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(SOUND_ENABLED_STORAGE_KEY, String(soundEnabled));
-    } catch {
-      // Keep the preference in memory if browser storage is unavailable.
-    }
-  }, [soundEnabled]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(BOARD_FLASH_ENABLED_STORAGE_KEY, String(boardFlashEnabled));
-    } catch {
-      // Keep the preference in memory if browser storage is unavailable.
-    }
-  }, [boardFlashEnabled]);
-
   useGameSound({
     enabled: soundEnabled,
     active: !vm.isBootstrapping,
@@ -284,12 +246,20 @@ function GameScreenContent({ gameId, playerName, onBack, onNavigateToGame, onRea
     vm.board.mode === 'choose_species'
   ) ? vm.board : null;
 
+  function setSoundEnabled(enabled: boolean) {
+    setPreference('soundEnabled', enabled);
+  }
+
+  function setBoardFlashEnabled(enabled: boolean) {
+    setPreference('healthFlashEnabled', enabled);
+  }
+
   function toggleSound() {
-    setSoundEnabled((current) => !current);
+    setSoundEnabled(!getPlayerPreference('soundEnabled'));
   }
 
   function toggleBoardFlash() {
-    setBoardFlashEnabled((current) => !current);
+    setBoardFlashEnabled(!getPlayerPreference('healthFlashEnabled'));
   }
 
   async function handleReturnToMainMenu() {

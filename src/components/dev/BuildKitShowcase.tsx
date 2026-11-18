@@ -23,6 +23,15 @@ import {
   FirstStrikeIcon,
   ChargesIcon,
   HeartIcon,
+  ExitToAppIcon,
+  VerifiedUserIcon,
+  VolumeUpIcon,
+  VolumeOffIcon,
+  VisibilityIcon,
+  VisibilityOffIcon,
+  HomeIcon,
+  BarChartIcon,
+  DiscordIcon,
   Dice
 } from '../ui/primitives';
 import { ClockIcon } from '../ui/primitives/icons/ClockIcon';
@@ -40,6 +49,21 @@ import { BlackXeniteIcon } from '../ui/primitives/icons/BlackXeniteIcon';
 import { GameMenuButton } from '../ui/primitives/buttons/GameMenuButton';
 import { InChatButton } from '../ui/primitives/buttons/InChatButton';
 import { ChatSendButton } from '../ui/primitives/buttons/ChatSendButton';
+import { WelcomeSpeciesIllustration } from '../../graphics/welcome/WelcomeSpeciesIllustration';
+import { WelcomeBuildFleetIllustration } from '../../graphics/welcome/WelcomeBuildFleetIllustration';
+import { WelcomeWinIllustration } from '../../graphics/welcome/WelcomeWinIllustration';
+
+const menuIconExamples = [
+  { label: 'Exit to App', Icon: ExitToAppIcon, stateClassName: 'text-white' },
+  { label: 'Verified User', Icon: VerifiedUserIcon, stateClassName: 'text-shapeships-pastel-purple' },
+  { label: 'Volume Up', Icon: VolumeUpIcon, stateClassName: 'text-white' },
+  { label: 'Volume Off', Icon: VolumeOffIcon, stateClassName: 'text-shapeships-grey-50' },
+  { label: 'Visibility', Icon: VisibilityIcon, stateClassName: 'text-white' },
+  { label: 'Visibility Off', Icon: VisibilityOffIcon, stateClassName: 'text-white' },
+  { label: 'Home', Icon: HomeIcon, stateClassName: 'text-white' },
+  { label: 'Bar Chart', Icon: BarChartIcon, stateClassName: 'text-shapeships-grey-50' },
+  { label: 'Discord', Icon: DiscordIcon, stateClassName: 'text-shapeships-pastel-blue' },
+];
 
 export function BuildKitShowcase() {
   const [inputValue, setInputValue] = useState('');
@@ -210,6 +234,42 @@ export function BuildKitShowcase() {
             <div>
               <p className="text-sm text-[#888888] mb-2">Online Status</p>
               <OnlineStatusIcon />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-8">
+            {menuIconExamples.map(({ label, Icon, stateClassName }) => (
+              <div key={label}>
+                <p className="text-sm text-[#888888] mb-2">{label}</p>
+                <div className="flex gap-4">
+                  <div>
+                    <p className="text-xs text-[#888888] mb-2">White</p>
+                    <Icon className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-[#888888] mb-2">Working State</p>
+                    <Icon className={stateClassName} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Welcome Illustrations */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-bold text-[#DA41B9]">Welcome Illustrations</h2>
+          <div className="flex flex-wrap gap-8 items-start">
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Choose Species</p>
+              <WelcomeSpeciesIllustration className="w-[165px] h-[165px]" />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Build Fleet</p>
+              <WelcomeBuildFleetIllustration className="w-[171px] h-[153px]" />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Win</p>
+              <WelcomeWinIllustration className="w-[172px] h-[153px]" />
             </div>
           </div>
         </section>

@@ -53,7 +53,7 @@ Improve the first impression and organisation of the game menus, and introduce o
 - Username/password accounts with no user-supplied email, phone or identity-verification requirement.
 - Remembered sign-in, logout and manual Discord-assisted password recovery.
 - Claimed-name ownership, banned-name filtering, badges and abuse prevention.
-- Account persistence for sound effects, health flash, chat open/closed and battle-log open/closed preferences.
+- Account persistence for five preferences: sound effects, health flash, chat open/closed, preferred desktop sister tab and music on/off.
 - Account-owned current win streaks, eligible guest import and cross-device unfinished-game rejoin.
 - Desktop and mobile presentation, including a persistent mobile bottom navigation with Home.
 - Menu UI for future music playback and a deferred Stats action.
@@ -115,7 +115,7 @@ Server participant identity is currently session-based, while several game reque
 - The supplied form specifies **10+ password characters with no additional character-class requirements**. Hashing-library limitations must be handled explicitly; never silently truncate passwords.
 - A successful claim opens **Welcome with a success message** and the claimed identity rail.
 - Carry the guest's existing eligible current streak into the new account, including supported unfinished-game continuation.
-- Initialise the account's four agreed preferences from the current guest/device values.
+- Initialise the account's five agreed preferences from the current guest/device values.
 - Claiming must not discard the current game session or silently strand an existing game.
 
 ### 4.3 Signing into an existing account
@@ -216,14 +216,15 @@ Stats remains a deferred no-op in the profile rail. Do not implement placeholder
 
 ## 6. Account preferences
 
-All four agreed preferences follow a signed-in account across sessions and devices:
+All five agreed preferences follow a signed-in account across sessions and devices:
 
 | Preference | Required integration |
 | --- | --- |
 | Sound effects on/off | Menu Sound control and existing game audio use one preference. |
 | Health flash on/off | Existing in-game flash behaviour consumes the account preference. |
 | Chat open/closed | Preserve the current open/minimised meaning where that chat layout exists. |
-| Battle log open/closed | Map to existing battle-log visibility/preference semantics, with appropriate mobile presentation. |
+| Preferred desktop sister tab | Remember the last deliberate Battle Log or Turn Phases selection; expansion remains transient and mobile is unchanged. |
+| Music on/off | Default On, persisted locally and later synced to accounts; the Phase 22 toggle is a working no-op with playback outside these passes. |
 
 - Guest preferences continue to function locally.
 - Creating an account seeds preferences from the current local values.
@@ -391,7 +392,7 @@ Split as needed into account/session data and credentials, claim/login/remember/
 - Audit existing sessions and choose the concrete username-only implementation.
 - Implement atomic ownership, secure credentials and explicit remembered-session lifecycle.
 - Enforce names through existing create/join/session boundaries.
-- Implement the four preference fields and authoritative account identity/badge responses.
+- Implement the five preference fields and authoritative account identity/badge responses.
 - Supply configuration/migration and rollback notes for Judd, including external CAPTCHA setup.
 - Allow future account-to-game association where needed for identity/streak ownership; do not build Stats/history aggregation or ratings.
 
@@ -449,7 +450,7 @@ Choose representative edge cases over exhaustive permutations or tests that mirr
 
 ### 11.3 Representative owner review
 
-Review ordinary guest entry; claimed/banned/error entry; claim success; returning sign-in; logout; all four preference settings; guest-to-account streak import; existing-account higher-streak selection; unfinished-game continuation on another device; fresh-game reset; private invite entry; mobile navigation/scrolling; and existing streak Reset/Rejoin presentation.
+Review ordinary guest entry; claimed/banned/error entry; claim success; returning sign-in; logout; all five preference settings; guest-to-account streak import; existing-account higher-streak selection; unfinished-game continuation on another device; fresh-game reset; private invite entry; mobile navigation/scrolling; and existing streak Reset/Rejoin presentation.
 
 ## 12. Deployment and compatibility
 
@@ -486,12 +487,36 @@ Phase 22 is complete when:
 - Existing game launch, invite, rejoin, rematch, reset and Rules/Lore behaviour are retained except for approved changes.
 - Optional username/password accounts work without email collection; claims and banned names are enforced by the server.
 - Claim success opens Welcome with confirmation; remembered returns open the menu; Logout returns to entry.
-- All four agreed preferences follow the account without breaking guest preferences.
+- All five agreed preferences follow the account without breaking guest preferences.
 - Account streaks support eligible one-time import, higher-current-run selection and cross-device recovery without duplicate results or stale resurrection.
 - Required credential, abuse, account/streak persistence and concurrency checks pass.
 - Music playback, functional Stats/ratings/history and account Lore progression remain accurately deferred.
 - Activation/configuration, owner recovery and any unresolved limitations are documented for Judd.
 
+## Approved amendments — 18 November 2026 (Judd)
+
+These approved decisions override conflicting text elsewhere in this planning baseline:
+
+1. The menu uses its mobile layout and bottom navigation at ≤767px, matching the game.
+2. Music is a working no-op toggle in Phase 22, default On and persisted locally. It is the fifth synced account preference. Music playback is required before the production push and is outside Phase 22 passes.
+3. The claimed rail shows inactive, greyed "My Stats" with a coming-soon tooltip.
+4. Visual specs come from the supplied 1x PNGs. Existing code governs type sizes and responsive behavior unless a pass brief states otherwise.
+5. Soundtrack links and Player Shout-outs move from the old Multiplayer hub to Lore as additional content, without a Lore redesign.
+6. Entry uses two self-hosted clips (desktop landscape and mobile portrait) with posters: muted autoplay loop, no controls. Reduced motion shows the poster, and the video never delays the form.
+7. Rail/nav icons and Welcome illustrations are supplied as SVG and built as primitives/graphics.
+8. Accounts use dedicated Postgres tables through SQL migrations, not the KV table. Drop or replace the unused `screen_names` stub in 22C.
+9. The CAPTCHA provider is Cloudflare Turnstile.
+10. Remembered sign-in lasts 90 days idle, renewed on use.
+11. There is no Founder tier. The claimed-name shield is the only badge and appears for every signed-in account.
+12. Battle-log preference remembers the last desktop sister tab deliberately chosen (Battle Log versus Turn Phases), stored per device. This replaces finish-only, tab-scoped persistence; the win-streak tab does not change it and expansion remains transient.
+
 ## 15. Implementation record
 
-No implementation passes are recorded in this initial planning baseline. Add brief entries as scoped passes complete: pass identifier, approved scope changes, affected ownership boundaries, validation and owner visual-review status.
+### 22A.1 — Shared preferences, icon primitives and Welcome illustrations
+
+- **Pass:** Client/UI; client runtime owns the five-preference store, while game display, icon primitives and graphics consume or present client-owned state. No server, account/network, menu layout or tooling changes.
+- **Scope:** Shared factory-backed preferences with per-field subscriptions and deliberate writes; GameScreen and LeftRail migration; nine icon primitives; three Welcome illustrations with instance-safe IDs; Build Kit examples; approved amendments and preference-count consistency above. Judd approved the focused preference-hook mock in the existing health-bar lifecycle test as an extension to the original file allowlist.
+- **Behavior:** Sound and Health Flash update live across tabs. Chat minimization and preferred sister view seed local rail state at mount; external changes apply on the next mount. Existing downstream props, mobile behavior and win-streak tab behavior are preserved.
+- **Validation:** `npm run typecheck`, `npm run build`, and the separate strict TypeScript check of all three Welcome illustrations passed. After the approved test-mock update, `npm run test:client` passed: 830 passed, 7 skipped (optional browser replay disabled), including all 10 new preference tests. New icons are checked transitively through the primitives barrel; the excluded Build Kit is the only consumer of the Welcome illustrations. Build reported the existing large-chunk warning.
+- **Browser/runtime checks:** Not run — browser/Vite testing handled by user.
+- **Owner review:** Pending (Judd): desktop/mobile toggle and reload persistence; existing saved values; chat and sister-tab persistence; unchanged win-streak tab; cross-tab Sound/Health Flash and stable open-rail layout; nine icons and three illustrations in the Build Kit.

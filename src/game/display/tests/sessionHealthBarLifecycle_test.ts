@@ -54,6 +54,10 @@ vi.mock('../../client/useGameSession', () => ({ useGameSession: (_game: string, 
   runtime.options = options; return { vm: runtime.vm, actions: { onReadyToggle: () => {} } };
 } }));
 vi.mock('../../client/audio/useGameSound', () => ({ useGameSound: () => {} }));
+vi.mock('../../client/preferences/usePlayerPreference', async () => {
+  const { getPlayerPreference } = await import('../../client/preferences/playerPreferences');
+  return { usePlayerPreference: getPlayerPreference };
+});
 vi.mock('../mobile/useMobileGameLayout', () => ({ useMobileGameLayout: () => runtime.mobile }));
 vi.mock('../matchup/useMatchupIntroPresentation', () => ({ useMatchupIntroPresentation: () => null }));
 vi.mock('../layout/MainStage', () => ({ MainStage: () => null }));
