@@ -1,13 +1,13 @@
 /**
  * Menu Button
  * Used on Menu screens
- * Variants: Private, Public, Community, Join
+ * Variants: Private, Public, Community, Community Outline, Join
  * States: Default, Hover, Selected, Active (join only)
  */
 
 import { AnimatedEllipsisText } from '../AnimatedEllipsisText';
 
-type MenuButtonVariant = 'private' | 'public' | 'community' | 'join';
+type MenuButtonVariant = 'private' | 'public' | 'community' | 'communityOutline' | 'join';
 
 interface MenuButtonProps {
   variant: MenuButtonVariant;
@@ -16,6 +16,9 @@ interface MenuButtonProps {
   active?: boolean; // For join variant - indicates a game is selected and button is clickable
   onClick?: () => void;
   className?: string;
+  // Community Outline sizing and decoration; existing variants retain their sizing.
+  leadingIcon?: React.ReactNode;
+  outlineSize?: 'desktop' | 'compact' | 'responsive';
   children: React.ReactNode;
 }
 
@@ -45,8 +48,36 @@ export function MenuButton({
   active = false,
   onClick, 
   className = "", 
+  leadingIcon,
+  outlineSize = 'desktop',
   children 
 }: MenuButtonProps) {
+  if (variant === 'communityOutline') {
+    const sizeClasses = {
+      desktop: 'h-[72px] w-[352px] px-[28px] text-[18px]',
+      compact: 'h-[56px] w-[280px] px-[16px] text-[14px]',
+      responsive: 'h-[56px] w-[280px] px-[16px] text-[14px] md:h-[72px] md:w-[352px] md:px-[28px] md:text-[18px]',
+    };
+
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={`relative flex max-w-full items-center justify-center gap-[8px] rounded-[10px] border-2 border-shapeships-pastel-blue bg-black font-black uppercase leading-[normal] text-shapeships-pastel-blue transition-transform enabled:cursor-pointer enabled:hover:scale-105 disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-shapeships-pastel-purple ${sizeClasses[outlineSize]} ${className}`}
+      >
+        {leadingIcon && (
+          <span aria-hidden="true" className="flex size-[24px] shrink-0 items-center justify-center">
+            {leadingIcon}
+          </span>
+        )}
+        <span className="shrink-0 text-nowrap">
+          <AnimatedEllipsisText text={children} />
+        </span>
+      </button>
+    );
+  }
+
   const styles = variantStyles[variant];
   const baseWidthClass = 'w-[280px] max-w-full';
   

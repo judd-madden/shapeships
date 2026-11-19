@@ -18,13 +18,13 @@ export interface CreatePrivateGameSettings {
 
 interface CreatePrivateGamePanelProps {
   onSubmit: (settings: CreatePrivateGameSettings) => Promise<void>;
-  onBack?: () => void;
   heading?: string;
   subheading?: string;
   primaryActionLabel?: string;
   primaryActionStyle?: 'private' | 'emphasisWhite';
   headingAccessory?: ReactNode;
   subheadingAccessory?: ReactNode;
+  secondaryAction?: ReactNode;
   defaultTimed?: boolean;
   footer?: ReactNode;
 }
@@ -149,6 +149,7 @@ export function CreatePrivateGamePanel({
   primaryActionStyle = 'private',
   headingAccessory,
   subheadingAccessory,
+  secondaryAction,
   defaultTimed = true,
   footer,
 }: CreatePrivateGamePanelProps) {
@@ -185,21 +186,28 @@ export function CreatePrivateGamePanel({
 
   return (
     <div className="content-stretch flex w-full flex-col gap-[20px] sm:gap-[30px] 2xl:gap-[50px]">
-      <div className="mx-auto flex w-full max-w-[1080px] flex-col items-center gap-[16px] text-center leading-[normal] md:items-start md:text-left">
-        <div className="flex w-full flex-col items-center gap-[16px] md:flex-row md:items-start md:justify-between md:gap-[60px]">
+      <div className="mx-auto flex w-full max-w-[1080px] items-start justify-between gap-[24px]">
+        <div className="flex w-full min-w-0 flex-1 flex-col items-center gap-[16px] text-center leading-[normal] md:items-start md:text-left">
+          <div className="flex w-full flex-col items-center gap-[16px] md:flex-row md:items-start md:justify-between md:gap-[60px]">
+            <p
+              className="text-[24px] font-black leading-[normal] sm:text-[36px]"
+            >
+              {heading}
+            </p>
+            {headingAccessory}
+          </div>
           <p
-            className="text-[24px] font-black leading-[normal] sm:text-[36px]"
+            className="text-[15px] font-normal sm:text-[20px]"
           >
-            {heading}
+            {subheading}
           </p>
-          {headingAccessory}
+          {subheadingAccessory}
         </div>
-        <p
-          className="text-[15px] font-normal sm:text-[20px]"
-        >
-          {subheading}
-        </p>
-        {subheadingAccessory}
+        {secondaryAction && (
+          <div className="hidden shrink-0 xl:block">
+            {secondaryAction}
+          </div>
+        )}
       </div>
 
       <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] via-[var(--shapeships-white)] via-50% to-[rgba(255,255,255,0)] h-px w-full shrink-0 opacity-70" />
@@ -272,6 +280,12 @@ export function CreatePrivateGamePanel({
         >
           {isCreating ? 'CREATING...' : primaryActionLabel}
         </MenuButton>
+
+        {secondaryAction && (
+          <div className="mt-[8px] max-w-full xl:hidden">
+            {secondaryAction}
+          </div>
+        )}
 
         {footer && (
           <div className="mt-[16px] w-full md:mt-[48px]">

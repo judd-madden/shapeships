@@ -9,7 +9,7 @@ export const MENU_PAGES = [
 export type MenuPageId = typeof MENU_PAGES[number]['id'];
 
 export interface MenuNavigationProps {
-  activePanel: MenuPageId | 'createPrivateGame';
+  activePanel: MenuPageId;
   isLoreUnread: boolean;
   onSelect: (panel: MenuPageId) => void;
 }

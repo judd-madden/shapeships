@@ -136,6 +136,16 @@ export function BuildKitShowcase() {
               <p className="text-sm text-[#888888] mt-4">Join - Selected (Outline)</p>
               <MenuButton variant="join" selected>JOIN LOBBY GAME</MenuButton>
             </div>
+            <div className="col-span-full space-y-4">
+              <p className="text-sm text-[#888888]">Community Outline — Desktop (352 × 72)</p>
+              <MenuButton variant="communityOutline" outlineSize="desktop" leadingIcon={<DiscordIcon />}>
+                FIND OPPONENTS ON DISCORD
+              </MenuButton>
+              <p className="text-sm text-[#888888]">Community Outline — Compact (280 × 56)</p>
+              <MenuButton variant="communityOutline" outlineSize="compact" leadingIcon={<DiscordIcon />}>
+                FIND OPPONENTS ON DISCORD
+              </MenuButton>
+            </div>
           </div>
         </section>
 

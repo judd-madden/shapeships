@@ -10,7 +10,6 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { MultiplayerPanel } from '../panels/MultiplayerPanel';
 import { RulesPanel } from '../panels/RulesPanel';
 import { LorePanel } from '../panels/lore/LorePanel';
 import { CreatePrivateGamePanel, type CreatePrivateGameSettings } from '../panels/CreatePrivateGamePanel';
@@ -28,6 +27,8 @@ import {
 } from '../../game/client/gameSession/mission/missionChallengeSession';
 import type { WinStreakMenuActions, WinStreakMenuViewModel } from '../../game/client/winStreak/types';
 import { GameMenuButton } from '../ui/primitives/buttons/GameMenuButton';
+import { MenuButton } from '../ui/primitives/buttons/MenuButton';
+import { DiscordIcon } from '../ui/primitives/icons/DiscordIcon';
 import { WinStreakBadge } from '../../game/display/winStreak/WinStreakContent';
 import { getMenuWinStreakResetAction, shouldShowWinStreakContent } from '../../game/display/winStreak/winStreakPresentation';
 
@@ -45,8 +46,6 @@ interface MenuShellProps {
   winStreakActions: WinStreakMenuActions;
 }
 
-type ActivePanel = MenuPageId | 'createPrivateGame';
-
 export function MenuShell({ 
   onNavigate, 
   onExit, 
@@ -60,7 +59,7 @@ export function MenuShell({
   winStreakViewModel,
   winStreakActions,
 }: MenuShellProps) {
-  const [activePanel, setActivePanel] = useState<ActivePanel>('welcome');
+  const [activePanel, setActivePanel] = useState<MenuPageId>('welcome');
   const [, setIsCreating] = useState(false);
   const [isLoreUnread, setIsLoreUnread] = useState(() => readLoreUnread());
   const onEnterPlayComputerRef = useRef(winStreakActions.onEnterPlayComputer);
@@ -136,8 +135,18 @@ export function MenuShell({
             {/* Render active panel */}
             {activePanel === 'welcome' && <WelcomePanel />}
             {activePanel === 'multiplayer' && (
-              <MultiplayerPanel
-                onNavigateToCreateGame={() => setActivePanel('createPrivateGame')}
+              <CreatePrivateGamePanel
+                onSubmit={handleCreateGameWithSettings}
+                secondaryAction={(
+                  <MenuButton
+                    variant="communityOutline"
+                    outlineSize="responsive"
+                    leadingIcon={<DiscordIcon />}
+                    onClick={() => window.open('https://discord.gg/MjPtf4G6Gt', '_blank', 'noopener,noreferrer')}
+                  >
+                    FIND OPPONENTS ON DISCORD
+                  </MenuButton>
+                )}
               />
             )}
             {activePanel === 'rules' && (
@@ -145,12 +154,6 @@ export function MenuShell({
             )}
             {activePanel === 'lore' && (
               <LorePanel />
-            )}
-            {activePanel === 'createPrivateGame' && (
-              <CreatePrivateGamePanel
-                onSubmit={handleCreateGameWithSettings}
-                onBack={() => setActivePanel('multiplayer')}
-              />
             )}
             {activePanel === 'playComputer' && (
               <CreatePrivateGamePanel
