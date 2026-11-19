@@ -9,7 +9,7 @@
  * If player is missing, it returns null (parent handles state management).
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { RulesPanel } from '../panels/RulesPanel';
 import { LorePanel } from '../panels/lore/LorePanel';
 import { CreatePrivateGamePanel, type CreatePrivateGameSettings } from '../panels/CreatePrivateGamePanel';
@@ -21,6 +21,7 @@ import { MenuNavigation, type MenuPageId } from './menu/MenuNavigation';
 import { MenuBottomNav } from './menu/MenuBottomNav';
 import { getMenuIdentity } from './menu/menuIdentity';
 import { attemptMobileGameFullscreen } from '../../utils/mobileFullscreen';
+import { readMenuSetupMemory, writeMenuSetupMemory } from '../../game/client/preferences/menuSetupMemory';
 import {
   clearLoreUnread,
   readLoreUnread,
@@ -60,6 +61,12 @@ export function MenuShell({
   winStreakActions,
 }: MenuShellProps) {
   const [activePanel, setActivePanel] = useState<MenuPageId>('welcome');
+  // Read afresh when entering either setup page; the distinct panel slots own local state.
+  const rememberedSetup = useMemo(() => (
+    activePanel === 'playComputer' || activePanel === 'multiplayer'
+      ? readMenuSetupMemory(activePanel)
+      : null
+  ), [activePanel]);
   const [, setIsCreating] = useState(false);
   const [isLoreUnread, setIsLoreUnread] = useState(() => readLoreUnread());
   const onEnterPlayComputerRef = useRef(winStreakActions.onEnterPlayComputer);
@@ -137,6 +144,9 @@ export function MenuShell({
             {activePanel === 'multiplayer' && (
               <CreatePrivateGamePanel
                 onSubmit={handleCreateGameWithSettings}
+                initialTimed={rememberedSetup?.timed ?? true}
+                initialPresetKey={rememberedSetup?.presetKey ?? '15_10'}
+                onSetupChange={(setup) => writeMenuSetupMemory('multiplayer', setup)}
                 secondaryAction={(
                   <MenuButton
                     variant="communityOutline"
@@ -158,14 +168,16 @@ export function MenuShell({
             {activePanel === 'playComputer' && (
               <CreatePrivateGamePanel
                 onSubmit={handleCreateComputerGameWithSettings}
-                defaultTimed={false}
+                initialTimed={rememberedSetup?.timed ?? false}
+                initialPresetKey={rememberedSetup?.presetKey ?? '15_10'}
+                onSetupChange={(setup) => writeMenuSetupMemory('playComputer', setup)}
                 heading="Play Computer"
                 subheading="Start a game against a computer opponent."
                 primaryActionLabel="PLAY COMPUTER"
                 primaryActionStyle="emphasisWhite"
                 footer={<SinglePlayerFeatures />}
                 headingAccessory={shouldShowWinStreakContent(winStreakViewModel) ? (
-                  <div className="flex min-w-0 max-w-full items-center gap-[24px] flex-row md:flex-wrap md:justify-end">
+                  <div className="flex min-w-0 max-w-full shrink-0 flex-row flex-nowrap items-center gap-[24px] whitespace-nowrap md:justify-end">
                     <WinStreakBadge vm={winStreakViewModel} />
                     {winStreakViewModel.streakState === 'active' ? (
                       <GameMenuButton
@@ -181,7 +193,7 @@ export function MenuShell({
                     ) : null}
                   </div>
                 ) : undefined}
-                subheadingAccessory={winStreakViewModel.rejoinCandidate ? (
+                primaryActionNotice={winStreakViewModel.rejoinCandidate ? (
                   <p className="max-w-full text-[15px] font-medium text-[var(--shapeships-pastel-red)] sm:text-[20px]">
                     <button
                       type="button"

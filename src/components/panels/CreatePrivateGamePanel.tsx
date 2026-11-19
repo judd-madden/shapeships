@@ -8,6 +8,7 @@
 import React, { useState, type ReactNode } from 'react';
 import { MenuButton } from '../ui/primitives/buttons/MenuButton';
 import { RadioButton } from '../ui/primitives/controls/RadioButton';
+import type { MenuSetupMemoryRecord, MenuSetupPresetKey as TimerPresetKey } from '../../game/client/preferences/menuSetupMemory';
 
 export interface CreatePrivateGameSettings {
   timed: boolean;
@@ -23,13 +24,13 @@ interface CreatePrivateGamePanelProps {
   primaryActionLabel?: string;
   primaryActionStyle?: 'private' | 'emphasisWhite';
   headingAccessory?: ReactNode;
-  subheadingAccessory?: ReactNode;
+  primaryActionNotice?: ReactNode;
   secondaryAction?: ReactNode;
-  defaultTimed?: boolean;
+  initialTimed?: boolean;
+  initialPresetKey?: TimerPresetKey;
+  onSetupChange?: (setup: MenuSetupMemoryRecord) => void;
   footer?: ReactNode;
 }
-
-type TimerPresetKey = '5_3' | '10_5' | '15_10' | '30_20';
 
 type TimerPreset = {
   key: TimerPresetKey;
@@ -148,16 +149,28 @@ export function CreatePrivateGamePanel({
   primaryActionLabel = 'CREATE PRIVATE GAME',
   primaryActionStyle = 'private',
   headingAccessory,
-  subheadingAccessory,
+  primaryActionNotice,
   secondaryAction,
-  defaultTimed = true,
+  initialTimed = true,
+  initialPresetKey = '15_10',
+  onSetupChange,
   footer,
 }: CreatePrivateGamePanelProps) {
-  const [isTimed, setIsTimed] = useState(defaultTimed);
-  const [selectedPresetKey, setSelectedPresetKey] = useState<TimerPresetKey>('15_10');
+  const [isTimed, setIsTimed] = useState(initialTimed);
+  const [selectedPresetKey, setSelectedPresetKey] = useState<TimerPresetKey>(initialPresetKey);
   const [variantKey] = useState<'1v1_standard'>('1v1_standard');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
+
+  const handleTimingChange = (timed: boolean) => {
+    setIsTimed(timed);
+    onSetupChange?.({ timed, presetKey: selectedPresetKey });
+  };
+
+  const handlePresetChange = (presetKey: TimerPresetKey) => {
+    setSelectedPresetKey(presetKey);
+    onSetupChange?.({ timed: isTimed, presetKey });
+  };
 
   const handleCreateGame = async () => {
     const preset = TIMER_PRESET_BY_KEY[selectedPresetKey];
@@ -188,20 +201,19 @@ export function CreatePrivateGamePanel({
     <div className="content-stretch flex w-full flex-col gap-[20px] sm:gap-[30px] 2xl:gap-[50px]">
       <div className="mx-auto flex w-full max-w-[1080px] items-start justify-between gap-[24px]">
         <div className="flex w-full min-w-0 flex-1 flex-col items-center gap-[16px] text-center leading-[normal] md:items-start md:text-left">
-          <div className="flex w-full flex-col items-center gap-[16px] md:flex-row md:items-start md:justify-between md:gap-[60px]">
+          <div className="flex w-full flex-col items-center gap-[16px] md:h-[42px] md:shrink-0 md:flex-row md:items-center md:justify-between md:gap-[60px]">
             <p
-              className="text-[24px] font-black leading-[normal] sm:text-[36px]"
+              className="text-[24px] font-black leading-[28px] sm:text-[36px] sm:leading-[42px] md:whitespace-nowrap"
             >
               {heading}
             </p>
             {headingAccessory}
           </div>
           <p
-            className="text-[15px] font-normal sm:text-[20px]"
+            className="text-[15px] font-normal leading-[18px] sm:text-[20px] sm:leading-[24px]"
           >
             {subheading}
           </p>
-          {subheadingAccessory}
         </div>
         {secondaryAction && (
           <div className="hidden shrink-0 xl:block">
@@ -213,10 +225,10 @@ export function CreatePrivateGamePanel({
       <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] via-[var(--shapeships-white)] via-50% to-[rgba(255,255,255,0)] h-px w-full shrink-0 opacity-70" />
 
       <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start">
-        <div className="flex w-full items-center gap-[40px]">
+        <div className="flex w-full items-center justify-center gap-[40px] md:justify-start">
           <div className="content-stretch flex shrink-0 items-center gap-[40px]">
-            <ModeToggleRow label="Not timed" selected={!isTimed} onSelect={() => setIsTimed(false)} />
-            <ModeToggleRow label="Timed" selected={isTimed} onSelect={() => setIsTimed(true)} />
+            <ModeToggleRow label="Not timed" selected={!isTimed} onSelect={() => handleTimingChange(false)} />
+            <ModeToggleRow label="Timed" selected={isTimed} onSelect={() => handleTimingChange(true)} />
           </div>
 
           <p
@@ -250,7 +262,7 @@ export function CreatePrivateGamePanel({
                   preset={preset}
                   selected={isTimed && selectedPresetKey === preset.key}
                   disabled={!isTimed}
-                  onClick={() => setSelectedPresetKey(preset.key)}
+                  onClick={() => handlePresetChange(preset.key)}
                 />
               ))}
             </div>
@@ -267,6 +279,12 @@ export function CreatePrivateGamePanel({
       <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] via-[var(--shapeships-white)] via-50% to-[rgba(255,255,255,0)] h-px w-full shrink-0 opacity-70" />
 
       <div className="mx-auto flex w-full max-w-[1080px] flex-col items-center gap-[16px] md:items-start">
+        {primaryActionNotice && (
+          <div className="w-full text-center md:text-left">
+            {primaryActionNotice}
+          </div>
+        )}
+
         {error && (
           <div className="w-full rounded-lg border border-red-500/50 bg-red-500/20 p-4">
             {error}
