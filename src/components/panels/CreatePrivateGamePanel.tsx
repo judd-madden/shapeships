@@ -25,6 +25,8 @@ interface CreatePrivateGamePanelProps {
   primaryActionStyle?: 'private' | 'emphasisWhite';
   headingAccessory?: ReactNode;
   subheadingAccessory?: ReactNode;
+  defaultTimed?: boolean;
+  footer?: ReactNode;
 }
 
 type TimerPresetKey = '5_3' | '10_5' | '15_10' | '30_20';
@@ -123,13 +125,13 @@ function ModeToggleRow({ label, selected, onSelect }: ModeToggleRowProps) {
 
   return (
     <div
-      className="content-stretch flex w-full cursor-pointer select-none gap-[8px] items-center"
+      className="content-stretch flex shrink-0 cursor-pointer select-none gap-[8px] items-center"
       onClick={onSelect}
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
     >
-      <RadioButton selected={selected} className="pointer-events-none" />
+      <RadioButton selected={selected} className="pointer-events-none shrink-0" />
       <p
         className="font-bold leading-[normal] relative shrink-0 text-[19.5px] text-nowrap sm:text-[26px]"
       >
@@ -147,8 +149,10 @@ export function CreatePrivateGamePanel({
   primaryActionStyle = 'private',
   headingAccessory,
   subheadingAccessory,
+  defaultTimed = true,
+  footer,
 }: CreatePrivateGamePanelProps) {
-  const [isTimed, setIsTimed] = useState(true);
+  const [isTimed, setIsTimed] = useState(defaultTimed);
   const [selectedPresetKey, setSelectedPresetKey] = useState<TimerPresetKey>('15_10');
   const [variantKey] = useState<'1v1_standard'>('1v1_standard');
   const [isCreating, setIsCreating] = useState(false);
@@ -181,8 +185,8 @@ export function CreatePrivateGamePanel({
 
   return (
     <div className="content-stretch flex w-full flex-col gap-[20px] sm:gap-[30px] 2xl:gap-[50px]">
-      <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[16px] leading-[normal]">
-        <div className="flex w-full flex-col items-start gap-[16px] sm:flex-row sm:justify-between sm:gap-[60px]">
+      <div className="mx-auto flex w-full max-w-[1080px] flex-col items-center gap-[16px] text-center leading-[normal] md:items-start md:text-left">
+        <div className="flex w-full flex-col items-center gap-[16px] md:flex-row md:items-start md:justify-between md:gap-[60px]">
           <p
             className="text-[24px] font-black leading-[normal] sm:text-[36px]"
           >
@@ -200,22 +204,37 @@ export function CreatePrivateGamePanel({
 
       <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] via-[var(--shapeships-white)] via-50% to-[rgba(255,255,255,0)] h-px w-full shrink-0 opacity-70" />
 
-      <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[50px]">
-        <div className="flex w-full flex-col items-start gap-[16px] sm:gap-[28px] overflow-visible min-[1180px]:flex-row min-[1180px]:gap-[48px] xl:gap-[64px]">
-          <div className="content-stretch flex w-full max-w-[280px] shrink-0 lg:flex-col gap-[16px] items-start min-[1180px]:w-[220px] min-[1180px]:max-w-[220px]">
-            <ModeToggleRow label="Timed" selected={isTimed} onSelect={() => setIsTimed(true)} />
+      <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start">
+        <div className="flex w-full items-center gap-[40px]">
+          <div className="content-stretch flex shrink-0 items-center gap-[40px]">
             <ModeToggleRow label="Not timed" selected={!isTimed} onSelect={() => setIsTimed(false)} />
+            <ModeToggleRow label="Timed" selected={isTimed} onSelect={() => setIsTimed(true)} />
           </div>
 
-          <div
+          <p
+            aria-hidden={!isTimed}
             className={[
-              'flex w-full max-w-full min-w-0 flex-col items-start xl:items-center gap-[20px] self-start sm:gap-[40px]',
+              'hidden min-w-0 flex-1 text-right text-[20px] font-normal leading-[normal] md:block',
               'transition-[max-height,opacity] duration-150 ease-out',
               isTimed
-                ? 'max-h-[420px] overflow-visible opacity-100'
-                : 'pointer-events-none max-h-0 overflow-hidden opacity-0 sm:max-h-none sm:overflow-visible sm:opacity-[20%]',
+                ? 'max-h-[160px] opacity-100'
+                : 'pointer-events-none max-h-0 overflow-hidden opacity-0',
             ].join(' ')}
           >
+            Minutes per player + increment per turn
+          </p>
+        </div>
+
+        <div
+          aria-hidden={!isTimed}
+          className={[
+            'w-full min-w-0 transition-[max-height,opacity] duration-150 ease-out',
+            isTimed
+              ? 'max-h-[420px] overflow-visible opacity-100'
+              : 'pointer-events-none max-h-0 overflow-hidden opacity-0',
+          ].join(' ')}
+        >
+          <div className="flex w-full flex-col items-start gap-[20px] pt-[12px] sm:pt-[40px] sm:gap-[40px]">
             <div className="grid w-full max-w-[560px] grid-cols-2 gap-x-[8px] gap-y-[8px] sm:gap-x-[14px] sm:gap-y-[24px] overflow-visible min-[520px]:grid-cols-2 2xl:max-w-full 2xl:grid-cols-4">
               {TIMER_PRESETS.map((preset) => (
                 <TimerPresetButton
@@ -229,7 +248,7 @@ export function CreatePrivateGamePanel({
             </div>
 
             <p
-              className="text-center text-[15px] font-normal leading-[normal] sm:text-[20px]"
+              className="w-full text-center text-[15px] font-normal leading-[normal] sm:text-[20px] md:hidden"
             >
               Minutes per player + increment per turn
             </p>
@@ -239,7 +258,7 @@ export function CreatePrivateGamePanel({
 
       <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] via-[var(--shapeships-white)] via-50% to-[rgba(255,255,255,0)] h-px w-full shrink-0 opacity-70" />
 
-      <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[16px]">
+      <div className="mx-auto flex w-full max-w-[1080px] flex-col items-center gap-[16px] md:items-start">
         {error && (
           <div className="w-full rounded-lg border border-red-500/50 bg-red-500/20 p-4">
             {error}
@@ -253,6 +272,12 @@ export function CreatePrivateGamePanel({
         >
           {isCreating ? 'CREATING...' : primaryActionLabel}
         </MenuButton>
+
+        {footer && (
+          <div className="mt-[16px] w-full md:mt-[48px]">
+            {footer}
+          </div>
+        )}
       </div>
 
       {/* Variant controls intentionally hidden until a later pass enables them. */}

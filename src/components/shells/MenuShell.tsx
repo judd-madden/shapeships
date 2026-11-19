@@ -14,6 +14,7 @@ import { MultiplayerPanel } from '../panels/MultiplayerPanel';
 import { RulesPanel } from '../panels/RulesPanel';
 import { LorePanel } from '../panels/lore/LorePanel';
 import { CreatePrivateGamePanel, type CreatePrivateGameSettings } from '../panels/CreatePrivateGamePanel';
+import { SinglePlayerFeatures } from '../panels/SinglePlayerFeatures';
 import { WelcomePanel } from '../panels/WelcomePanel';
 import { MenuHeader } from './menu/MenuHeader';
 import { MenuProfileRail } from './menu/MenuProfileRail';
@@ -154,12 +155,14 @@ export function MenuShell({
             {activePanel === 'playComputer' && (
               <CreatePrivateGamePanel
                 onSubmit={handleCreateComputerGameWithSettings}
-                heading="PLAY COMPUTER"
-                subheading="Start a game against a computer opponent. Includes optional Missions and Challenges."
+                defaultTimed={false}
+                heading="Play Computer"
+                subheading="Start a game against a computer opponent."
                 primaryActionLabel="PLAY COMPUTER"
                 primaryActionStyle="emphasisWhite"
+                footer={<SinglePlayerFeatures />}
                 headingAccessory={shouldShowWinStreakContent(winStreakViewModel) ? (
-                  <div className="flex max-w-full gap-[24px] flex-row items-center">
+                  <div className="flex min-w-0 max-w-full items-center gap-[24px] flex-row md:flex-wrap md:justify-end">
                     <WinStreakBadge vm={winStreakViewModel} />
                     {winStreakViewModel.streakState === 'active' ? (
                       <GameMenuButton
