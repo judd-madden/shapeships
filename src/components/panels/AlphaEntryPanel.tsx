@@ -126,8 +126,6 @@ export function AlphaEntryPanel({
           >
             <span>
               <br aria-hidden="true" />
-              Name is just for this session.
-              <br aria-hidden="true" />
               3–20 letters or numbers, no spaces or symbols.
             </span>
           </p>

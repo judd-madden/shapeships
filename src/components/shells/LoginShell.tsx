@@ -56,20 +56,12 @@ export function LoginShell({
 
             {/* Feature Highlights Row */}
             <div className="content-center relative flex w-full flex-wrap items-stretch justify-center gap-x-[28px] gap-y-[10px] sm:gap-y-[20px] lg:gap-x-[50px]">
-              
-              {/* Feature 1: Free strategy game */}
-              <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
-                <DrawingIcon className="relative shrink-0 size-[32px] sm:size-[48px]" />
-                <p className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
-                  Free Strategy Game
-                </p>
-              </div>
 
               {/* Feature 3: Space autobattler */}
               <div className="flex relative max-w-[260px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
                 <Dice value={3} className="w-[32px] h-[30px] sm:w-[48px] sm:h-[45px] shrink-0" enableRotate={false}/>
                 <h2 className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
-                  Space Autobattler
+                  Free Space Autobattler
                 </h2>
               </div>
 
@@ -77,7 +69,7 @@ export function LoginShell({
               <div className="flex relative  max-w-[300px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
                 <PlayersIcon className="relative shrink-0 size-[32px] sm:size-[48px]" />
                 <p className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
-                  Multiplayer &amp; Single Player
+                  Single Player &amp; Multiplayer
                 </p>
               </div>
 
