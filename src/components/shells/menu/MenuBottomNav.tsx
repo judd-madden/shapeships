@@ -15,7 +15,7 @@ export function MenuBottomNav({ activePanel, isLoreUnread, onSelect }: MenuNavig
             aria-label={id === 'welcome' ? 'Welcome' : undefined}
             aria-current={activePanel === id ? 'page' : undefined}
             onClick={() => onSelect(id)}
-            className={`relative flex shrink-0 cursor-pointer items-center justify-center text-[15px] font-black leading-[24px] text-nowrap min-[400px]:text-[17px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-shapeships-pastel-purple ${activePanel === id ? 'text-shapeships-pastel-purple' : 'text-shapeships-white'}`}
+            className={`relative flex shrink-0 cursor-pointer items-center justify-center text-[15px] font-bold leading-[24px] text-nowrap min-[400px]:text-[17px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-shapeships-pastel-purple ${activePanel === id ? 'text-shapeships-pastel-purple' : 'text-shapeships-white'}`}
           >
             {id === 'welcome' ? <HomeIcon className="size-[24px]" /> : label}
             {activePanel === id && (
