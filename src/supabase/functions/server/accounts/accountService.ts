@@ -4,6 +4,7 @@ import {
   type AccountIdentity,
   type AccountRepository,
   type AccountRpcClient,
+  createAccountProtectionRepository,
   createAccountRepository,
 } from "./accountRepository.ts";
 import {
@@ -17,7 +18,11 @@ import {
   requireFields,
 } from "./accountRequests.ts";
 import { HashAdmission, workerHashAdmission } from "./hashAdmission.ts";
-import { closedHumanCheck, type HumanCheck } from "./humanCheck.ts";
+import {
+  closedHumanCheck,
+  createHumanCheck,
+  type HumanCheck,
+} from "./humanCheck.ts";
 import { nameKeys } from "./nameKeys.ts";
 import {
   createPasswordHasher,
@@ -28,7 +33,8 @@ import {
   type AccountAdmissionContext,
   type AccountCategory,
   type AccountRateLimit,
-  allowAccountRateLimit,
+  closedAccountRateLimit,
+  createAccountRateLimit,
 } from "./rateLimit.ts";
 import {
   issueToken,
@@ -43,7 +49,16 @@ export interface GameSession {
   displayName: string | null;
 }
 export type SessionValidator = (token: string) => Promise<GameSession | null>;
-export type AccountLog = (category: string, code: string) => void;
+export type AccountLog = (
+  category: string,
+  code: string,
+  details?: {
+    requestId?: string;
+    durationMs?: number;
+    scope?: string;
+    retryAfterSeconds?: number;
+  },
+) => void;
 export interface AccountServiceDependencies {
   repository: AccountRepository;
   validateSession: SessionValidator;
@@ -64,6 +79,7 @@ export interface AccountService {
 
 const prefix = "/make-server-825e19ab/accounts/";
 const routes: readonly string[] = [
+  "name-check",
   "claim",
   "sign-in",
   "password",
@@ -77,11 +93,15 @@ export function createAccountService(
   const hasher = deps.hasher ?? createPasswordHasher();
   const admission = deps.admission ?? workerHashAdmission;
   const human = deps.humanCheck ?? closedHumanCheck;
-  const rate = deps.rateLimit ?? allowAccountRateLimit;
+  const rate = deps.rateLimit ?? closedAccountRateLimit;
   const random = deps.random ?? secureRandomBytes;
-  function log(category: string, code: string) {
+  function log(
+    category: string,
+    code: string,
+    details?: Parameters<AccountLog>[2],
+  ) {
     try {
-      deps.log?.(category, code);
+      deps.log?.(category, code, details);
     } catch { /* Logging cannot change an auth result. */ }
   }
   async function session(
@@ -123,6 +143,12 @@ export function createAccountService(
         return accountError(c, "METHOD_NOT_ALLOWED");
       }
       const category = route as AccountCategory;
+      const started = performance.now(), requestId = crypto.randomUUID();
+      const report = (code: string) =>
+        log(category, code, {
+          requestId,
+          durationMs: Math.round(performance.now() - started),
+        });
       const admissionHeaders = new Headers(c.req.raw.headers);
       for (
         const header of [
@@ -139,37 +165,52 @@ export function createAccountService(
       try {
         // 22C.3 RATE: IP/global entry admission, including format failures.
         await rate.entry(context);
-        const gameSession = category === "logout" ? undefined : await session(
-          c,
-          category === "claim" || category === "sign-in" ||
-            category === "password",
-        );
-        const body = await readAccountJson(c.req.raw, category === "logout");
+        // Token admission precedes body/session failures, and arbitrary digests
+        // cannot create their own recognized-token buckets.
+        let tokenHash: Uint8Array | undefined,
+          tokenFault: AccountFault | undefined;
         if (category === "resume" || category === "logout") {
-          requireFields(body, []);
           const raw = c.req.header("X-Account-Token");
-          let hash: Uint8Array | undefined;
           if (raw !== undefined) {
             try {
-              hash = await tokenDigest(raw);
-            } catch (error) {
-              if (
-                !(category === "logout" && error instanceof AccountFault &&
-                  error.code === "ACCOUNT_TOKEN_INVALID")
-              ) throw error;
+              tokenHash = await tokenDigest(raw);
+            } catch {
+              if (category === "resume") {
+                tokenFault = new AccountFault("ACCOUNT_TOKEN_INVALID");
+              }
             }
           } else if (category === "resume") {
-            throw new AccountFault("ACCOUNT_TOKEN_REQUIRED");
+            tokenFault = new AccountFault("ACCOUNT_TOKEN_REQUIRED");
           }
-          // 22C.3 RATE: resolve recognized-token versus unknown-source buckets.
-          await rate.token(context, hash);
+          await rate.token(context, tokenHash);
+        }
+        const gameSession = category === "logout" || category === "name-check"
+          ? undefined
+          : await session(
+            c,
+            category === "claim" || category === "sign-in" ||
+              category === "password",
+          );
+        const body = await readAccountJson(c.req.raw, category === "logout");
+        if (category === "name-check") {
+          requireFields(body, ["name"]);
+          const keys = nameKeys(body.name);
+          await rate.target(context, keys.nameKey);
+          const result = await repository.nameStatus(keys.displayName);
+          report("OK");
+          return accountSuccess(c, result);
+        }
+        if (category === "resume" || category === "logout") {
+          requireFields(body, []);
+          if (tokenFault) throw tokenFault;
+          const hash = tokenHash;
           if (category === "logout") {
             if (hash) await repository.logout(hash);
-            log(category, "OK");
+            report("OK");
             return accountNoContent(c);
           }
           const result = await repository.resume(hash!, gameSession?.sessionId);
-          log(category, "OK");
+          report("OK");
           return accountSuccess(c, result);
         }
         requireFields(
@@ -204,6 +245,7 @@ export function createAccountService(
           await rate.beforeHash(context, keys.nameKey);
           const passwordHash = await hashes(() => hasher.hash(password));
           const token = await issueToken(random);
+          await human.consumeClaim?.(context.turnstileToken);
           const result = await repository.claim({
             ...keys,
             passwordHash,
@@ -212,7 +254,7 @@ export function createAccountService(
             sessionId: gameSession!.sessionId,
             preferences: preferences!,
           });
-          log(category, "OK");
+          report("OK");
           return accountSuccess(c, { ...result, accountToken: token.raw }, 201);
         }
         // 22C.3 RATE: sign-in/password limits and CAPTCHA escalation before hash.
@@ -270,13 +312,13 @@ export function createAccountService(
             log("sign-in", "REHASH_UNAVAILABLE");
           } // Optional maintenance cannot lose a successful sign-in.
         }
-        log(category, "OK");
+        report("OK");
         return accountSuccess(c, { ...result, accountToken: token.raw });
       } catch (error) {
         const fault = error instanceof AccountFault
           ? error
           : new AccountFault("INTERNAL_ERROR");
-        log(category, fault.code);
+        report(fault.code);
         return accountError(c, fault.code, {
           ...(fault.field ? { field: fault.field } : {}),
           ...(fault.retryAfterSeconds !== undefined
@@ -293,8 +335,28 @@ export function createProductionAccountService(
   validateSession: SessionValidator,
   log: AccountLog,
 ): AccountService {
+  const repository = createAccountRepository(client);
+  const protection = createAccountProtectionRepository(client);
+  const localTest = Deno.env.get("ACCOUNTS_LOCAL_TEST_MODE") === "true";
+  const human = createHumanCheck({
+    secret: Deno.env.get("ACCOUNTS_TURNSTILE_SECRET"),
+    hostnames: Deno.env.get("ACCOUNTS_TURNSTILE_HOSTNAMES"),
+    localTest,
+  }, protection);
+  const rateLimit = createAccountRateLimit(
+    {
+      secret: Deno.env.get("ACCOUNTS_RATE_LIMIT_SECRET"),
+      ipSource: Deno.env.get("ACCOUNTS_IP_SOURCE"),
+      localTest,
+    },
+    protection,
+    human,
+    { limited: (event) => log("accounts", "RATE_LIMITED", event) },
+  );
   return createAccountService({
-    repository: createAccountRepository(client),
+    repository,
+    humanCheck: human,
+    rateLimit,
     validateSession,
     log,
   });

@@ -30,7 +30,8 @@ import {
   registerAccountRoutes,
   registerSessionMeRoute,
 } from "./routes/account_routes.ts";
-import type { AccountService } from "./accounts/accountService.ts";
+import type { AccountLog } from "./accounts/accountService.ts";
+import { accountServiceLoader } from "./accounts/accountServiceLoader.ts";
 import { accountError } from "./accounts/accountResponses.ts";
 import { registerTestRoutes } from "./routes/test_routes.ts";
 import { registerGameRoutes } from "./routes/game_routes.ts";
@@ -221,16 +222,15 @@ app.use(
 // REGISTER ALL ROUTES
 // ============================================================================
 
-const logAccountOutcome = (category: string, code: string) =>
-  console.info({ category, code });
-let accountService: Promise<AccountService> | undefined;
-const getAccountService = () => accountService ??=
+const logAccountOutcome: AccountLog = (category, code, details) =>
+  console.info({ category, code, ...details });
+const getAccountService = accountServiceLoader(() =>
   import("./accounts/accountService.ts").then(
     ({ createProductionAccountService }) =>
       createProductionAccountService(
         supabase, validateSessionToken, logAccountOutcome,
       ),
-  );
+  ));
 registerAccountRoutes(app, {
   log: logAccountOutcome,
   handleEnabledRequest: async (c) => {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
 import {
+  createAccountProtectionRepository,
   createAccountRepository,
   type CredentialSnapshot,
   mapAccountDatabaseError,
@@ -65,8 +66,61 @@ function fixture(responses: Array<{ data?: unknown; error?: unknown }>) {
       },
     },
   });
-  return { repository: createAccountRepository(client), requests };
+  return { repository: createAccountRepository(client), client, requests };
 }
+
+Deno.test("set 03 adapter preserves name casing, bytea and persisted-admission contracts", async () => {
+  const f = fixture([
+    { data: { nameKey: "pilot1", displayName: "PiLoT1", outcome: "claimed" } },
+    {
+      data: { allowed: false, retryAfterSeconds: 42, counts: { claim_ip: 11 } },
+    },
+    { data: true },
+    { data: false },
+    { data: 100 },
+  ]);
+  assert.equal((await f.repository.nameStatus("pilot1")).displayName, "PiLoT1");
+  const p = createAccountProtectionRepository(f.client);
+  const buckets = [{
+    scope: "claim_ip",
+    subjectHash: "ab".repeat(32),
+    limit: 10,
+    windowSeconds: 3600,
+    operation: "hit" as const,
+  }];
+  assert.equal((await p.rateHit(buckets, hash)).retryAfterSeconds, 42);
+  assert.equal(f.requests[1].body.p_token_hash, "\\x" + "07".repeat(32));
+  assert.deepEqual(f.requests[1].body.p_buckets, buckets);
+  assert.equal(await p.captcha(hash, true), true);
+  assert.equal(await p.captcha(hash, false), false);
+  assert.equal(await p.cleanup(), 100);
+  for (
+    const data of [{ allowed: true, retryAfterSeconds: 0, counts: {} }, {
+      allowed: false,
+      retryAfterSeconds: 0,
+      counts: { claim_ip: 11 },
+    }]
+  ) {
+    await assert.rejects(
+      () =>
+        createAccountProtectionRepository(fixture([{ data }]).client).rateHit(
+          buckets,
+        ),
+      { code: "ACCOUNT_SERVICE_UNAVAILABLE" },
+    );
+  }
+  await assert.rejects(
+    () =>
+      fixture([{
+        data: {
+          nameKey: "pilot1",
+          displayName: "OtherName",
+          outcome: "claimed",
+        },
+      }]).repository.nameStatus("Pilot1"),
+    { code: "ACCOUNT_SERVICE_UNAVAILABLE" },
+  );
+});
 
 Deno.test("pinned service client sends exact RPC arguments and bytea, preserving decimal versions", async () => {
   const { repository: r, requests } = fixture([

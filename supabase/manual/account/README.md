@@ -44,7 +44,7 @@ Static review against the supplied inventory only. Disposable PostgreSQL executi
 
 ## Set 02 — 22C.2a credential, token and link RPCs
 
-**Current owner-reported state:** set 01 was applied on 20 November 2026 and its verification reported PASS with zero failures. The set 01 implementation notes above describe its original delivery state. **Set 02 is delivered unapplied.**
+**Current owner-reported state:** sets 01 and 02 were applied on 20 November 2026 and both verification scripts reported PASS. An on-mode local-live smoke test passed all eight checks, including bytea parameters, STABLE RPCs and error mapping. The notes below retain the original set 02 delivery procedure; set 03 is delivered unapplied.
 
 Set 02 creates exactly ten functions and no tables. Its stage-a package can be mock-tested and applied before 22C.2b: the functions are unused while ACCOUNTS_MODE stays off. Do not enable local on-mode until 22C.2b is complete; never enable the hosted function before the activation gates. Claim's human-check remains closed until 22C.3.
 
@@ -93,3 +93,100 @@ Exercise real concurrent same-name claims, first-link races between accounts, sa
 Set mode off first and reverse later account sets. Run the entire 02-rollback.sql, which refuses missing/unexpected signatures or later-set functions and drops exactly set 02 functions with RESTRICT. It preserves every table, row and table grant. Unexpected external dependencies abort the transaction; never use CASCADE to bypass them.
 
 Stage-a unit tests use cached dependencies and no runtime network permission. Their transactional/SQL guarantees remain subject to the separate PostgreSQL mock and owner verification.
+
+## Set 03 — 22C.3a protection, name-check and name rules
+
+**Server Pass; delivered unapplied.** No database, local-live, deployment, environment or tooling configuration was changed by this pass. Gameplay name enforcement, participant provenance and seat suspension belong to 22C.3b; preferences/owner routines and token cleanup remain 22C.4. The new cleanup RPC here handles counters and replay rows only.
+
+### Owner apply order
+
+1. Send the repo snapshot/ZIP to the planning assistant for PostgreSQL 17.6 mock testing. Include all set 03 scripts and source/report files; exclude private environment files and exports.
+2. Take a private backup. Run all of `03-forward.sql` as postgres, in one editor execution.
+3. Run all of `03-seed-name-rules.sql`, then `03-verify.sql`. Verify returns one result set, overall row first. Every check must PASS. Set 03 has fourteen account functions; it **supersedes 02-verify.sql**, whose exact-ten-function check now intentionally FAILs.
+4. Review the report's complete reserved-name list and remaining innocent-name failures before activation. Set 03 SQL is about 224 KB and is one paste, with no numbered split.
+5. Add the local settings below yourself, then rerun an extended smoke test including claims. No public activation follows from applying SQL or passing local tests.
+
+**After any failed editor run, execute `rollback;` alone before further SQL.** The editor may warn about destructive operations: forward replaces constraints, the seed deletes its own generated rows, and rollback drops functions/column and deletes generated rows. These are intentional, scoped, transactional operations; inspect the complete script before running it. No script uses CASCADE.
+
+Forward requires the exact set 02 signatures/configurations and service-only access, retained set 01 posture and no set 03 objects. All new/replaced functions are SECURITY INVOKER with `search_path=''`; mutators have `lock_timeout=2s`. No table is created. Account table RLS, policies and grants, Auth users and game/KV data remain unchanged.
+
+### Name policy and review
+
+See [source provenance](sources/README.md) and the [generated review report](sources/name-rules-report.md). Three local files produce 627 banned rules (520 contains, 107 exact) and 469 reservations. The source metadata restores whole-name-only `sex`, `rape` and `cum`, so Essex/Sussex/Sextant/Grape pass. Therapist remains blocked by `rapist`; the report proposes an owner exception but does not insert it. Document is not banned, but is reserved; releasing it requires a separate reservation decision. Official/regular-player names remain due before activation. `B4dw0rd` uses a labelled synthetic test rule only.
+
+The matcher validates a strict letter/repetition grammar, preserves `*` as a repeat marker, and scans approximately 1,100 rows with names bounded to 20 characters. Safe substrings mask every occurrence against the original decoded name without joining fragments. Exact owner exceptions override contains bans only, never exact bans, reservations or ownership. The report runs the shared TypeScript contract matcher; actual SQL behavior awaits the separate PostgreSQL mock and verification.
+
+Seeding and rollback take exclusive advisory lock `(22002,1)`, matching claim's shared lock. Reapplication deletes only `seed03:dsojevic-profanity-en.json@...` and `seed03:btrsco-reserved-usernames.json@...` rows, including earlier hashes, and preserves conflicting owner rows with ON CONFLICT DO NOTHING. Source hashes and original entry metadata travel with generated rules.
+
+`POST /accounts/name-check` accepts only `{name}`, without a game session. Responses are no-store `{ok:true,nameKey,displayName,outcome}` with available/claimed/banned/reserved outcomes. A ban wins; otherwise existing ownership wins over a reservation, with stored casing returned for claimed names. Bad formats return INVALID_NAME. The existing non-on mode guard remains first.
+
+### Protection configuration
+
+Settings are read only when the on-mode service is acquired:
+
+| Setting | Meaning |
+| --- | --- |
+| `ACCOUNTS_TURNSTILE_SECRET` | Server-only Siteverify secret. Missing when proof is required gives CAPTCHA_UNAVAILABLE. Published dummy secrets are rejected outside local test mode. |
+| `ACCOUNTS_TURNSTILE_HOSTNAMES` | Comma-separated exact allowed hostnames; `example.com` for the local dummy response. |
+| `ACCOUNTS_LOCAL_TEST_MODE` | Exactly `true` enables local dummy behavior and permits the development IP source. Leave unset for hosted operation. |
+| `ACCOUNTS_RATE_LIMIT_SECRET` | At least 32 random bytes encoded as hex (64 hex characters for the supplied generator). Missing/invalid gives ACCOUNT_SERVICE_UNAVAILABLE. Rotating it starts new rate subjects; coordinate rotation. |
+| `ACCOUNTS_IP_SOURCE` | `development`, `header:<trusted-header-name>` or `la13`. Unset/invalid fails closed. Development is local-test-only. Header mode requires one valid address in that exact header, with no header/chain fallback. Hosted trust must be verified before selecting it. |
+
+Add this **additional local-only block** to the existing `.env.local-live` with ACCOUNTS_MODE=on. Replace the placeholder with the command output; this pass does not edit that file.
+
+```dotenv
+ACCOUNTS_TURNSTILE_SECRET=1x0000000000000000000000000000000AA
+ACCOUNTS_LOCAL_TEST_MODE=true
+ACCOUNTS_TURNSTILE_HOSTNAMES=example.com
+ACCOUNTS_IP_SOURCE=development
+ACCOUNTS_RATE_LIMIT_SECRET=REPLACE_WITH_64_HEX_CHARACTERS
+```
+
+Windows PowerShell: generate 32 cryptographically random bytes as lowercase hex:
+
+```powershell
+$accountRateBytes = New-Object byte[] 32; $accountRateRng = [Security.Cryptography.RandomNumberGenerator]::Create(); $accountRateRng.GetBytes($accountRateBytes); $accountRateRng.Dispose(); -join ($accountRateBytes | ForEach-Object { $_.ToString("x2") })
+```
+
+**22B widget action contract:** claim sends **`claim`**; escalated sign-in sends **`sign-in`**; password change also sends **`sign-in`**. LA13 requires proof on every sign-in/password request and every claim. Only dummy-key local responses may use `example.com` without an action; only the fixed `XXXX.DUMMY.TOKEN.XXXX` skips local replay checks. Other proofs retain replay protection even in local mode.
+
+Siteverify has a five-second deadline and validates success, hostname, action and a proof age between zero and five minutes. Upstream failures are CAPTCHA_UNAVAILABLE with Retry-After 5. A local replay probe prevents unnecessary upstream work for already-consumed proofs; claim consumes immediately before account creation, while sign-in/password consumes before hashing. Digests remain for ten minutes. A failed sign-in or failed claim after consumption requires a fresh proof.
+
+### Limits and privacy
+
+L13 thresholds remain: name-check 120/IP/minute and 30/target/minute; claim 10/IP/hour and 3/target/15 minutes; sign-in/password share 60/IP/15 minutes, 10 failures/IP+target/15 minutes and 30 failures/target/15 minutes. Three IP+target failures or ten distributed target failures require a challenge before the next verification; successful verification does not erase cumulative failures in that window. Correct blocked/forced-change credentials count as verification success. No permanent account lockout is introduced.
+
+Explicit LA13 mode removes IP buckets, retains targets/recognized-token limits and adds the following **named constants, for owner review before activation**:
+
+| Route | Global ceiling |
+| --- | --- |
+| Name check | 600/minute |
+| Claim | 300/hour |
+| Sign-in | 600/15 minutes |
+| Password | 60/15 minutes |
+| Resume | 1,200/minute |
+| Logout | 1,200/minute |
+
+Other modes use verified-source IP limits. Counter time comes from PostgreSQL; each RPC locks buckets in stable order, increments them atomically and returns the largest blocking delay. Entry windows encompass later target windows, so an earlier entry denial cannot hide a longer target delay. In-flight checks admitted before failures commit can finish; counters are not hash-slot reservations. A CAPTCHA never bypasses a hard limit.
+
+Recognized tokens use 120/minute token buckets; malformed/unknown traffic uses 120/minute IP buckets, or the LA13 route ceiling. Arbitrary syntactically valid token digests do not get private recognized-token buckets. Token admission runs before body failures while preserving existing validation-error precedence.
+
+Canonical IPv4 subjects unify mapped IPv6, and IPv6 uses /64. IP, target, token and global subjects use domain-separated HMAC-SHA256; raw IPs are never stored or logged. Counter expiry is window end plus one hour. Cleanup deletes at most 100 expired counter/replay rows, at most once per minute per worker. Cleanup failures do not change successful admission. No pg_cron is needed.
+
+Structured logs contain server-generated request ID, route category, safe result code, duration and rate scope/retry delay; no raw headers/bodies, credentials, upstream errors or subject hashes are logged. Existing worker hash admission logs AUTH_BUSY through the same result path. The service-loader promise is shared while pending, retained after success, and cleared after rejection so later requests can retry.
+
+### Validation and rollback
+
+Focused tests are explicitly listed below; the live-integration flag must remain unset and no --allow-net is granted. Read permission is limited to the public manual account package for deterministic generator comparisons.
+
+```powershell
+deno task check
+deno test --cached-only --frozen '--allow-env=ACCOUNTS_MODE,ENABLE_SERVER_DEBUG_LOGS' --allow-read=supabase/manual/account src/supabase/functions/server/tests/accounts/password_test.ts src/supabase/functions/server/tests/accounts/hashAdmission_test.ts src/supabase/functions/server/tests/accounts/tokens_test.ts src/supabase/functions/server/tests/accounts/nameKeys_test.ts src/supabase/functions/server/tests/accounts/accountRepository_test.ts src/supabase/functions/server/tests/accounts/accountService_test.ts src/supabase/functions/server/tests/accounts/nameRules_test.ts src/supabase/functions/server/tests/accounts/nameRulesGenerator_test.ts src/supabase/functions/server/tests/accounts/humanCheck_test.ts src/supabase/functions/server/tests/accounts/rateLimit_test.ts src/supabase/functions/server/tests/accounts/clientIp_test.ts src/supabase/functions/server/tests/accounts/accountServiceLoader_test.ts src/supabase/functions/server/tests/routes/account_routes_test.ts src/supabase/functions/server/tests/routes/account_enabled_routes_test.ts src/supabase/functions/server/tests/routes/account_name_check_routes_test.ts
+git diff --check
+```
+
+For the separate mock, test forward/seed/verify/rollback/reapply, seed reruns with changed hashes and colliding owner rows, drift/later-set/dependency refusal, every innocent/abuse example, overlapping safe masks, shared/exclusive lock contention, concurrent fixed-window hits and proof consumption, ACL/RLS and constraint rejection. If supplied, include historical player names. Verify rollback restores set 02's exact checker, signatures and constraints without changing accounts, credentials, tokens, links, preferences, KV data or Auth users.
+
+**22C.3a local validation:** deno task check PASS; the fifteen test files above PASS, 70 tests and zero failures, with deterministic saved-output comparisons. Generator emitted 1,096 rows / 223,794 SQL bytes. git diff --check PASS for authored work; the staged check reports 25 original whitespace-only lines in the supplied gist snapshot, preserved byte-for-byte. The staged check excluding only that snapshot passes. Existing ignored Deno compiler-option warnings remain. Live-integration flag was unset; no database/local-live/deployment was used.
+
+Disable account operations and reverse later sets before `03-rollback.sql`. It removes generated seeds, the four new functions, masking column/constraints and the two set 03-only global counter scopes. It retains replay/other counters until expiry and restores set 02's checker verbatim. It refuses retained owner/other rules using safe substrings or wildcard keys; remove/review those dependencies explicitly first. Unexpected external dependencies abort through RESTRICT.

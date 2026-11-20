@@ -9,6 +9,7 @@ import {
   type CredentialSnapshot,
 } from "../../accounts/accountRepository.ts";
 import { nameKeys } from "../../accounts/nameKeys.ts";
+import { matchingBans, type NameRule } from "../../accounts/nameRules.ts";
 import { PASSWORD_FORMAT } from "../../accounts/passwordPolicy.ts";
 import type { PasswordHasher } from "../../accounts/passwordHashing.ts";
 
@@ -44,6 +45,7 @@ interface Rule {
   kind: "banned" | "reserved" | "exception";
   match: "exact" | "contains";
   key: string;
+  safe_substrings?: string[];
 }
 const digest = (value: Uint8Array) =>
   Array.from(value, (b) => b.toString(16).padStart(2, "0")).join("");
@@ -159,20 +161,39 @@ export class FakeAccountRepository implements AccountRepository {
     }
   }
   #name(account: FakeAccount, reserved = false) {
-    const key = nameKeys(account.displayName).moderationKey;
-    if (
-      this.rules.some((r) =>
-        r.kind === "banned" && r.match === "exact" && r.key === key
-      ) ||
-      (!this.rules.some((r) => r.kind === "exception" && r.key === key) &&
-        this.rules.some((r) =>
-          r.kind === "banned" && r.match === "contains" && key.includes(r.key)
-        ))
-    ) throw new AccountFault("NAME_BANNED");
+    if (matchingBans(account.nameKey, this.#rules()).length) {
+      throw new AccountFault("NAME_BANNED");
+    }
     if (
       reserved &&
       this.rules.some((r) => r.kind === "reserved" && r.key === account.nameKey)
     ) throw new AccountFault("NAME_RESERVED");
+  }
+  #rules(): NameRule[] {
+    return this.rules.map((r) => ({
+      kind: r.kind,
+      match_kind: r.match,
+      match_key: r.key,
+      safe_substrings: r.safe_substrings,
+    }));
+  }
+  nameStatus(displayName: string) {
+    const keys = nameKeys(displayName);
+    const account = [...this.accounts.values()].find((a) =>
+      a.nameKey === keys.nameKey
+    );
+    const outcome = matchingBans(keys.nameKey, this.#rules()).length
+      ? "banned"
+      : account
+      ? "claimed"
+      : this.rules.some((r) => r.kind === "reserved" && r.key === keys.nameKey)
+      ? "reserved"
+      : "available";
+    return Promise.resolve({
+      nameKey: keys.nameKey,
+      displayName: outcome === "claimed" ? account!.displayName : displayName,
+      outcome: outcome as "banned" | "claimed" | "reserved" | "available",
+    });
   }
   #token(hash: Uint8Array) {
     return [...this.tokens.values()].find((t) => t.hash === digest(hash));

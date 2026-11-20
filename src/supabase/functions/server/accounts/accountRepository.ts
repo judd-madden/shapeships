@@ -65,6 +65,7 @@ export interface ClaimInput {
   preferences: PreferenceValues;
 }
 export interface AccountRepository {
+  nameStatus(displayName: string): Promise<NameStatus>;
   claim(input: ClaimInput): Promise<AccountEntry>;
   readCredential(nameKey: string): Promise<CredentialSnapshot | null>;
   finishSignin(
@@ -90,6 +91,30 @@ export interface AccountRepository {
     tokenHash: Uint8Array,
     sessionId: string,
   ): Promise<AccountIdentity | null>;
+}
+
+export interface NameStatus {
+  nameKey: string;
+  displayName: string;
+  outcome: "available" | "claimed" | "banned" | "reserved";
+}
+export interface RateBucket {
+  scope: string;
+  subjectHash: string;
+  limit: number;
+  windowSeconds: number;
+  operation: "hit" | "probe";
+  applies?: "recognized" | "unknown";
+}
+export interface RateResult {
+  allowed: boolean;
+  retryAfterSeconds: number;
+  counts: Record<string, number>;
+}
+export interface AccountProtectionRepository {
+  rateHit(buckets: RateBucket[], tokenHash?: Uint8Array): Promise<RateResult>;
+  captcha(hash: Uint8Array, consume: boolean): Promise<boolean>;
+  cleanup(): Promise<number>;
 }
 
 export interface AccountRpcClient {
@@ -171,6 +196,66 @@ function identity(value: unknown): AccountIdentity {
     badge: "claimed-name",
   };
 }
+
+export function createAccountProtectionRepository(
+  client: AccountRpcClient,
+): AccountProtectionRepository {
+  async function rpc(
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
+    try {
+      const result = await client.rpc(name, args);
+      if (result.error) throw mapAccountDatabaseError(result.error);
+      return result.data;
+    } catch {
+      throw new AccountFault("ACCOUNT_SERVICE_UNAVAILABLE");
+    }
+  }
+  return {
+    async rateHit(buckets, tokenHash) {
+      const row = object(
+        await rpc("account_rate_hit", {
+          p_buckets: buckets,
+          p_token_hash: tokenHash ? bytea(tokenHash) : null,
+        }),
+      );
+      const counts = object(row.counts);
+      if (
+        typeof row.allowed !== "boolean" ||
+        !Number.isSafeInteger(row.retryAfterSeconds) ||
+        Number(row.retryAfterSeconds) < 0 ||
+        Object.values(counts).some((v) =>
+          !Number.isSafeInteger(v) || Number(v) < 0
+        )
+      ) fault();
+      if (buckets.some((b) => !b.applies && counts[b.scope] === undefined)) {
+        fault();
+      }
+      if (!row.allowed && Number(row.retryAfterSeconds) < 1) fault();
+      return {
+        allowed: row.allowed,
+        retryAfterSeconds: row.retryAfterSeconds as number,
+        counts: counts as Record<string, number>,
+      };
+    },
+    async captcha(hash, consume) {
+      const result = await rpc("account_captcha_consume", {
+        p_proof_hash: bytea(hash),
+        p_consume: consume,
+      });
+      if (typeof result !== "boolean") fault();
+      return result;
+    },
+    async cleanup() {
+      const result = await rpc("account_cleanup_rate_limits", {});
+      if (
+        !Number.isInteger(result) || Number(result) < 0 || Number(result) > 100
+      ) fault();
+      return result as number;
+    },
+  };
+}
 function entry(value: unknown, sessionId?: string): AccountEntry {
   const row = object(value), p = object(row.preferences), v = object(p.values);
   const values = {} as PreferenceValues;
@@ -241,6 +326,23 @@ export function createAccountRepository(
     return response.data;
   }
   return {
+    async nameStatus(displayName) {
+      const row = object(
+        await rpc("account_name_status", { p_display_name: displayName }),
+      );
+      const casing = name(row.displayName), key = string(row.nameKey);
+      if (
+        key !== displayName.toLowerCase() || casing.toLowerCase() !== key ||
+        !["available", "claimed", "banned", "reserved"].includes(
+          String(row.outcome),
+        )
+      ) fault();
+      return {
+        nameKey: key,
+        displayName: casing,
+        outcome: row.outcome as NameStatus["outcome"],
+      };
+    },
     async claim(i) {
       return entry(
         await rpc("account_claim", {
