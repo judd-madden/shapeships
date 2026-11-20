@@ -370,6 +370,8 @@ These stages define dependency order, not permission for one large implementatio
 
 ### 22B — Individual layouts and interactive account previews
 
+Order and fixtures amended — see 19 November amendment 9.
+
 **Type:** Client/UI; one supplied layout per scoped pass.
 
 Prepare separate briefs for entry, Welcome, Single Player, Multiplayer, Claim Name and their responsive layouts. Sequence shared dependencies first; refine exact subpass identifiers when each brief is approved.
@@ -384,6 +386,8 @@ Prepare separate briefs for entry, Welcome, Single Player, Multiplayer, Claim Na
 **Exit:** Revised menus are navigable and playable; all required account UI states can be reviewed without real account writes.
 
 ### 22C — Account server foundations
+
+Order and fixtures amended — see 19 November amendment 9.
 
 **Type:** Server, followed by a scoped client-runtime connection only when separately planned.
 
@@ -520,6 +524,12 @@ These approved decisions override conflicting text elsewhere in this planning ba
 6. From 768px up, the setup header height is deterministic (fixed line boxes; accessories cannot grow the heading row). The first divider aligns across Single Player and Multiplayer in all win-streak and Discord states.
 7. Each setup page remembers its last deliberate timing choice and preset on this device (localStorage via menuSetupMemory). This is not an account-synced preference.
 8. Mobile centres the Not timed / Timed row.
+9. Delivery order: account server first. 22C starts with 22C.0, a design and audit pass recorded in `Phase 22 Addendum - Account Design.md`, which Judd reviews and locks before any SQL or server code. The remaining Entry account states and the Claim Name page are built after the account server, against the real requests, with no development fixtures for account states. This supersedes the fixture bullets and exit wording in §10 22B, and "Replace development account fixtures" in §10 22E. 22B continues with Judd's Entry content edits and the entry video (at the end of 22B).
+10. Judd applies database changes by pasting SQL into the Supabase SQL editor. Each change ships as a forward script, a single-query verification and a rollback script, kept in the repo.
+11. Development runs the Edge Function locally in Docker (`deno task local-live`) against the live database. Development accounts and rows there are acceptable, and activation includes cleaning them up. Automated tests never touch the live database.
+12. Supabase plan: Free. The account design fits its Edge Function limits (2s CPU per request, 256MB memory). Free has no automatic database backups, so a backup decision is part of activation.
+13. Security is proportionate for a no-email account: standard practice, with no MFA, device fingerprinting or extra personal data. Password storage uses a standard slow, salted hash.
+14. Turnstile remains the CAPTCHA. Development uses Cloudflare's published test keys; Judd creates the Cloudflare account and production keys before activation.
 
 ## 15. Implementation record
 
@@ -591,3 +601,13 @@ These approved decisions override conflicting text elsewhere in this planning ba
 - **Browser/runtime checks:** Not run — browser/Vite testing handled by user.
 - **Owner review:** Pending (Judd): divider parity across all five states at 1920, 1440, 1280, 1024 and 768px; single-line streak/Reset fit including confirmation text; Rejoin positioning/link behavior; centred mobile timing row; Single Player Timed / 5 + 3 persistence through Rules navigation, games and reloads; independent Multiplayer memory; clearing site storage restores page defaults.
 - **Risks and assumptions:** Storage can be blocked or full; deliberate choices still update the current panel, but persistence is best-effort. Saved choices are reread on page entry, without live cross-tab synchronization. Existing text sizes/gaps and Reset confirmation copy are retained; horizontal accessory fit at narrower desktop/tablet widths remains for owner review. No measured header min-heights, absolute positioning or runtime measuring scripts were introduced.
+
+### 22C.0 — Account design and audit
+
+- **Pass and ownership:** Server Pass, design and audit only, with read-only inspection of client runtime/session code. Account/name authority, credentials, data access and transactions remain server-owned; no implementation crosses ownership layers.
+- **Files:** New [Phase 22 Addendum - Account Design.md](Phase%2022%20Addendum%20-%20Account%20Design.md); this roadmap's amendments 9–14, two §10 pointers and this record. No code, executable SQL, config, environment, tests or client changes.
+- **Scope:** Repository/session/name-trust audit and supplied database inventory; proposed data/access model, hashing, tokens/linkage, complete request/error contract, moderation/abuse, five-preference sync, procedural owner operations, activation/rollback and scoped follow-up passes. Owner refinements R1–R8 are incorporated; executable owner SQL is deferred, and local reset tooling is a separate pass.
+- **Design status:** **proposed, awaiting owner lock**. Judd and the planning assistant review the audit and **10 open questions** before locking proposals and briefing 22C.1. Approval to produce the record does not activate accounts or approve its proposed implementation decisions.
+- **Resolved maintenance:** Judd confirmed duplicate KV indexes removed on 19 November 2026; `kv_store_825e19ab` now has **2 indexes**. The inventory's former index counts and 270 MB table size are historical; no post-cleanup size was measured here. Index maintenance is outside account passes. Activation still checks current total database size/headroom against the Free plan's 500 MB limit.
+- **Validation:** Not run — documentation-only pass (typecheck, build and tests). Static documentation/diff review only. No database requests, hosted probes, benchmark or deployment.
+- **Risks and assumptions:** Hosted hash CPU/memory, trusted source-IP extraction, production Turnstile configuration, backup choice, SQL privileges/constraints and active-seat compatibility require later verification. Normalization must be locked before the first real hash; owner recovery follow-up, Auth-user disposition and optional KV browser-grant hardening remain questions in the record.
