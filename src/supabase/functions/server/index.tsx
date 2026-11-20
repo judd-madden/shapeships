@@ -24,6 +24,7 @@ import { SERVER_DEBUG_LOGS_ENABLED } from "./utils/serverLogger.ts";
 
 // Import route registration functions
 import { registerAuthRoutes } from "./routes/auth_routes.ts";
+import { registerAccountRoutes } from "./routes/account_routes.ts";
 import { registerTestRoutes } from "./routes/test_routes.ts";
 import { registerGameRoutes } from "./routes/game_routes.ts";
 import { registerIntentRoutes } from "./routes/intent_routes.ts";
@@ -219,6 +220,7 @@ app.use(
 // REGISTER ALL ROUTES
 // ============================================================================
 
+registerAccountRoutes(app);
 registerAuthRoutes(app, kvGet, kvSet);
 if (ENABLE_TEST_ROUTES) {
   registerTestRoutes(app, kvGet, kvSet, kvDel);
