@@ -24,7 +24,14 @@ import { SERVER_DEBUG_LOGS_ENABLED } from "./utils/serverLogger.ts";
 
 // Import route registration functions
 import { registerAuthRoutes } from "./routes/auth_routes.ts";
-import { registerAccountRoutes } from "./routes/account_routes.ts";
+import {
+  accountCorsOptions,
+  accountPrivacyMiddleware,
+  registerAccountRoutes,
+  registerSessionMeRoute,
+} from "./routes/account_routes.ts";
+import type { AccountService } from "./accounts/accountService.ts";
+import { accountError } from "./accounts/accountResponses.ts";
 import { registerTestRoutes } from "./routes/test_routes.ts";
 import { registerGameRoutes } from "./routes/game_routes.ts";
 import { registerIntentRoutes } from "./routes/intent_routes.ts";
@@ -160,8 +167,8 @@ const validateSessionToken = async (token: string) => {
       createdAt: sessionData.createdAt,
       displayName: sessionData.displayName || null
     };
-  } catch (error) {
-    console.error('Session validation error:', error);
+  } catch {
+    console.error({ category: 'session-validation', code: 'INTERNAL_ERROR' });
     return null;
   }
 };
@@ -199,28 +206,43 @@ const requireSession = async (c: any) => {
 // MIDDLEWARE
 // ============================================================================
 
-// Enable logger
-if (SERVER_DEBUG_LOGS_ENABLED) {
-  app.use('*', logger(console.log));
-}
+// Account/session metadata requests use safe outcome logs, never URL logs.
+app.use('*', accountPrivacyMiddleware(
+  SERVER_DEBUG_LOGS_ENABLED ? logger(console.log) : undefined,
+));
 
 // Enable CORS for all routes and methods
 app.use(
   "/*",
-  cors({
-    origin: "*",
-    allowHeaders: ["Content-Type", "Authorization", "apikey", "X-Session-Token"],
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    exposeHeaders: ["Content-Length"],
-    maxAge: 600,
-  }),
+  cors(accountCorsOptions),
 );
 
 // ============================================================================
 // REGISTER ALL ROUTES
 // ============================================================================
 
-registerAccountRoutes(app);
+const logAccountOutcome = (category: string, code: string) =>
+  console.info({ category, code });
+let accountService: Promise<AccountService> | undefined;
+const getAccountService = () => accountService ??=
+  import("./accounts/accountService.ts").then(
+    ({ createProductionAccountService }) =>
+      createProductionAccountService(
+        supabase, validateSessionToken, logAccountOutcome,
+      ),
+  );
+registerAccountRoutes(app, {
+  log: logAccountOutcome,
+  handleEnabledRequest: async (c) => {
+    try {
+      return await (await getAccountService()).handle(c);
+    }
+    catch {
+      logAccountOutcome("accounts", "ACCOUNT_SERVICE_UNAVAILABLE");
+      return accountError(c, "ACCOUNT_SERVICE_UNAVAILABLE", { retryAfterSeconds: 5 });
+    }
+  },
+});
 registerAuthRoutes(app, kvGet, kvSet);
 if (ENABLE_TEST_ROUTES) {
   registerTestRoutes(app, kvGet, kvSet, kvDel);
@@ -249,39 +271,10 @@ registerIntentRoutes(
 // Client calls this to get truthful sessionId/displayName when token exists
 // Uses validateSessionToken() from above (no duplication of validation logic)
 // ============================================================================
-app.get("/make-server-825e19ab/session/me", async (c) => {
-  try {
-    const sessionToken = c.req.header('X-Session-Token');
-    
-    if (!sessionToken) {
-      console.error('Session metadata error: Missing X-Session-Token header');
-      return c.json({ 
-        error: 'Unauthorized',
-        message: 'Missing X-Session-Token header'
-      }, 401);
-    }
-
-    const session = await validateSessionToken(sessionToken);
-    
-    if (!session) {
-      console.error('Session metadata error: Invalid or expired token');
-      return c.json({ 
-        error: 'Unauthorized',
-        message: 'Invalid or expired session token'
-      }, 401);
-    }
-
-    // Return session metadata
-    return c.json({
-      sessionId: session.sessionId,
-      createdAt: session.createdAt,
-      displayName: session.displayName || null
-    });
-
-  } catch (error) {
-    console.error('Session metadata error:', error);
-    return c.json({ error: 'Failed to retrieve session metadata' }, 500);
-  }
+registerSessionMeRoute(app, {
+  validateSession: validateSessionToken,
+  resolveAccount: async (raw, sessionId) => (await getAccountService()).optionalIdentity(raw, sessionId),
+  log: logAccountOutcome,
 });
 
 // ============================================================================

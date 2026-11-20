@@ -76,3 +76,17 @@ export function accountError(
   };
   return c.json(body, status);
 }
+
+export function accountSuccess(
+  c: Context,
+  value: object,
+  status: 200 | 201 = 200,
+): Response {
+  setAccountResponseHeaders(c);
+  return c.json({ ok: true, ...value }, status);
+}
+
+export function accountNoContent(c: Context): Response {
+  setAccountResponseHeaders(c);
+  return c.body(null, 204);
+}
