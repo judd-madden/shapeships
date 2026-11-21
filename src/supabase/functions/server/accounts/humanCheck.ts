@@ -24,6 +24,8 @@ export const DUMMY_SECRETS = [
   "2x0000000000000000000000000000000AA",
   "3x0000000000000000000000000000000AA",
 ];
+const TURNSTILE_CLOCK_SKEW_TOLERANCE_MS = 60000;
+
 export interface HumanCheckConfig {
   secret?: string;
   hostnames?: string;
@@ -115,7 +117,7 @@ export function createHumanCheck(
       result.success !== true || typeof result.hostname !== "string" ||
       !hosts.includes(result.hostname.toLowerCase()) ||
       (!dummyResponse && result.action !== action) || !Number.isFinite(age) ||
-      age < 0 || age > 300000 ||
+      age < -TURNSTILE_CLOCK_SKEW_TOLERANCE_MS || age > 300000 ||
       (!config.localTest &&
         (result.hostname === "example.com" || token === DUMMY_TOKEN))
     ) {

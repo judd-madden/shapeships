@@ -81,7 +81,7 @@ Deno.test("Turnstile rejects failed, wrong-host, wrong-action, expired, future a
       { hostname: "evil.test" },
       { action: "sign-in" },
       { challenge_ts: new Date(now - 300001).toISOString() },
-      { challenge_ts: new Date(now + 1).toISOString() },
+      { challenge_ts: new Date(now + 60001).toISOString() },
       { challenge_ts: "bad" },
     ]
   ) {
@@ -102,6 +102,81 @@ Deno.test("Turnstile rejects failed, wrong-host, wrong-action, expired, future a
   );
   await fixture({ challenge_ts: new Date(now - 300000).toISOString() }).checker
     .verifyClaim("boundary");
+});
+
+Deno.test("Turnstile tolerates 60 seconds of clock skew and keeps the five-minute maximum in all modes", async () => {
+  const now = new FakeAccountProtection().now;
+  for (
+    const config of [
+      { secret: DUMMY_SECRETS[0], hostnames: "example.com", localTest: true },
+      { secret: "real-secret", hostnames: "shapeships.test", localTest: false },
+      { secret: "real-secret", hostnames: "shapeships.test", localTest: true },
+    ]
+  ) {
+    const dummy = config.secret === DUMMY_SECRETS[0];
+    for (
+      const [offset, accepted] of [
+        [2000, true],
+        [59000, true],
+        [60000, true],
+        [60001, false],
+        [61000, false],
+        [-300000, true],
+        [-300001, false],
+        [-301000, false],
+      ] as const
+    ) {
+      const f = fixture({
+        hostname: config.hostnames,
+        action: dummy ? undefined : "claim",
+        challenge_ts: new Date(now + offset).toISOString(),
+      }, config);
+      const verify = () => f.checker.verifyClaim(dummy ? DUMMY_TOKEN : "proof");
+      if (accepted) {
+        await verify();
+      } else {
+        await assert.rejects(verify, fault("CAPTCHA_INVALID"));
+      }
+    }
+  }
+});
+
+Deno.test("recorded dummy Siteverify response with metadata requires a dummy secret and local test mode", async () => {
+  const response = {
+    challenge_ts: "2026-11-21T01:58:49.200Z",
+    "error-codes": [],
+    hostname: "example.com",
+    metadata: { result_with_testing_key: true },
+    success: true,
+  };
+  for (
+    const { secret, localTest, code } of [
+      { secret: DUMMY_SECRETS[0], localTest: true, code: undefined },
+      {
+        secret: DUMMY_SECRETS[0],
+        localTest: false,
+        code: "CAPTCHA_UNAVAILABLE",
+      },
+      { secret: "real-secret", localTest: true, code: "CAPTCHA_INVALID" },
+      { secret: "real-secret", localTest: false, code: "CAPTCHA_INVALID" },
+    ]
+  ) {
+    const f = fixture({ ...response, action: undefined }, {
+      secret,
+      hostnames: "example.com",
+      localTest,
+    });
+    f.db.now = Date.parse(response.challenge_ts) - 2000;
+    if (code) {
+      await assert.rejects(
+        () => f.checker.verifyClaim(DUMMY_TOKEN),
+        fault(code),
+      );
+    } else {
+      await f.checker.verifyClaim(DUMMY_TOKEN);
+    }
+    assert.equal(f.calls, code === "CAPTCHA_UNAVAILABLE" ? 0 : 1);
+  }
 });
 
 Deno.test("Turnstile timeout, unreachable and malformed upstream responses fail closed", async () => {
