@@ -7,11 +7,9 @@ import {
 } from "./accountRepository.ts";
 import { ACCOUNT_ERRORS } from "./accountResponses.ts";
 import { nameKeys } from "./nameKeys.ts";
-import { matchingBans, type NameRule } from "./nameRules.ts";
 import { tokenDigest } from "./tokens.ts";
 import type { GameSession } from "./accountService.ts";
 
-export const GAME_NAME_CACHE_MS = 60_000;
 export const GAME_IDENTITY_CACHE_MS = 15_000;
 const CACHE_LIMIT = 1024;
 const HOUR = 3_600_000;
@@ -96,15 +94,12 @@ export function createGameRequestIdentity(deps: {
     name: string,
   ) => Promise<string>;
   now?: () => number;
-  log?: (code: string) => void;
 }): GameRequestIdentity {
   const now = deps.now ?? Date.now;
-  const verdicts = new Map<string, { banned: boolean; until: number }>();
   const identities = new Map<
     string,
     { snapshot: GameIdentitySnapshot; until: number }
   >();
-  let ruleCache: { rules: NameRule[]; until: number } | undefined;
   function put<K, V>(cache: Map<K, V>, key: K, value: V) {
     cache.delete(key);
     if (cache.size >= CACHE_LIMIT) cache.delete(cache.keys().next().value!);
@@ -128,11 +123,7 @@ export function createGameRequestIdentity(deps: {
       let nameCall: {
         key: string;
         result: Promise<NameStatus>;
-        checkedAt: number;
       } | undefined;
-      let rulesPromise:
-        | Promise<{ rules: NameRule[]; until: number }>
-        | undefined;
       let sourceFence: string | undefined;
       const raw = c.req.header("X-Account-Token");
       function fence(p: Participant) {
@@ -206,56 +197,8 @@ export function createGameRequestIdentity(deps: {
         if (nameCall && nameCall.key !== key) throw new GameIdentityConflict();
         return (nameCall ??= {
           key,
-          checkedAt: now(),
           result: database((r) => r.nameStatus(displayName)),
         }).result;
-      }
-      function rules() {
-        return rulesPromise ??= (async () => {
-          if (ruleCache && ruleCache.until > now()) return ruleCache;
-          ruleCache = undefined;
-          const checkedAt = now();
-          const loaded = await database((r) => r.liveNameRules());
-          return ruleCache = {
-            rules: loaded,
-            until: checkedAt + GAME_NAME_CACHE_MS,
-          };
-        })();
-      }
-      async function ban(p: Participant, useRules = false) {
-        const label = p.name ?? "";
-        const key = label.toLowerCase();
-        try {
-          let cached = verdicts.get(key);
-          if (!cached || cached.until <= now()) {
-            verdicts.delete(key);
-            if (useRules || !/^[A-Za-z0-9]{3,20}$/.test(label)) {
-              const snapshot = await rules();
-              cached = {
-                banned: matchingBans(label, snapshot.rules).length > 0,
-                until: snapshot.until,
-              };
-            } else {
-              cached = {
-                banned: (await status(label)).outcome === "banned",
-                // A slow lookup or a memoized CAS retry cannot extend the
-                // cross-request cache beyond the original check's window.
-                until: nameCall!.checkedAt + GAME_NAME_CACHE_MS,
-              };
-            }
-            put(verdicts, key, cached);
-          }
-          if (cached.banned) throw new AccountFault("NAME_BANNED");
-        } catch (error) {
-          if (
-            !(error instanceof AccountFault) ||
-            error.code !== "ACCOUNT_SERVICE_UNAVAILABLE" ||
-            (deps.mode === "on" && p.accountId)
-          ) throw error;
-          try {
-            deps.log?.("BAN_LOOKUP_UNAVAILABLE_FAIL_OPEN");
-          } catch { /* Logging cannot gate a guest. */ }
-        }
       }
       async function authority(p: Participant) {
         fence(p);
@@ -270,7 +213,6 @@ export function createGameRequestIdentity(deps: {
       return {
         async seat(p) {
           const snapshot = await authority(p);
-          await ban(p);
           if (snapshot) await renew(snapshot);
         },
         async resolve({ hint, source, bootstrap, start }) {
@@ -322,12 +264,6 @@ export function createGameRequestIdentity(deps: {
               throw new AccountFault("NAME_RESERVED");
             }
           }
-          if (source) {
-            await ban(
-              source,
-              source.name?.toLowerCase() !== chosen.toLowerCase(),
-            );
-          }
           let displayName = chosen;
           if (!start && !snapshot && !bound) {
             displayName = await deps.bindName(
@@ -357,7 +293,7 @@ export function createGameRequestIdentity(deps: {
 // CAS the validated token row; the session-id row is a metadata mirror only.
 export function createGameSessionNameBinder(
   client: { from(table: string): any },
-  kvGet: (key: string) => Promise<any>,
+  _kvGet: (key: string) => Promise<any>,
   kvSet: (key: string, value: any) => Promise<void>,
 ) {
   return async (
@@ -368,7 +304,10 @@ export function createGameSessionNameBinder(
     try {
       const key = `session_token_${token}`;
       for (let attempt = 0; attempt < 3; attempt++) {
-        const stored = await kvGet(key);
+        const read = await client.from("kv_store_825e19ab")
+          .select("value").eq("key", key).maybeSingle();
+        if (read.error) throw new AccountFault("ACCOUNT_SERVICE_UNAVAILABLE");
+        const stored = read.data?.value;
         if (!stored || stored.sessionId !== session.sessionId) {
           throw new AccountFault("GAME_SESSION_INVALID");
         }

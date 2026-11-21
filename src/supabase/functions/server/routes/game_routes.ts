@@ -2262,7 +2262,6 @@ export function registerGameRoutes(
       const gameId = c.req.param('gameId');
       const playerId = session.sessionId;
       const gameKey = `game_${gameId}`;
-      const identity = mode !== 'off' ? gameIdentityRequest(identityOptions, c, session) : undefined;
 
       for (
         let attempt = 0;
@@ -2301,7 +2300,6 @@ export function registerGameRoutes(
         if (participant?.role !== 'spectator') {
           return c.json({ error: "Only spectators may leave through this route" }, 403);
         }
-        if (identity) await identity.seat(participant);
 
         const participantName =
           typeof participant.name === 'string' && participant.name.length > 0
@@ -2361,10 +2359,6 @@ export function registerGameRoutes(
         error: "Game changed while leaving; retry the request",
       }, 409);
     } catch (error) {
-      if (mode !== 'off') {
-        const response = gameIdentityError(c, error);
-        if (response) return response;
-      }
       console.error("Leave spectator error:", error);
       return c.json({ error: "Internal server error" }, 500);
     }

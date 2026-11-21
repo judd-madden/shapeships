@@ -22,6 +22,39 @@ const chat = (gameId: string) => ({
   payload: { actionType: "message", content: "hello" },
 });
 
+async function computerSeat(mode: "on" | "names-only", accountOwned: boolean) {
+  const f = enabledGameFixture(mode);
+  const account = accountOwned ? await f.claim() : undefined;
+  const headers = account?.headers ?? { "X-Account-Token": "irrelevant" };
+  const created = await f.request("/create-computer-game", {
+    playerName: accountOwned && mode === "names-only" ? "Guest1" : "Pilot1",
+    timed: false,
+    winStreakCount: 3,
+  }, mode === "on" && accountOwned ? headers : {});
+  assert.equal(created.status, 200);
+  const id = (await created.json()).gameId;
+  if (accountOwned && mode === "names-only") {
+    Object.assign(f.state(id).players[0], {
+      name: "Pilot1",
+      accountId: account!.entry.account.id,
+    });
+  }
+  return { f, id, headers };
+}
+
+function noNameChecks(f: ReturnType<typeof enabledGameFixture>) {
+  assert.deepEqual(f.calls.names, []);
+  assert.equal(f.calls.rules, 0);
+}
+
+function noAccountCalls(f: ReturnType<typeof enabledGameFixture>) {
+  noNameChecks(f);
+  assert.equal(f.calls.acquisitions, 0);
+  assert.equal(f.calls.identities, 0);
+  assert.equal(f.calls.resumes, 0);
+  assert.equal(f.calls.binds, 0);
+}
+
 for (const mode of ["names-only", "on"] as const) {
   Deno.test(`${mode}: all new assignment routes enforce claimed/reserved/banned/invalid names and guest whitespace`, async () => {
     for (
@@ -95,6 +128,7 @@ for (const mode of ["names-only", "on"] as const) {
       f.state(id).players[0].name = label;
       f.sessions.get("p1").displayName = label;
       await f.claim();
+      f.resetCalls();
       const response = await f.request(`/join-game/${id}`, {
         playerName: "Spoof",
       });
@@ -106,6 +140,7 @@ for (const mode of ["names-only", "on"] as const) {
         label,
       );
       assert.equal(f.state(id).players[0].accountId, undefined);
+      noAccountCalls(f);
       f.state(id).status = "finished";
       await failure(
         await f.request(`/new-game-from/${id}`),
@@ -142,32 +177,111 @@ for (const mode of ["names-only", "on"] as const) {
     }
   });
 
-  Deno.test(`${mode}: ban outage fails open for guest seat actions, fails closed for assignments; known bans reject`, async () => {
-    for (const action of ["chat", "rejoin", "switch", "leave"]) {
-      const f = enabledGameFixture(mode), id = await f.create();
-      if (action === "leave") f.state(id).players[0].role = "spectator";
+  Deno.test(`${mode}: banned existing guest/account seats play, rejoin, switch and leave without name checks`, async () => {
+    for (const accountOwned of [false, true]) {
+      const { f, id, headers } = await computerSeat(mode, accountOwned);
+      f.ban("Pilot1");
+      f.repository.failAt = "nameStatus";
+      f.repository.now += 15_000;
+      for (
+        const [path, body] of [
+          ["/intent", {
+            gameId: id,
+            intentType: "SPECIES_SUBMIT",
+            nonce: "banned-seat-species",
+            turnNumber: 0,
+            payload: { species: "human", botSpecies: "human" },
+          }],
+          ["/intent", chat(id)],
+          [`/join-game/${id}`, { playerName: "Ignored" }],
+          [`/switch-role/${id}`, { newRole: "spectator" }],
+          [`/switch-role/${id}`, { newRole: "spectator" }],
+          [`/leave-spectator/${id}`, {}],
+        ] as const
+      ) {
+        f.resetCalls();
+        const response = await f.request(
+          path,
+          path === "/intent"
+            ? { ...body, turnNumber: f.state(id).gameData.turnNumber }
+            : body,
+          path.includes("leave") ? {} : headers,
+        );
+        const result = await response.json();
+        assert.equal(
+          response.status,
+          200,
+          `${path}: ${JSON.stringify(result)}`,
+        );
+        if (path === "/intent") assert.equal(result.ok, true);
+        noNameChecks(f);
+        if (!accountOwned || mode === "names-only" || path.includes("leave")) {
+          noAccountCalls(f);
+        } else {
+          assert.ok(f.calls.identities <= 1);
+          assert.equal(f.calls.resumes, 0);
+        }
+      }
+      assert.equal(f.state(id).players.some((p: any) => p.id === "p1"), false);
+      assert.equal(
+        f.persistence.store.get(`game_${id}_chat`).entries.at(-1).playerName,
+        "Pilot1",
+      );
+    }
+  });
+
+  Deno.test(`${mode}: banned guest/account names fail every source-seat assignment`, async () => {
+    for (const accountOwned of [false, true]) {
+      for (const kind of ["rematch", "promotion", "replacement"] as const) {
+        const { f, id, headers } = await computerSeat(mode, accountOwned);
+        if (kind === "rematch") f.state(id).status = "finished";
+        if (kind === "promotion") f.state(id).players[0].role = "spectator";
+        f.ban("Pilot1");
+        f.resetCalls();
+        await failure(
+          await f.request(
+            `/${
+              kind === "rematch"
+                ? "new-game-from"
+                : kind === "promotion"
+                ? "switch-role"
+                : "reset-win-streak"
+            }/${id}`,
+            { newRole: "player" },
+            accountOwned ? headers : {},
+          ),
+          "NAME_BANNED",
+          403,
+        );
+        assert.deepEqual(f.calls.names, ["Pilot1"]);
+        assert.equal(f.calls.rules, 1);
+      }
+    }
+  });
+
+  Deno.test(`${mode}: completed streak-reset replay does not assign or check the banned name again`, async () => {
+    for (const accountOwned of [false, true]) {
+      const { f, id, headers } = await computerSeat(mode, accountOwned);
+      const first = await f.request(
+        `/reset-win-streak/${id}`,
+        {},
+        accountOwned ? headers : {},
+      );
+      assert.equal(first.status, 200);
+      const result = await first.json();
+      f.ban("Pilot1");
+      f.repository.now += 15_000;
       f.repository.failAt = "nameStatus";
       f.resetCalls();
-      const response = await f.request(
-        action === "chat"
-          ? "/intent"
-          : action === "rejoin"
-          ? `/join-game/${id}`
-          : action === "switch"
-          ? `/switch-role/${id}`
-          : `/leave-spectator/${id}`,
-        action === "chat"
-          ? chat(id)
-          : action === "rejoin"
-          ? { playerName: "Ignored" }
-          : action === "switch"
-          ? { newRole: "spectator" }
-          : {},
-      );
-      assert.equal(response.status, 200, action);
-      assert.deepEqual(f.logs, ["BAN_LOOKUP_UNAVAILABLE_FAIL_OPEN"]);
-      assert.equal(f.calls.names.length, 1);
+      const replay = await f.request(`/reset-win-streak/${id}`, {}, headers);
+      assert.equal(replay.status, 200);
+      assert.equal((await replay.json()).gameId, result.gameId);
+      noNameChecks(f);
+      if (!accountOwned || mode === "names-only") noAccountCalls(f);
     }
+  });
+
+  Deno.test(`${mode}: assignment service outages still fail closed`, async () => {
     for (
       const path of [
         "/session/start",
@@ -203,10 +317,6 @@ for (const mode of ["names-only", "on"] as const) {
       assert.equal(r.headers.get("Retry-After"), "5", path);
       await failure(r, "ACCOUNT_SERVICE_UNAVAILABLE", 503);
     }
-    const f = enabledGameFixture(mode), id = await f.create();
-    f.ban("Pilot1");
-    await failure(await f.request("/intent", chat(id)), "NAME_BANNED", 403);
-    await failure(await f.request(`/join-game/${id}`, {}), "NAME_BANNED", 403);
   });
 }
 
@@ -275,7 +385,7 @@ Deno.test("on: account casing/provenance binds; every gameplay projection strips
 
 Deno.test("on: account-owned operations never fall back to guest and outages fail closed", async () => {
   for (
-    const action of ["chat", "rejoin", "switch", "leave", "rematch", "reset"]
+    const action of ["chat", "intent", "rejoin", "switch", "rematch", "reset"]
   ) {
     const f = enabledGameFixture(), a = await f.claim();
     const created = await f.request("/create-computer-game", {
@@ -284,19 +394,23 @@ Deno.test("on: account-owned operations never fall back to guest and outages fai
       winStreakCount: 3,
     }, a.headers);
     const id = (await created.json()).gameId;
-    if (action === "leave") f.state(id).players[0].role = "spectator";
     if (action === "rematch") f.state(id).status = "finished";
-    const path = action === "chat" ? "/intent" : `/${
+    const path = action === "chat" || action === "intent" ? "/intent" : `/${
       ({
         rejoin: "join-game",
         switch: "switch-role",
-        leave: "leave-spectator",
         rematch: "new-game-from",
         reset: "reset-win-streak",
       } as Record<string, string>)[action]
     }/${id}`;
-    const body = action === "chat"
-      ? chat(id)
+    const body = action === "chat" ? chat(id) : action === "intent"
+      ? {
+        gameId: id,
+        intentType: "SPECIES_SUBMIT",
+        nonce: "account-authority-species",
+        turnNumber: 0,
+        payload: { species: "human", botSpecies: "human" },
+      }
       : { playerName: "Pilot1", newRole: "spectator" };
     await failure(await f.request(path, body), "ACCOUNT_TOKEN_REQUIRED", 401);
     f.repository.now += 15_000;
@@ -401,7 +515,8 @@ Deno.test("on: fresh assignment and CAS retries each spend at most one name RPC 
   f.persistence.conflicts = 2;
   assert.equal((await f.request("/intent", chat(id), a.headers)).status, 200);
   assert.equal(f.calls.identities, 1);
-  assert.equal(f.calls.names.length, 1);
+  assert.equal(f.calls.names.length, 0);
+  assert.equal(f.calls.rules, 1); // Internal account moderation in the due renewal RPC.
   assert.equal(f.calls.resumes, 1);
   f.resetCalls();
   assert.equal((await f.request("/intent", chat(id), a.headers)).status, 200);
@@ -410,24 +525,7 @@ Deno.test("on: fresh assignment and CAS retries each spend at most one name RPC 
   assert.equal(f.calls.resumes, 0);
 });
 
-Deno.test("on: legacy ban failures are open and not cached; successful verdict expires at 60 seconds", async () => {
-  const f = enabledGameFixture(), id = await f.create();
-  f.state(id).players[0].name = "Old Pirate";
-  f.repository.failAt = "liveNameRules";
-  assert.equal((await f.request("/intent", chat(id))).status, 200);
-  f.repository.failAt = undefined;
-  f.repository.rules.push({ kind: "banned", match: "contains", key: "pirate" });
-  await failure(await f.request("/intent", chat(id)), "NAME_BANNED", 403);
-  const g = enabledGameFixture(), gid = await g.create();
-  assert.equal((await g.request("/intent", chat(gid))).status, 200);
-  g.ban("Pilot1");
-  g.repository.now += 59_999;
-  assert.equal((await g.request("/intent", chat(gid))).status, 200);
-  g.repository.now++;
-  await failure(await g.request("/intent", chat(gid)), "NAME_BANNED", 403);
-});
-
-Deno.test("on: account spectator entry stores casing/provenance, protects departure and emits the resolved label", async () => {
+Deno.test("on: account spectator entry stores casing/provenance and departure uses only its own session", async () => {
   const f = enabledGameFixture(), id = await f.create(false, "Host1");
   f.session("p2");
   assert.equal(
@@ -458,18 +556,27 @@ Deno.test("on: account spectator entry stores casing/provenance, protects depart
   assert.ok(!JSON.stringify(await joined.json()).includes("accountId"));
   assert.equal(f.calls.names.length, 1);
   assert.equal(f.calls.identities, 1);
-  await failure(
-    await f.request(`/leave-spectator/${id}`),
-    "ACCOUNT_TOKEN_REQUIRED",
-    401,
-  );
+  f.ban("WaTcHeR3");
+  f.repository.failAt = "tokenSnapshot";
+  f.resolver.request = () => {
+    throw new Error("Departure must not acquire an identity request");
+  };
+  f.resetCalls();
+  // A different session cannot use a body-supplied ID to remove this spectator.
+  f.session("p4");
   assert.equal(
-    (await f.request(`/leave-spectator/${id}`, {}, a.headers)).status,
+    (await f.request(`/leave-spectator/${id}`, { playerId: "p3" })).status,
     200,
   );
+  assert.ok(f.state(id).players.some((p: any) => p.id === "p3"));
+  f.session("p3");
+  assert.equal((await f.request(`/leave-spectator/${id}`)).status, 200);
+  assert.equal(f.state(id).players.some((p: any) => p.id === "p3"), false);
+  assert.equal((await f.request(`/leave-spectator/${id}`)).status, 200);
+  noAccountCalls(f);
 });
 
-Deno.test("on: claiming another name preserves the guest match; new seats use account casing and check both labels within budget", async () => {
+Deno.test("on: claiming another name preserves the guest match; new seats check only the chosen account name", async () => {
   const f = enabledGameFixture(), id = await f.create(false, "OldGuest");
   const a = await f.claim("NewAccount");
   assert.equal((await f.request("/intent", chat(id), a.headers)).status, 200);
@@ -485,15 +592,13 @@ Deno.test("on: claiming another name preserves the guest match; new seats use ac
   assert.equal(f.state(id).players[0].name, "OldGuest");
   assert.deepEqual(f.calls.names, ["NewAccount"]);
   assert.equal(f.calls.identities, 1);
-  // Expire the stored-label verdict/rule snapshot, then prove a source ban is
-  // still enforced even when the different new account label is permitted.
   f.ban("OldGuest");
-  f.repository.now += 60_000;
   f.resetCalls();
-  await failure(
-    await f.request(`/new-game-from/${id}`, {}, a.headers),
-    "NAME_BANNED",
-    403,
+  const allowed = await f.request(`/new-game-from/${id}`, {}, a.headers);
+  assert.equal(allowed.status, 200);
+  assert.equal(
+    f.state((await allowed.json()).gameId).players[0].name,
+    "NewAccount",
   );
   assert.deepEqual(f.calls.names, ["NewAccount"]);
   assert.equal(f.calls.rules, 1);
@@ -511,12 +616,11 @@ Deno.test("on: CAS identity/name changes return conflict without a second lookup
   const body = await response.json();
   assert.equal(body.rejected.code, "STATE_CONFLICT");
   assert.equal(body.state, null);
-  assert.equal(f.calls.names.length, 1);
-  assert.equal(f.calls.identities, 0);
+  noAccountCalls(f);
   assert.equal(f.persistence.store.get(`game_${id}_chat`), undefined);
 });
 
-Deno.test("names-only: revoked/blocked account seats continue by session, including when ban lookup is unavailable", async () => {
+Deno.test("names-only: revoked/blocked account seats continue by session without account calls", async () => {
   const f = enabledGameFixture("names-only"), a = await f.claim();
   const id = await f.create(false, "Guest1");
   f.state(id).players[0].accountId = a.entry.account.id;
@@ -528,11 +632,10 @@ Deno.test("names-only: revoked/blocked account seats continue by session, includ
       .status,
     200,
   );
-  assert.equal(f.calls.identities, 0);
-  assert.deepEqual(f.logs, ["BAN_LOOKUP_UNAVAILABLE_FAIL_OPEN"]);
+  noAccountCalls(f);
 });
 
-Deno.test("on: an in-flight CAS retry cannot extend its old verdict into the next request's cache window", async () => {
+Deno.test("on: guest CAS retries and later requests do not check a newly banned name", async () => {
   const f = enabledGameFixture(), id = await f.create();
   f.persistence.conflicts = 1;
   f.persistence.beforeConflict = () => {
@@ -541,8 +644,24 @@ Deno.test("on: an in-flight CAS retry cannot extend its old verdict into the nex
   };
   f.resetCalls();
   assert.equal((await f.request("/intent", chat(id))).status, 200);
-  assert.equal(f.calls.names.length, 1);
+  noAccountCalls(f);
   f.resetCalls();
-  await failure(await f.request("/intent", chat(id)), "NAME_BANNED", 403);
-  assert.equal(f.calls.names.length, 1);
+  assert.equal((await f.request("/intent", chat(id))).status, 200);
+  noAccountCalls(f);
+});
+
+Deno.test("on: due account renewal retains moderation without a gameplay name RPC", async () => {
+  const { f, id, headers } = await computerSeat("on", true);
+  f.ban("Pilot1");
+  f.repository.now += 3_600_001;
+  f.resetCalls();
+  await failure(
+    await f.request("/intent", chat(id), headers),
+    "NAME_BANNED",
+    403,
+  );
+  assert.equal(f.calls.names.length, 0);
+  assert.equal(f.calls.identities, 1);
+  assert.equal(f.calls.resumes, 1);
+  assert.equal(f.calls.rules, 1);
 });

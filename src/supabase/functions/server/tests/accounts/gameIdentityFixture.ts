@@ -5,7 +5,10 @@ import { issueToken } from "../../accounts/tokens.ts";
 import { FakeAccountRepository, FakeHasher } from "./fakeAccountRepository.ts";
 import { gameIdentityFixture } from "../routes/game_identity_fixture.ts";
 
-export function enabledGameFixture(mode: AccountsMode = "on") {
+export function enabledGameFixture(
+  mode: AccountsMode = "on",
+  bindName?: Parameters<typeof createGameRequestIdentity>[0]["bindName"],
+) {
   const repository = new FakeAccountRepository(), hasher = new FakeHasher();
   repository.rules.push(
     ...["system", "computer"].map((key) => ({
@@ -17,12 +20,13 @@ export function enabledGameFixture(mode: AccountsMode = "on") {
   const calls = {
     names: [] as string[],
     identities: 0,
-    rules: 0,
+    get rules() {
+      return repository.ruleReads;
+    },
     resumes: 0,
     acquisitions: 0,
     binds: 0,
   };
-  const logs: string[] = [];
   let seed = 0;
   const wrapped = {
     nameStatus(name: string) {
@@ -32,10 +36,6 @@ export function enabledGameFixture(mode: AccountsMode = "on") {
     tokenSnapshot: (...args: Parameters<typeof repository.tokenSnapshot>) => {
       calls.identities++;
       return repository.tokenSnapshot(...args);
-    },
-    liveNameRules: () => {
-      calls.rules++;
-      return repository.liveNameRules();
     },
     resume: (...args: Parameters<typeof repository.resume>) => {
       calls.resumes++;
@@ -49,9 +49,9 @@ export function enabledGameFixture(mode: AccountsMode = "on") {
       return wrapped;
     },
     now: () => repository.now,
-    log: (code) => logs.push(code),
     bindName: async (token, session, name) => {
       calls.binds++;
+      if (bindName) return await bindName(token, session, name);
       const stored = f.sessions.get(token) ??
         f.persistence.store.get(`session_token_${token}`);
       if (!stored) throw new Error("Unknown fixture session");
@@ -81,8 +81,8 @@ export function enabledGameFixture(mode: AccountsMode = "on") {
   }
   function resetCalls() {
     calls.names.length = 0;
+    repository.ruleReads = 0;
     calls.identities =
-      calls.rules =
       calls.resumes =
       calls.acquisitions =
       calls.binds =
@@ -93,7 +93,6 @@ export function enabledGameFixture(mode: AccountsMode = "on") {
     repository,
     resolver,
     calls,
-    logs,
     claim,
     resetCalls,
     ban(name: string) {

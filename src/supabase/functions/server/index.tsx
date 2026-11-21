@@ -260,7 +260,6 @@ const gameIdentityOptions: GameIdentityRouteOptions = {
       mode: accountsMode,
       getRepository: () => createGameIdentityRepository(supabase),
       bindName: createGameSessionNameBinder(supabase, kvGet, kvSet),
-      log: (code) => logAccountOutcome("game-name", code),
     });
   },
 };

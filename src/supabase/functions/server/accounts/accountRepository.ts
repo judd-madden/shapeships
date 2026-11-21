@@ -1,5 +1,4 @@
 import type { AccountErrorCode } from "./accountResponses.ts";
-import { type NameRule, rulePattern } from "./nameRules.ts";
 
 export class AccountFault extends Error {
   readonly retryAfterSeconds?: number;
@@ -124,7 +123,6 @@ export interface GameIdentityRepository
     hash: Uint8Array,
     sessionId?: string,
   ): Promise<GameIdentitySnapshot | null>;
-  liveNameRules(): Promise<NameRule[]>;
 }
 
 export function createGameIdentityRepository(
@@ -182,54 +180,6 @@ export function createGameIdentityRepository(
           lastUsedAt: iso(row.last_used_at),
           link,
         };
-      } catch {
-        throw new AccountFault("ACCOUNT_SERVICE_UNAVAILABLE");
-      }
-    },
-    async liveNameRules() {
-      try {
-        const rules: NameRule[] = [];
-        let total: number | undefined;
-        for (let offset = 0;;) {
-          const result = await client.from("account_name_rules")
-            .select("kind,match_kind,match_key,safe_substrings", {
-              count: "exact",
-            }).in("kind", [
-              "banned",
-              "exception",
-            ])
-            .order("id").range(offset, offset + 999);
-          if (
-            result.error || !Array.isArray(result.data) ||
-            !Number.isSafeInteger(result.count) || result.count < 0
-          ) fault();
-          if (total !== undefined && total !== result.count) fault();
-          total = result.count;
-          for (const value of result.data) {
-            const r = object(value);
-            if (
-              (r.kind !== "banned" && r.kind !== "exception") ||
-              (r.match_kind !== "exact" && r.match_kind !== "contains")
-            ) fault();
-            const key = string(r.match_key);
-            rulePattern(key);
-            if (
-              !Array.isArray(r.safe_substrings) ||
-              r.safe_substrings.some((s: unknown) =>
-                typeof s !== "string" || !/^[a-z]+$/.test(s)
-              )
-            ) fault();
-            rules.push({
-              kind: r.kind,
-              match_kind: r.match_kind,
-              match_key: key,
-              safe_substrings: r.safe_substrings as string[],
-            });
-          }
-          offset += result.data.length;
-          if (offset === total) return rules;
-          if (offset > total! || result.data.length === 0) fault();
-        }
       } catch {
         throw new AccountFault("ACCOUNT_SERVICE_UNAVAILABLE");
       }

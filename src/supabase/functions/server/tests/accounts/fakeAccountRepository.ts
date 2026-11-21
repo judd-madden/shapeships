@@ -123,6 +123,7 @@ export class FakeAccountRepository implements AccountRepository {
   tokens = new Map<string, FakeToken>();
   links = new Map<string, FakeLink>();
   rules: Rule[] = [];
+  ruleReads = 0;
   now = Date.parse("2026-11-20T00:00:00Z");
   failAt?: string;
   beforeCommit?: (category: string) => Promise<void>;
@@ -171,6 +172,7 @@ export class FakeAccountRepository implements AccountRepository {
     ) throw new AccountFault("NAME_RESERVED");
   }
   #rules(): NameRule[] {
+    this.ruleReads++;
     return this.rules.map((r) => ({
       kind: r.kind,
       match_kind: r.match,
@@ -510,10 +512,6 @@ export class FakeAccountRepository implements AccountRepository {
         }
         : null,
     }));
-  }
-  liveNameRules() {
-    this.#step("liveNameRules");
-    return Promise.resolve(this.#rules());
   }
   // Test-only simulation of set 04 reset/block; no production owner API.
   ownerTransition(

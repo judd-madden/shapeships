@@ -6,7 +6,7 @@ import { enabledGameFixture } from "./gameIdentityFixture.ts";
 
 const aid = "00000000-0000-4000-8000-000000000001";
 const tid = "00000000-0000-4000-8000-000000000002";
-function clientFixture(responses: unknown[], ruleTotal?: number) {
+function clientFixture(responses: unknown[]) {
   const requests: Array<{ url: URL; method: string; body: any }> = [];
   const client = createClient("https://example.supabase.co", "synthetic", {
     auth: {
@@ -23,13 +23,11 @@ function clientFixture(responses: unknown[], ruleTotal?: number) {
           body: request.method === "GET" ? null : await request.json(),
         });
         assert.ok(responses.length, "Unexpected database operation");
-        return new Response(JSON.stringify(responses.shift()), {
-          headers: {
-            "Content-Type": "application/json",
-            ...(ruleTotal === undefined
-              ? {}
-              : { "Content-Range": `0-999/${ruleTotal}` }),
-          },
+        const response = responses.shift();
+        if (response instanceof Error) throw response;
+        if (response instanceof Response) return response;
+        return new Response(JSON.stringify(response), {
+          headers: { "Content-Type": "application/json" },
         });
       },
     },
@@ -97,43 +95,6 @@ Deno.test("game identity adapter: one joined GET preserves decimal versions and 
   }
 });
 
-Deno.test("legacy rules adapter: complete pagination and malformed rules fail closed at the boundary", async () => {
-  const rule = {
-    kind: "banned",
-    match_kind: "contains",
-    match_key: "pirate",
-    safe_substrings: [],
-  };
-  const f = clientFixture(
-    [Array.from({ length: 1000 }, () => rule), [rule]],
-    1001,
-  );
-  assert.equal(
-    (await createGameIdentityRepository(f.client).liveNameRules()).length,
-    1001,
-  );
-  assert.equal(f.requests.length, 2);
-  assert.equal(f.requests[1].url.searchParams.get("offset"), "1000");
-  const invalid = clientFixture([[{ ...rule, match_key: "(untrusted)+" }]], 1);
-  await assert.rejects(
-    () => createGameIdentityRepository(invalid.client).liveNameRules(),
-    { code: "ACCOUNT_SERVICE_UNAVAILABLE" },
-  );
-  const capped = clientFixture([Array.from({ length: 500 }, () => rule), [
-    rule,
-  ]], 501);
-  assert.equal(
-    (await createGameIdentityRepository(capped.client).liveNameRules()).length,
-    501,
-  );
-  assert.equal(capped.requests[1].url.searchParams.get("offset"), "500");
-  const missingCount = clientFixture([[rule]]);
-  await assert.rejects(
-    () => createGameIdentityRepository(missingCount.client).liveNameRules(),
-    { code: "ACCOUNT_SERVICE_UNAVAILABLE" },
-  );
-});
-
 Deno.test("session binding adapter: exact JSON CAS, mirror synchronization, and concurrent bind-once winner", async () => {
   const session = {
     sessionId: "p1",
@@ -141,32 +102,104 @@ Deno.test("session binding adapter: exact JSON CAS, mirror synchronization, and 
     displayName: null,
   };
   const stored = { ...session, sessionToken: "synthetic-session" };
-  const f = clientFixture([[{ key: "session_token_synthetic-session" }]]),
+  const f = clientFixture([
+      [{ value: stored }],
+      [{ key: "session_token_synthetic-session" }],
+    ]),
     mirrors = new Map();
   const bind = createGameSessionNameBinder(
     f.client,
-    async () => stored,
+    async () => {
+      throw new Error("Binder must not use kvGet");
+    },
     async (k, v) => {
       mirrors.set(k, v);
     },
   );
   assert.equal(await bind("synthetic-session", session, "Pilot1"), "Pilot1");
+  assert.equal(f.requests[0].method, "GET");
+  assert.equal(f.requests[0].url.searchParams.get("select"), "value");
   assert.equal(
-    f.requests[0].url.searchParams.get("value"),
+    f.requests[0].url.searchParams.get("key"),
+    "eq.session_token_synthetic-session",
+  );
+  assert.equal(
+    f.requests[1].url.searchParams.get("value"),
     "eq." + JSON.stringify(stored),
   );
-  assert.equal(f.requests[0].body.value.displayName, "Pilot1");
+  assert.equal(f.requests[1].body.value.displayName, "Pilot1");
   assert.equal(mirrors.get("session_id_p1").displayName, "Pilot1");
-  const race = clientFixture([[]]);
-  let reads = 0;
+  const race = clientFixture([
+    [{ value: stored }],
+    [],
+    [{ value: { ...stored, displayName: "Winner1" } }],
+  ]);
   const raced = createGameSessionNameBinder(
     race.client,
-    async () => ++reads === 1 ? stored : { ...stored, displayName: "Winner1" },
+    async () => {
+      throw new Error("Binder must not use kvGet");
+    },
     async () => {},
   );
   assert.equal(await raced("synthetic-session", session, "Other1"), "Winner1");
-  assert.equal(race.requests.length, 1);
+  assert.equal(race.requests.length, 3);
 });
+
+for (const mode of ["on", "names-only"] as const) {
+  Deno.test(`${mode}: binder distinguishes missing/mismatched sessions from database/transport errors`, async () => {
+    for (
+      const kind of ["missing", "mismatch", "database", "transport"] as const
+    ) {
+      const unavailable = kind === "database" || kind === "transport";
+      // The pinned client's maybeSingle() must treat a successful empty array as no row.
+      const database = clientFixture([
+        kind === "missing"
+          ? []
+          : kind === "mismatch"
+          ? [{ value: { sessionId: "other" } }]
+          : kind === "database"
+          ? new Response(
+            JSON.stringify({
+              code: "XX000",
+              message: "synthetic database failure",
+            }),
+            {
+              status: 500,
+              headers: { "Content-Type": "application/json" },
+            },
+          )
+          : new Error("synthetic transport failure"),
+      ]);
+      const bind = createGameSessionNameBinder(database.client, async () => {
+        throw new Error("Binder must not use kvGet");
+      }, async () => {
+        throw new Error("Failed reads must not write the mirror");
+      });
+      const f = enabledGameFixture(mode, bind);
+      const response = await f.request("/create-game", {
+        playerName: "Pilot1",
+        timed: false,
+      });
+      assert.equal(response.status, unavailable ? 503 : 401, kind);
+      assert.deepEqual(await response.json(), {
+        error: unavailable
+          ? "ACCOUNT_SERVICE_UNAVAILABLE"
+          : "GAME_SESSION_INVALID",
+        message: unavailable
+          ? "Account service is unavailable."
+          : "A valid game session is required.",
+      });
+      assert.equal(
+        response.headers.get("Retry-After"),
+        unavailable ? "5" : null,
+      );
+      assert.equal(response.headers.get("Cache-Control"), "no-store");
+      assert.equal(database.requests.length, 1);
+      assert.equal(database.requests[0].method, "GET");
+      assert.equal(f.persistence.writes.length, 0);
+    }
+  });
+}
 
 Deno.test("resolver: bind once, bound hint immunity and a 20-character normalized guest name", async () => {
   const f = enabledGameFixture();
