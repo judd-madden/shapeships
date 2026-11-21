@@ -104,7 +104,7 @@ export function MenuProfileRail({ identity, onChangeName }: MenuProfileRailProps
                 title={identity.displayName}
                 maxFontSize={46}
                 minFontSize={12}
-                className="text-[26px] font-normal leading-none text-shapeships-white md:text-[46px]"
+                className="text-[26px] font-normal leading-normal text-shapeships-white md:text-[46px]"
               />
               {claimed && <VerifiedUserIcon className="size-[20px] shrink-0 text-shapeships-pastel-purple md:size-[32px]" />}
             </div>
