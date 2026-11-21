@@ -851,3 +851,177 @@ Judd runs this first with ACCOUNTS_MODE=off, then on, using separate browser con
 6. In on mode, use fresh guest sessions to try System and Computer (NAME_RESERVED) and Smoke347059 (CLAIMED_NAME_REQUIRES_ACCOUNT), all 403. Ordinary bound-name requests cannot rename an existing session by changing body hints.
 
 The joined PostgREST read and session JSON CAS are pinned-client/fake tested; this pass does not prove live ACL/isolation or hosted runtime behavior. Judd reports the owner local gameplay check passed with ACCOUNTS_MODE=off and account-smoke-3 passed 19/19 with on, including banned/reserved/claimed guest-name entry refusals. This refinement was validated offline; no post-refinement browser run or public activation was performed. Session-token binding and its metadata mirror are separate KV writes, with the token row authoritative. Account linking and KV game/session writes are not one cross-store transaction; a request already authorized may finish during revocation. The assignment-only owner deviation and names-only provenance refinements are recorded in addendum §2.15. Durable ownership/import/cross-device evidence remains 22D; preferences and owner routines remain 22C.4.
+
+
+### 22C.4 — Preferences, owner routines and guest session renewal (SQL set 04)
+
+- **Pass/ownership:** Server Pass based on clean HEAD 4c28a2a7. Account authorization, transactional preferences and owner operations are server-owned; guest renewal is session validation/persistence. No client/UI, .env, Deno/build configuration, deployment, live/local-live request or commit. The approved file plan preceded edits; Judd approved the rateLimit.ts addition.
+- **Preferences / R2:** GET and PUT /accounts/preferences use A without S validation, renewal or linking. PUT validates a nonempty subset of exactly five booleans and a positive bigint-range decimal revision, derives its account from the token and increments revision once under the existing account-first locks. SQL rechecks token expiry after all row locks. Update returns a normal {status:"updated"/"conflict",preferences}; the service converts conflict to 409 with top-level latest preferences. There is no P2211 or exception DETAIL parsing. P2212 maps to INVALID_REQUEST; existing authorization errors retain resume's precedence. No unauthorized conflict snapshot is disclosed. Read-only GET does not use resume.
+- **Admission/modes:** Existing account_token and account_unknown_ip scopes are reused, including recognition in PostgreSQL. LA13 introduces preferences_global, shared by GET/PUT, 1,200/minute. Existing 120/token/minute still applies. off and names-only remain dormant before lazy service dependencies; ordinary game polling gets no limiter.
+- **Guest renewal / R1:** requireSession's existing token read now carries optional lastRenewedAt. The in-memory due check uses that value or createdAt. A non-due accepted intent makes **zero extra DB operations**. A due attempt makes **at most four**: token read — token JSON-value CAS — mirror read — mirror JSON-value CAS. Each row has one attempt and no retry loop. A fresh row that already renewed stops after one read; a failed token CAS stops after two. Persisted timestamps plus CAS allow at most one successful renewal/hour across requests/workers. Concurrent stale requests may each attempt their bounded CAS; only the winner proceeds to its mirror. These are extra KV operations, separate from the pre-existing game/history/session read and account-token authority/renewal budgets in 22C.3b.
+- **Renewal behavior:** Accepted /intent 200 paths, including duplicate-success and committed fallback, run the hook after acceptance in every mode, including off. TTL becomes 24 hours after the last renewal, keeping the existing strict greater-than expiry boundary and immutable createdAt. Stored fields and concurrent names survive CAS. No response adds lastRenewedAt. Rejected intents, reads/polls, session start and unrelated game mutations do not renew. Token and mirror are separate writes: a mirror error/conflict cannot undo the authoritative token renewal, and no maintenance failure changes the accepted response. Missing mirrors are left alone rather than blind-created.
+- **Owner clarification/deviation:** Inspection found the existing engine rejects spectator ACTION/chat with PLAYER_NOT_ACTIVE. Judd explicitly chose to preserve that rule instead of broadening the pass; rejected spectator chat does not renew. The hook is role-independent for any accepted spectator intent. No reducer/gameplay legality change was made.
+- **Housekeeping:** createGameSessionNameBinder now takes (client,kvSet), removing unused _kvGet at production/test callers. The initial nine off-mode characterization expectations remain unchanged.
+- **Owner operations:** Seven postgres-only invoker functions deny effective EXECUTE to PUBLIC/anon/authenticated/service_role, recheck role defensively and never return credentials/hashes. UUID mutators validate expected version under locks, report safe counts/events and require a nonempty note up to 500 characters. Block/revoke/reset increment version and revoke/detach; unblock only activates and records an event. Lookup is case-insensitive, read-only and returns effective active-token/link counts. Reset requires active status and validates exact current PHC format, parameters, byte lengths and canonical base64, then sets must_change_password=true. Cleanup is capped at 100 links, 100 link-free tokens and the reused 100-rate-row cleanup per call; retain dead tokens seven days. Explicit development deletion caps input at 20 UUIDs, reports missing IDs, removes selected dependencies/events and records one accountless cleanup event. Dependency/trigger guards prevent broadening deletion beyond the existing six account FKs. No rule editing or reserve/release routine exists; the seed is unchanged.
+- **SQL package:** Set 04 adds nine functions and replaces account_rate_hit only to admit preferences_global, for 23 total functions (16 service, seven owner). All have search_path=''; mutators lock_timeout=2s. No tables/policies/indexes are created. Forward carries all 03-verify checks and original limiter-source preconditions; verification is one SELECT superseding 03-verify. Rollback verifies signatures/configuration/ACLs/source and refuses any preferences_global counter rows or unexpected dependencies instead of deleting them. It restores set 03 limiter/constraint and drops new functions with RESTRICT, retaining all account data and previously completed owner actions.
+- **Contract location:** Account Design addendum **§2.16** consolidates account request/success/error contracts, gateway/S/A headers, modes, game account behavior, guest renewal, rates and client obligations. Clients send their account name or no hint, attach A to linked sessions, send invalid bound-name assignments back to Entry and retry resume without S on GAME_SESSION_INVALID. L9 hydration/generation/coalescing/single-retry duties are included. Appendix A and the pass roadmap remove superseded owner rule-edit plans.
+
+#### Set 04 exact added interfaces
+
+~~~text
+account_get_preferences(p_token_hash bytea) RETURNS jsonb
+account_update_preferences(p_token_hash bytea,p_patch jsonb,p_expected_revision bigint) RETURNS jsonb
+account_owner_lookup(p_display_name text) RETURNS jsonb
+account_owner_block(p_account_id uuid,p_expected_security_version bigint,p_note text) RETURNS jsonb
+account_owner_unblock(p_account_id uuid,p_expected_security_version bigint,p_note text) RETURNS jsonb
+account_owner_sign_out_everywhere(p_account_id uuid,p_expected_security_version bigint,p_note text) RETURNS jsonb
+account_owner_apply_password_reset(p_account_id uuid,p_expected_security_version bigint,p_password_hash text,p_password_format text,p_note text) RETURNS jsonb
+account_owner_cleanup(p_note text) RETURNS jsonb
+account_owner_delete_development_accounts(p_account_ids uuid[],p_note text) RETURNS jsonb
+~~~
+
+The **22C.T reset-generator call** is frozen as:
+
+~~~sql
+public.account_owner_apply_password_reset(
+  p_account_id uuid,
+  p_expected_security_version bigint,
+  p_password_hash text,
+  p_password_format text,
+  p_note text
+) RETURNS jsonb
+~~~
+
+Format nfc-argon2id-v1; Argon2id v19, memory 19456 KiB, iterations 2, parallelism 1, 16-byte salt, 32-byte hash. Generate/hash/deliver the temporary secret only in the separately authorized Tooling pass. SQL returns accountId/status/string securityVersion/new-revocation counts/eventId/updatedAt, never the credential. Expected owner mock outcomes and single-SELECT examples for every routine are in supabase/manual/account/README.md.
+
+#### Changed files
+
+- `src/supabase/functions/server/tests/routes/account_enabled_routes_test.ts`
+- `src/documentation/plans/Phase 22 Addendum - Account Design.md`
+- `src/documentation/plans/Phase 22 Menu and Account.md`
+- `src/supabase/functions/server/accounts/accountRepository.ts`
+- `src/supabase/functions/server/accounts/accountResponses.ts`
+- `src/supabase/functions/server/accounts/accountService.ts`
+- `src/supabase/functions/server/accounts/gameRequestIdentity.ts`
+- `src/supabase/functions/server/accounts/rateLimit.ts`
+- `src/supabase/functions/server/index.tsx`
+- `src/supabase/functions/server/routes/intent_routes.ts`
+- `src/supabase/functions/server/tests/accounts/accountRepository_test.ts`
+- `src/supabase/functions/server/tests/accounts/fakeAccountRepository.ts`
+- `src/supabase/functions/server/tests/accounts/gameRequestIdentity_test.ts`
+- `src/supabase/functions/server/tests/accounts/gameSessionRenewalFixture.ts`
+- `src/supabase/functions/server/tests/accounts/gameSessionRenewal_test.ts`
+- `src/supabase/functions/server/tests/accounts/rateLimit_test.ts`
+- `src/supabase/functions/server/tests/routes/account_preferences_routes_test.ts`
+- `src/supabase/functions/server/tests/routes/game_identity_fixture.ts`
+- `src/supabase/functions/server/tests/routes/session_renewal_routes_test.ts`
+- `supabase/manual/account/04-forward.sql`
+- `supabase/manual/account/04-rollback.sql`
+- `supabase/manual/account/04-verify.sql`
+- `supabase/manual/account/README.md`
+
+#### Validation and limits
+
+- **Final validation:** deno task check PASS; all **86 offline server files, 833 tests plus 16 steps, zero failures**; git diff --check PASS. Static SQL inventory/source checks PASS (nine additions, 23 signatures, ten exact rollback body guards, original limiter restoration and balanced dollar tags); these are not PostgreSQL execution. The first full run exposed the historical preferences-404 assertion; it now targets an unknown preferences subpath and checks unsupported preference methods. All nine off-mode expectations stayed unchanged.
+- Focused tests cover preference ownership/types/keys/revisions/conflict snapshots, normal RPC decoding, no token/link effects, revocation races in both orders, mode/admission behavior and renewal hourly/expiry/call-count/name-CAS/error/read boundaries. Nine existing off-mode contract assertions remain unchanged.
+- PostgreSQL execution **not run** here: psql/postgres are unavailable on PATH and Docker access is unavailable. Planning-assistant **PostgreSQL 17.6 mock review remains required before Judd applies set 04**, followed by private backup, entire forward and entire verification. No fake claims to prove SQL isolation/ACLs. README lists every prerequisite and owner result/count/event expectation.
+- Existing ignored compiler options allowImportingTsExtensions/allowJs remain; no configuration change. Keep PHASE14E0_RUN_LIVE_SUPABASE_INTEGRATION unset and grant no --allow-net. The exact offline selection below excludes the live integration module. Runtime reads are limited to public manual-account sources and the two source files existing architecture/parity tests inspect; no secrets or environment files are read.
+
+~~~powershell
+deno task check
+if (Test-Path Env:PHASE14E0_RUN_LIVE_SUPABASE_INTEGRATION) { throw 'Live integration flag must be unset.' }
+$offlineTestFiles = @(rg --files src/supabase/functions/server -g '*_test.ts' | Where-Object { $_ -notmatch 'intent_persistence_live_integration_test\.ts$' } | Sort-Object)
+deno test --cached-only --frozen '--allow-env=ACCOUNTS_MODE,ENABLE_SERVER_DEBUG_LOGS' '--allow-read=supabase/manual/account,src/supabase/functions/server/engine/bot/botRunner.ts,src/game/data/ShipDefinitions.json.ts' @offlineTestFiles
+git diff --check
+~~~
+
+Exact offline test files (relative to src/supabase/functions/server/tests/):
+
+~~~text
+accounts/accountRepository_test.ts
+accounts/accountServiceLoader_test.ts
+accounts/accountService_test.ts
+accounts/clientIp_test.ts
+accounts/gameRequestIdentity_test.ts
+accounts/gameSessionRenewal_test.ts
+accounts/hashAdmission_test.ts
+accounts/humanCheck_test.ts
+accounts/nameKeys_test.ts
+accounts/nameRulesGenerator_test.ts
+accounts/nameRules_test.ts
+accounts/password_test.ts
+accounts/rateLimit_test.ts
+accounts/tokens_test.ts
+engine/ancient/blackHoleSolarPower_test.ts
+engine/ancient/manualSolarDeclaration_test.ts
+engine/ancient/simulacrumSolarPower_test.ts
+engine/ancient/solarPowerResolvers_test.ts
+engine/bot/ancientAuthoredPlans_test.ts
+engine/bot/ancientBotPlanner_test.ts
+engine/bot/ancientBotRunner_test.ts
+engine/bot/ancientBuildPayload_test.ts
+engine/bot/ancientFirstStrike_test.ts
+engine/bot/ancientFullGameValidation_test.ts
+engine/bot/ancientPlans_test.ts
+engine/bot/botControllerProjection_test.ts
+engine/bot/botRunner_test.ts
+engine/bot/buildPlanner_test.ts
+engine/bot/drawingPreludeBotRunner_test.ts
+engine/intent/IntentReducer_test.ts
+engine/intent/buildForeignLegality_test.ts
+engine/intent/buildSubmitResolution_test.ts
+engine/intent/chargeDeclarationResolution_test.ts
+engine/intent/drawingPreludeIntent_test.ts
+engine/intent/drawingPreludeResolution_test.ts
+engine/intent/matchupIntroIntent_test.ts
+engine/intent/missionChallengeIntent_test.ts
+engine/lines/computeLineBonusForPlayer_test.ts
+engine/mission/missionChallenge_test.ts
+engine/phase/chargeDeclarationPhase_test.ts
+engine/phase/cubeDiceManipulation_test.ts
+engine/phase/drawingPreludeCutover_test.ts
+engine/phase/drawingPreludeFoundation_test.ts
+engine/phase/thirdSpiralFirstStrike_test.ts
+engine/phase/turnPhaseProgress_test.ts
+engine/phase/winStreakLineGeneration_test.ts
+engine/state/ancientState_test.ts
+engine/state/battleLogCurrentTurnProjection_test.ts
+engine/state/battleLogHistory_test.ts
+engine/state/currentTurnEstimator_performance_test.ts
+engine/state/currentTurnEstimator_test.ts
+engine/state/drawingPreludeProjection_test.ts
+engine/state/drawingPreludeState_test.ts
+engine/state/speciesSelection_test.ts
+engine_shared/dreadnoughtRevealCounting_test.ts
+engine_shared/effects/appliedEffectVerification_test.ts
+engine_shared/effects/applyEffects_test.ts
+engine_shared/maximumHealth_test.ts
+engine_shared/resolve/ancientSolarBreakdown_test.ts
+engine_shared/resolve/destroyRules_test.ts
+engine_shared/resolve/phaseComputedEffects_test.ts
+engine_shared/shipDefinitionMetadata_test.ts
+routes/account_enabled_routes_test.ts
+routes/account_name_check_routes_test.ts
+routes/account_preferences_routes_test.ts
+routes/account_routes_test.ts
+routes/ancient_state_routes_test.ts
+routes/bot_game_state_read_only_test.ts
+routes/computer_game_identity_routes_test.ts
+routes/current_turn_projection_performance_test.ts
+routes/current_turn_projection_routes_test.ts
+routes/game_history_checkpoint_recovery_test.ts
+routes/game_id_allocation_test.ts
+routes/game_name_identity_routes_test.ts
+routes/game_record_mutation_concurrency_test.ts
+routes/game_state_head_test.ts
+routes/game_state_timeout_persistence_concurrency_test.ts
+routes/intent_persistence_adapter_test.ts
+routes/intent_persistence_concurrency_test.ts
+routes/missionChallengeRoutes_test.ts
+routes/off_mode_game_contract_test.ts
+routes/session_renewal_routes_test.ts
+routes/session_start_identity_routes_test.ts
+routes/species_selection_visibility_routes_test.ts
+routes/timeControlPresets_test.ts
+routes/win_streak_routes_test.ts
+~~~

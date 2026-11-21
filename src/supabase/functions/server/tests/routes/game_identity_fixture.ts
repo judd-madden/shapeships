@@ -65,6 +65,8 @@ export class IdentityMemoryPersistence implements GameStatePersistence {
 // editing production signatures: the characterization suite runs before wiring.
 export function gameIdentityFixture(
   options: Record<string, unknown> = { mode: "off" },
+  renewSession?:
+    import("../../accounts/gameRequestIdentity.ts").GameSessionRenewer,
 ) {
   const app = new Hono(), persistence = new IdentityMemoryPersistence();
   let currentSession = "p1", nextGame = 0;
@@ -115,6 +117,7 @@ export function gameIdentityFixture(
     requireSession,
     persistence,
     options,
+    renewSession,
   ]);
   async function request(
     path: string,

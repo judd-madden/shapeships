@@ -37,6 +37,8 @@ import { createGameIdentityRepository } from "./accounts/accountRepository.ts";
 import {
   createGameRequestIdentity,
   createGameSessionNameBinder,
+  createGameSessionRenewer,
+  gameSessionExpired,
   type GameIdentityRouteOptions,
   type GameRequestIdentity,
 } from "./accounts/gameRequestIdentity.ts";
@@ -160,13 +162,8 @@ const validateSessionToken = async (token: string) => {
       return null;
     }
 
-    // Alpha v3: Use long TTL (24 hours)
-    // Post-Alpha: Implement shorter TTLs and refresh tokens
-    const createdAt = new Date(sessionData.createdAt);
-    const now = new Date();
-    const ageInHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
-    
-    if (ageInHours > 24) {
+    // Accepted intents extend the TTL; legacy records use creation time.
+    if (gameSessionExpired(sessionData, Date.now())) {
       console.error('Session validation failed: Token expired');
       return null;
     }
@@ -174,7 +171,8 @@ const validateSessionToken = async (token: string) => {
     return {
       sessionId: sessionData.sessionId,
       createdAt: sessionData.createdAt,
-      displayName: sessionData.displayName || null
+      displayName: sessionData.displayName || null,
+      ...(sessionData.lastRenewedAt ? { lastRenewedAt: sessionData.lastRenewedAt } : {}),
     };
   } catch {
     console.error({ category: 'session-validation', code: 'INTERNAL_ERROR' });
@@ -259,7 +257,7 @@ const gameIdentityOptions: GameIdentityRouteOptions = {
     return gameIdentity ??= createGameRequestIdentity({
       mode: accountsMode,
       getRepository: () => createGameIdentityRepository(supabase),
-      bindName: createGameSessionNameBinder(supabase, kvGet, kvSet),
+      bindName: createGameSessionNameBinder(supabase, kvSet),
     });
   },
 };
@@ -285,6 +283,7 @@ registerIntentRoutes(
   requireSession,
   intentPersistence,
   gameIdentityOptions,
+  createGameSessionRenewer(supabase),
 );
 
 // ============================================================================

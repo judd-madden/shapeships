@@ -197,6 +197,7 @@ Deno.test("every SQL outcome is mapped safely; unrelated uniqueness never means 
     P2208: "ACCOUNT_TOKEN_INVALID",
     P2209: "NAME_BANNED",
     P2210: "NAME_RESERVED",
+    P2212: "INVALID_REQUEST",
   };
   for (const [code, mapped] of Object.entries(expected)) {
     const { repository } = fixture([{
@@ -232,6 +233,72 @@ Deno.test("every SQL outcome is mapped safely; unrelated uniqueness never means 
     );
     assert.equal(mapAccountDatabaseError(error).retryAfterSeconds, 5);
   }
+});
+
+Deno.test("set 04 adapter: exact preference RPCs, normal conflict results and safe malformed-result failures", async () => {
+  const prefs = {
+    ...success.preferences,
+    updatedAt: new Date(success.preferences.updatedAt).toISOString(),
+  };
+  const f = fixture([
+    { data: { preferences: prefs } },
+    { data: { status: "updated", preferences: prefs } },
+    { data: { status: "conflict", preferences: prefs } },
+  ]);
+  assert.deepEqual(await f.repository.getPreferences(hash), prefs);
+  assert.equal(
+    (await f.repository.updatePreferences(
+      hash,
+      { soundEnabled: false },
+      prefs.revision,
+    )).status,
+    "updated",
+  );
+  assert.deepEqual(
+    await f.repository.updatePreferences(hash, { musicEnabled: false }, "1"),
+    { status: "conflict", preferences: prefs },
+  );
+  assert.deepEqual(f.requests.map((r) => r.url.pathname.split("/").pop()), [
+    "account_get_preferences",
+    "account_update_preferences",
+    "account_update_preferences",
+  ]);
+  assert.deepEqual(f.requests[2].body, {
+    p_token_hash: "\\x" + "07".repeat(32),
+    p_patch: { musicEnabled: false },
+    p_expected_revision: "1",
+  });
+  for (
+    const data of [
+      null,
+      { status: "other", preferences: prefs },
+      { status: "conflict" },
+      { status: "conflict", preferences: { ...prefs, revision: 1 } },
+      {
+        status: "conflict",
+        preferences: { ...prefs, values: { ...values, musicEnabled: "yes" } },
+      },
+    ]
+  ) {
+    const bad = fixture([{ data }]);
+    await assert.rejects(
+      () =>
+        bad.repository.updatePreferences(hash, { soundEnabled: false }, "1"),
+      { code: "ACCOUNT_SERVICE_UNAVAILABLE" },
+    );
+  }
+  // Exception DETAIL is never used as a preference transport.
+  const bad = fixture([{
+    error: {
+      code: "P2211",
+      message: "private",
+      details: JSON.stringify(prefs),
+    },
+  }]);
+  await assert.rejects(
+    () => bad.repository.updatePreferences(hash, { soundEnabled: false }, "1"),
+    { code: "ACCOUNT_SERVICE_UNAVAILABLE" },
+  );
 });
 
 Deno.test("malformed RPC results and network failures fail as service faults", async () => {

@@ -1,4 +1,5 @@
 import type { Context } from "npm:hono";
+import type { AccountPreferences } from "./accountRepository.ts";
 
 // Locked contract: Phase 22 Account Design §2.5 and §2.13.
 export const ACCOUNT_ERRORS = {
@@ -47,6 +48,7 @@ export interface AccountErrorOptions {
 export interface AccountErrorEnvelope {
   ok: false;
   error: { code: AccountErrorCode; message: string } & AccountErrorOptions;
+  preferences?: AccountPreferences;
 }
 
 export function setAccountResponseHeaders(
@@ -67,12 +69,14 @@ export function accountError(
   c: Context,
   code: AccountErrorCode,
   options: AccountErrorOptions = {},
+  preferences?: AccountPreferences,
 ): Response {
   const [status, message] = ACCOUNT_ERRORS[code];
   setAccountResponseHeaders(c, options.retryAfterSeconds);
   const body: AccountErrorEnvelope = {
     ok: false,
     error: { code, message, ...options },
+    ...(preferences ? { preferences } : {}),
   };
   return c.json(body, status);
 }

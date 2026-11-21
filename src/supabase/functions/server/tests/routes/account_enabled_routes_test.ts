@@ -70,7 +70,7 @@ Deno.test("enabled account method/path errors are JSON no-store without spurious
       "/accounts",
       "/accounts/",
       "/accounts/unknown",
-      "/accounts/preferences",
+      "/accounts/preferences/extra",
       "/accounts/claim/extra",
     ]
   ) {
@@ -81,6 +81,14 @@ Deno.test("enabled account method/path errors are JSON no-store without spurious
   const neighbor = await f.app.request(prefix + "/accounts-other");
   assert.equal(neighbor.status, 404);
   assert.equal(neighbor.headers.get("Cache-Control"), null);
+  for (const method of ["POST", "PATCH", "DELETE", "HEAD"]) {
+    const result = await f.app.request(prefix + "/accounts/preferences", { method });
+    assert.equal(result.status, 405);
+    assert.equal(result.headers.get("Cache-Control"), "no-store");
+    assert.equal(result.headers.get("Retry-After"), null);
+    if (method !== "HEAD") assert.equal((await result.json()).error.code, "METHOD_NOT_ALLOWED");
+    else assert.equal(await result.text(), "");
+  }
 });
 
 Deno.test("shared production CORS options permit account headers and expose Retry-After in every mode", async () => {

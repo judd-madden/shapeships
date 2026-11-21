@@ -8,6 +8,8 @@ import {
   type ClaimInput,
   type CredentialSnapshot,
   type GameIdentitySnapshot,
+  type PreferencePatch,
+  type PreferenceUpdateResult,
 } from "../../accounts/accountRepository.ts";
 import { nameKeys } from "../../accounts/nameKeys.ts";
 import { matchingBans, type NameRule } from "../../accounts/nameRules.ts";
@@ -401,6 +403,43 @@ export class FakeAccountRepository implements AccountRepository {
         }
       }
     });
+  }
+  async getPreferences(hash: Uint8Array): Promise<AccountPreferences> {
+    const found = this.#token(hash);
+    if (!found) throw new AccountFault("ACCOUNT_TOKEN_INVALID");
+    const { a } = this.#authorize(new Journal(), found.accountId, found.id);
+    return structuredClone(this.preferences.get(a.id)!);
+  }
+  updatePreferences(
+    hash: Uint8Array,
+    patch: PreferencePatch,
+    expectedRevision: string,
+  ): Promise<PreferenceUpdateResult> {
+    const found = this.#token(hash);
+    if (!found) {
+      return Promise.reject(new AccountFault("ACCOUNT_TOKEN_INVALID"));
+    }
+    return this.#transaction(
+      "preferences",
+      ["account:" + found.accountId],
+      (tx): PreferenceUpdateResult => {
+        const { a } = this.#authorize(tx, found.accountId, found.id);
+        const current = tx.get(this.preferences, a.id)!;
+        if (current.revision !== expectedRevision) {
+          return {
+            status: "conflict",
+            preferences: current,
+          };
+        }
+        const next = {
+          values: { ...current.values, ...patch },
+          revision: (BigInt(current.revision) + 1n).toString(),
+          updatedAt: new Date(this.now).toISOString(),
+        };
+        tx.set(this.preferences, a.id, next);
+        return { status: "updated", preferences: next };
+      },
+    );
   }
   #revokeAll(tx: Journal, id: string) {
     for (const t of tx.values(this.tokens)) {

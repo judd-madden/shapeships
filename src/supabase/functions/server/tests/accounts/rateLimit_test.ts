@@ -249,3 +249,61 @@ Deno.test("cleanup is bounded and attempted once per worker minute", async () =>
   await rate.entry(context("name-check"));
   assert.equal(db.cleanupCalls, 2);
 });
+
+Deno.test("preferences share existing token/unknown scopes and one LA13 global ceiling", async () => {
+  const known = new Uint8Array(32).fill(9);
+  const db = new FakeAccountProtection();
+  db.recognized.add(hex(known));
+  const rate = createAccountRateLimit(config, db, human, { now: () => db.now });
+  for (let i = 0; i < 120; i++) await rate.token(context("preferences"), known);
+  await assert.rejects(
+    () => rate.token(context("preferences"), known),
+    fault("RATE_LIMITED"),
+  );
+  assert.ok(
+    db.calls.flat().some((b) =>
+      b.scope === "account_token" && b.applies === "recognized"
+    ),
+  );
+  for (let i = 0; i < 120; i++) {
+    await rate.token(context("preferences"), new Uint8Array(32).fill(i + 20));
+  }
+  await assert.rejects(
+    () => rate.token(context("preferences")),
+    fault("RATE_LIMITED"),
+  );
+  assert.ok(
+    db.calls.flat().some((b) =>
+      b.scope === "account_unknown_ip" && b.applies === "unknown"
+    ),
+  );
+  const globalDb = new FakeAccountProtection();
+  const globalRate = createAccountRateLimit(
+    { ...config, ipSource: "la13" },
+    globalDb,
+    human,
+    { now: () => globalDb.now },
+  );
+  for (let i = 0; i < 1200; i++) await globalRate.entry(context("preferences"));
+  await assert.rejects(
+    () => globalRate.entry(context("preferences")),
+    fault("RATE_LIMITED"),
+  );
+  assert.ok(
+    globalDb.calls.flat().some((b) =>
+      b.scope === "preferences_global" && b.limit === 1200 &&
+      b.windowSeconds === 60
+    ),
+  );
+  const f = accountFixture({
+    rate: {
+      entry: () =>
+        Promise.reject(new AccountFault("RATE_LIMITED", undefined, 12)),
+    },
+  });
+  const response = await f.app.request(
+    "/make-server-825e19ab/accounts/preferences",
+  );
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get("Retry-After"), "12");
+});

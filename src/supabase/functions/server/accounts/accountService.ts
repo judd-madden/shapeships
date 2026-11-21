@@ -6,6 +6,7 @@ import {
   type AccountRpcClient,
   createAccountProtectionRepository,
   createAccountRepository,
+  type PreferencePatch,
 } from "./accountRepository.ts";
 import {
   accountError,
@@ -47,6 +48,7 @@ export interface GameSession {
   sessionId: string;
   createdAt: string;
   displayName: string | null;
+  lastRenewedAt?: string;
 }
 export type SessionValidator = (token: string) => Promise<GameSession | null>;
 export type AccountLog = (
@@ -85,6 +87,7 @@ const routes: readonly string[] = [
   "password",
   "resume",
   "logout",
+  "preferences",
 ];
 export function createAccountService(
   deps: AccountServiceDependencies,
@@ -138,7 +141,11 @@ export function createAccountService(
         log("accounts", "NOT_FOUND");
         return accountError(c, "NOT_FOUND");
       }
-      if (c.req.method !== "POST") {
+      if (
+        route === "preferences"
+          ? c.req.method !== "GET" && c.req.method !== "PUT"
+          : c.req.method !== "POST"
+      ) {
         log(route, "METHOD_NOT_ALLOWED");
         return accountError(c, "METHOD_NOT_ALLOWED");
       }
@@ -169,20 +176,73 @@ export function createAccountService(
         // cannot create their own recognized-token buckets.
         let tokenHash: Uint8Array | undefined,
           tokenFault: AccountFault | undefined;
-        if (category === "resume" || category === "logout") {
+        if (
+          category === "resume" || category === "logout" ||
+          category === "preferences"
+        ) {
           const raw = c.req.header("X-Account-Token");
           if (raw !== undefined) {
             try {
               tokenHash = await tokenDigest(raw);
             } catch {
-              if (category === "resume") {
+              if (category !== "logout") {
                 tokenFault = new AccountFault("ACCOUNT_TOKEN_INVALID");
               }
             }
-          } else if (category === "resume") {
+          } else if (category !== "logout") {
             tokenFault = new AccountFault("ACCOUNT_TOKEN_REQUIRED");
           }
           await rate.token(context, tokenHash);
+        }
+        if (category === "preferences") {
+          // Preferences never validate S, renew A or touch a session binding.
+          if (c.req.method === "GET") {
+            if (tokenFault) throw tokenFault;
+            const preferences = await repository.getPreferences(tokenHash!);
+            report("OK");
+            return accountSuccess(c, { preferences });
+          }
+          const body = await readAccountJson(c.req.raw);
+          requireFields(body, ["patch", "expectedRevision"]);
+          const patch = body.patch;
+          if (
+            !patch || typeof patch !== "object" || Array.isArray(patch) ||
+            Object.keys(patch).length === 0 ||
+            Object.entries(patch).some(([key, value]) =>
+              ![
+                "soundEnabled",
+                "healthFlashEnabled",
+                "chatMinimized",
+                "battleLogPreferred",
+                "musicEnabled",
+              ].includes(key) || typeof value !== "boolean"
+            )
+          ) throw new AccountFault("INVALID_REQUEST", "patch");
+          const revision = body.expectedRevision;
+          if (
+            typeof revision !== "string" ||
+            !/^[1-9][0-9]{0,18}$/.test(revision) ||
+            BigInt(revision) > 9223372036854775807n
+          ) {
+            throw new AccountFault("INVALID_REQUEST", "expectedRevision");
+          }
+          if (tokenFault) throw tokenFault;
+          const result = await repository.updatePreferences(
+            tokenHash!,
+            patch as PreferencePatch,
+            revision,
+          );
+          if (result.status === "conflict") {
+            report("PREFERENCE_CONFLICT");
+            return accountError(
+              c,
+              "PREFERENCE_CONFLICT",
+              {},
+              result.preferences,
+            );
+          }
+          report("OK");
+          return accountSuccess(c, { preferences: result.preferences });
         }
         const gameSession = category === "logout" || category === "name-check"
           ? undefined

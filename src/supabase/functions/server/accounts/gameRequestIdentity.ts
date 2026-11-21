@@ -293,7 +293,6 @@ export function createGameRequestIdentity(deps: {
 // CAS the validated token row; the session-id row is a metadata mirror only.
 export function createGameSessionNameBinder(
   client: { from(table: string): any },
-  _kvGet: (key: string) => Promise<any>,
   kvSet: (key: string, value: any) => Promise<void>,
 ) {
   return async (
@@ -337,5 +336,61 @@ export function createGameSessionNameBinder(
       ) throw error;
       throw new AccountFault("ACCOUNT_SERVICE_UNAVAILABLE");
     }
+  };
+}
+
+// Shared by validation and renewal; the token row remains authoritative.
+export function gameSessionActivityAt(session: GameSession): number {
+  const renewed = Date.parse(session.lastRenewedAt ?? "");
+  return Number.isFinite(renewed) ? renewed : Date.parse(session.createdAt);
+}
+export function gameSessionExpired(session: GameSession, now: number): boolean {
+  return now - gameSessionActivityAt(session) > 24 * HOUR;
+}
+export type GameSessionRenewer = (
+  token: string,
+  session: GameSession,
+) => Promise<void>;
+
+export function createGameSessionRenewer(
+  client: { from(table: string): any },
+  now: () => number = Date.now,
+): GameSessionRenewer {
+  return async (token, session) => {
+    const at = now();
+    // R1: normal accepted intents pay no extra database operations.
+    if (!token || !(at - gameSessionActivityAt(session) >= HOUR)) return;
+    try {
+      const key = `session_token_${token}`;
+      const read = await client.from("kv_store_825e19ab").select("value")
+        .eq("key", key).maybeSingle();
+      const stored = read.data?.value;
+      if (
+        read.error || !stored || stored.sessionId !== session.sessionId ||
+        gameSessionExpired(stored, at) ||
+        !(at - gameSessionActivityAt(stored) >= HOUR)
+      ) return;
+      const lastRenewedAt = new Date(at).toISOString();
+      const next = { ...stored, lastRenewedAt };
+      const write = await client.from("kv_store_825e19ab").update({
+        value: next,
+      })
+        .eq("key", key).eq("value", JSON.stringify(stored)).select("key");
+      if (
+        write.error || !Array.isArray(write.data) || write.data.length !== 1 ||
+        write.data[0].key !== key
+      ) return;
+      const mirrorKey = `session_id_${session.sessionId}`;
+      const mirror = await client.from("kv_store_825e19ab").select("value")
+        .eq("key", mirrorKey).maybeSingle();
+      if (
+        mirror.error || !mirror.data?.value ||
+        mirror.data.value.sessionId !== session.sessionId
+      ) return;
+      await client.from("kv_store_825e19ab")
+        .update({ value: { ...mirror.data.value, lastRenewedAt } })
+        .eq("key", mirrorKey).eq("value", JSON.stringify(mirror.data.value))
+        .select("key");
+    } catch { /* Best-effort renewal must never change an accepted action. */ }
   };
 }

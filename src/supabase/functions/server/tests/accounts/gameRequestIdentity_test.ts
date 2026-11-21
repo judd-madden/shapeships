@@ -109,9 +109,6 @@ Deno.test("session binding adapter: exact JSON CAS, mirror synchronization, and 
     mirrors = new Map();
   const bind = createGameSessionNameBinder(
     f.client,
-    async () => {
-      throw new Error("Binder must not use kvGet");
-    },
     async (k, v) => {
       mirrors.set(k, v);
     },
@@ -136,9 +133,6 @@ Deno.test("session binding adapter: exact JSON CAS, mirror synchronization, and 
   ]);
   const raced = createGameSessionNameBinder(
     race.client,
-    async () => {
-      throw new Error("Binder must not use kvGet");
-    },
     async () => {},
   );
   assert.equal(await raced("synthetic-session", session, "Other1"), "Winner1");
@@ -171,8 +165,6 @@ for (const mode of ["on", "names-only"] as const) {
           : new Error("synthetic transport failure"),
       ]);
       const bind = createGameSessionNameBinder(database.client, async () => {
-        throw new Error("Binder must not use kvGet");
-      }, async () => {
         throw new Error("Failed reads must not write the mirror");
       });
       const f = enabledGameFixture(mode, bind);

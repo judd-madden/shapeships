@@ -78,7 +78,7 @@ SQLSTATE mapping: P2201 blocked; P2202 stale security snapshot; P2203 stale cred
 
 ### Locking and future sets
 
-Claim uses shared transaction advisory key **(22002, 1)**. Set 04 rule edits must use the exclusive form of that exact key. Mutators lock account, credential where needed, token, then binding; bulk token/link locks are ordered by ID/session ID. Binding INSERT ON CONFLICT DO NOTHING followed by row locking/recheck serializes simultaneous first links. The link helper independently rechecks token expiry after a binding wait. Every UPDATE/DELETE has a WHERE clause.
+Claim uses shared transaction advisory key **(22002, 1)**. Future rule edits would require the exclusive form of that exact key; Judd's 21 November decision excludes rule editing from set 04. Mutators lock account, credential where needed, token, then binding; bulk token/link locks are ordered by ID/session ID. Binding INSERT ON CONFLICT DO NOTHING followed by row locking/recheck serializes simultaneous first links. The link helper independently rechecks token expiry after a binding wait. Every UPDATE/DELETE has a WHERE clause.
 
 Tokens expire at now >= expires_at. Renewal requires last_used_at strictly older than one hour and sets both renewal time and expiry +90 days. Clock decisions use database time. No cleanup is added here; bounded cleanup remains 22C.4.
 
@@ -190,3 +190,100 @@ For the separate mock, test forward/seed/verify/rollback/reapply, seed reruns wi
 **22C.3a local validation:** deno task check PASS; the fifteen test files above PASS, 70 tests and zero failures, with deterministic saved-output comparisons. Generator emitted 1,096 rows / 223,794 SQL bytes. git diff --check PASS for authored work; the staged check reports 25 original whitespace-only lines in the supplied gist snapshot, preserved byte-for-byte. The staged check excluding only that snapshot passes. Existing ignored Deno compiler-option warnings remain. Live-integration flag was unset; no database/local-live/deployment was used.
 
 Disable account operations and reverse later sets before `03-rollback.sql`. It removes generated seeds, the four new functions, masking column/constraints and the two set 03-only global counter scopes. It retains replay/other counters until expiry and restores set 02's checker verbatim. It refuses retained owner/other rules using safe substrings or wildcard keys; remove/review those dependencies explicitly first. Unexpected external dependencies abort through RESTRICT.
+
+
+## Set 04 — 22C.4 preferences and owner operations
+
+**Server Pass; delivered unapplied.** Owner reports sets 01-03 and seed applied, 03-verify PASS, account-smoke-2 14/14 and account-smoke-3 19/19. This supersedes earlier historical unapplied notes. No live SQL, local-live requests or deployment are part of this pass. Ban/exception/reservation rows stay as seeded; there are no owner name-edit or reserve/release routines. Judd and regulars register their own eligible names. The reset generator remains the separate 22C.T Tooling pass.
+
+### Preconditions and application
+
+1. Have the planning assistant mock-test the complete set on **PostgreSQL 17.6** with sets 01-03 and the exact set-03 seed installed. No local PostgreSQL executable was available and Docker access was unavailable during authoring, so the SQL execution gate remains pending.
+2. **Back up first:** Judd takes a private export outside the repository before applying this set. Review the disposable mock results before any live application.
+3. Run 03-verify before forward. All fourteen account functions must have the existing signatures, volatility, result types, invoker settings and ACLs; the exact set-03 rate-scope constraint and original account_rate_hit body must remain, ignoring CRLF/LF differences. Extra account functions/overloads, later sets, schema/access drift or missing reviewed seed examples fail. The eight account tables must retain RLS/no policies and service DML-only grants; four KV tables retain denied browser grants, the active KV retains two indexes and screen_names stays absent. Preference booleans must be NOT NULL and revision must be positive bigint. Forward also refuses unexpected FK/trigger dependencies that could broaden owner deletion.
+4. Paste **all** of 04-forward.sql into one SQL-editor run as postgres. It is one transaction with short locks, no tables or indexes, no KV/name-rule mutations, and no network/hash work. It adds nine functions, replaces only the limiter scope validation and adds preferences_global to the counter constraint. No earlier scripts are edited or rerun.
+5. Run **all** of 04-verify.sql: one SELECT, one result set, overall SET 04 PASS first and no FAIL rows. It supersedes 03-verify. Expected inventory: **23 account functions: 16 service-executable and seven owner-only**. Both new service RPCs deny browser execution. All seven owner functions deny PUBLIC, anon, authenticated and service_role, including inherited effective privileges; only postgres may run them. Mutators have lock_timeout=2s; all functions are SECURITY INVOKER with search_path=''.
+6. After any failed forward/rollback, execute rollback; alone before further SQL. Do not skip preconditions or apply selected later statements.
+
+### Preference RPC contract
+
+- account_get_preferences(p_token_hash bytea) returns {preferences:{values,revision,updatedAt}}. It is read-only and never renews or links.
+- account_update_preferences(p_token_hash bytea,p_patch jsonb,p_expected_revision bigint) returns {status:"updated",preferences} or {status:"conflict",preferences}. Conflict is a **normal result**, changes no row or timestamp and includes the latest authorized snapshot. No exception DETAIL transport or P2211 exists. P2212 maps to INVALID_REQUEST; authorization P2201/P2206-P2209 retains existing mapping.
+- Authorization matches resume and the PUT revalidates under account/token/preference locks, including expiry after the final lock. The target account comes only from the token. Writes never use a game-session ID, renew tokens or relink. Revisions are decimal strings in returned JSON and in the HTTP API; PostgREST bigint input receives the string unchanged.
+- GET and PUT use the existing account_token/unknown-IP admission scopes. LA13 adds one shared preferences_global ceiling of 1,200/minute. The 120/token/minute limit remains effective within that ceiling.
+
+### Owner SQL-editor operations
+
+Replace every placeholder before running. Each block produces one SELECT result. Notes must be nonempty and at most 500 characters; never paste credentials or personal recovery conversations into a note. Lookup returns no credential data. Lookup/mutation missing-account errors are P2240; stale expected versions are P2241; invalid owner inputs are P2242. Reset on blocked status returns P2201. Owner UUID and version checks occur under locks; errors roll back the entire operation. Development cleanup intentionally reports missing UUIDs instead of failing for them.
+
+Lookup is case-insensitive; active counts require current-version, unrevoked, unexpired tokens on an active account, and matching non-detached links:
+
+~~~sql
+SELECT public.account_owner_lookup('REPLACE_WITH_DISPLAY_NAME') AS outcome;
+~~~
+
+Block advances securityVersion and revokes/detaches all tokens/links. Unblock records an event and changes status only: securityVersion stays unchanged and no old authority returns. Mutation results contain accountId, status, decimal securityVersion, revokedTokens, detachedLinks, eventId and updatedAt.
+
+~~~sql
+SELECT public.account_owner_block('REPLACE_WITH_ACCOUNT_UUID'::uuid, REPLACE_WITH_CURRENT_VERSION::bigint, 'REPLACE_WITH_NOTE') AS outcome;
+~~~
+
+~~~sql
+SELECT public.account_owner_unblock('REPLACE_WITH_ACCOUNT_UUID'::uuid, REPLACE_WITH_CURRENT_VERSION::bigint, 'REPLACE_WITH_NOTE') AS outcome;
+~~~
+
+Sign out everywhere without changing the credential:
+
+~~~sql
+SELECT public.account_owner_sign_out_everywhere('REPLACE_WITH_ACCOUNT_UUID'::uuid, REPLACE_WITH_CURRENT_VERSION::bigint, 'REPLACE_WITH_NOTE') AS outcome;
+~~~
+
+Apply a password reset only after ownership checks. **22C.T generates the hash and this SELECT; do not invent a temporary password/hash by hand.** The named interface is frozen:
+
+~~~sql
+SELECT public.account_owner_apply_password_reset(
+  p_account_id => 'REPLACE_WITH_ACCOUNT_UUID'::uuid,
+  p_expected_security_version => REPLACE_WITH_CURRENT_VERSION::bigint,
+  p_password_hash => 'REPLACE_WITH_22CT_ENCODED_HASH',
+  p_password_format => 'nfc-argon2id-v1',
+  p_note => 'REPLACE_WITH_NOTE'
+) AS outcome;
+~~~
+
+The routine validates Argon2id v19, m=19456,t=2,p=1, canonical unpadded base64 for a 16-byte salt/32-byte hash and the exact nfc-argon2id-v1 format. It requires an active account, sets must_change_password=true, advances the version, revokes tokens, detaches links and appends password_reset. It never returns a hash. After SQL success, Judd privately delivers the generated secret; sign-in must return PASSWORD_CHANGE_REQUIRED without issuing a token until password change completes.
+
+Bounded cleanup retains tokens until expiry or revocation is **more than seven days old**. It removes at most 100 old detached/dead-token links, then at most 100 eligible tokens with no remaining links; thus token FK cascades cannot bypass the row bound. It calls account_cleanup_rate_limits() for at most 100 expired counter/replay rows and preserves replay/expiry margins. Repeat while eligible counts remain; locked rows may require a later batch. It records cleanup and returns tokensDeleted, linksDeleted, rateLimitsDeleted, matching RemainingEligible counts and eventId.
+
+~~~sql
+SELECT public.account_owner_cleanup('REPLACE_WITH_CLEANUP_NOTE') AS outcome;
+~~~
+
+Pre-launch cleanup is destructive and explicit: review **1-20 UUIDs**, never a name pattern. Empty/NULL/multidimensional/oversized arrays and NULL elements fail; duplicates are normalized after the raw 20-entry cap. Found accounts are revoked then deleted with credentials, preferences, tokens, links and their owner events. Missing UUIDs are reported; nonselected accounts and every game/session KV row remain intact. One accountless cleanup event survives.
+
+~~~sql
+SELECT public.account_owner_delete_development_accounts(
+  ARRAY['REPLACE_WITH_REVIEWED_ACCOUNT_UUID_1','REPLACE_WITH_REVIEWED_ACCOUNT_UUID_2']::uuid[],
+  'REPLACE_WITH_PRELAUNCH_CLEANUP_NOTE'
+) AS outcome;
+~~~
+
+Expect deletedAccountIds, missingAccountIds, accountsDeleted, credentialsDeleted, preferencesDeleted, tokensDeleted, linksDeleted, ownerEventsDeleted and eventId. Keep the returned UUID list with the private operational record.
+
+### PostgreSQL 17.6 mock acceptance
+
+Run all scenarios only on a disposable database:
+
+- Forward — every 04-verify row PASS — clean rollback — 03-verify PASS — reapply. Check wrong role, function overload/body/config/ACL/constraint/FK/trigger drift, later-set refusal and external dependency RESTRICT failure; every failure leaves the transaction unchanged. No table/RLS-policy/KV/index/Auth/name-rule drift is permitted.
+- Call preferences as service_role and deny anon/authenticated; test all five booleans, rejected JSON/types/keys/empty patches/revisions, bigint revisions beyond JS precision and unchanged fields. A stale revision returns status=conflict with the latest full preferences and no write. Revoked/expired/version-mismatched/blocked/banned tokens must fail before any snapshot is disclosed. Exercise both lock orders against logout/reset; the earlier committed authorization determines whether the write succeeds. Assert tokens/links/timestamps are not renewed or relinked.
+- Deny every owner routine to service_role/anon/authenticated. Lookup includes only the documented fields. For block/revoke/reset expect version +1, zero active tokens/links and one matching event. Unblock keeps the version, returns zero new revocations and never resurrects authority. Wrong UUID/version changes nothing. Reset accepts a synthetic current-policy hash, rejects changed parameters/format, noncanonical salt/hash and trailing data, and sets forced change without exposing credentials.
+- Seed over 100 old tokens and links plus active/recent rows. Each cleanup deletes no more than 100 rows per category, reports remaining eligibility correctly and preserves active tokens and unexpired replay guards. Include one token with over 100 links to prove no cascade exceeds the cap; exercise locked rows.
+- Development deletion rejects invalid arrays, normalizes duplicates, returns absent UUIDs, removes only selected accounts and their dependent/event rows, and preserves another account and all KV/Auth/rules. A surviving accountless cleanup event is expected.
+- Insert preferences_global counters: rollback must refuse without deleting them. Stop traffic, wait for their expiry including the one-hour counter margin, drain via owner cleanup, then rollback. Verify original limiter source/config/ACL and all retained data.
+
+### Set 04 rollback and remaining evidence
+
+Disable account operations first, reverse later sets, and **back up first**. Run the entire 04-rollback.sql as postgres. It checks 04-verify, the exact ten added/replaced function bodies and existing privileges/configuration, then locks counters and refuses any preferences_global rows. It restores set 03's limiter and constraint verbatim and drops the nine new routines with RESTRICT; it deletes no data. Owner mutations already performed, changed preferences and guest-renewal KV fields are retained. Restoring an old password or deleted account requires the private backup; schema rollback cannot reconstruct them.
+
+Guest renewal is Edge-only and independent of account mode/SQL. Non-due accepted intents use zero extra database operations; due attempts use at most token read + CAS + mirror read + CAS, with no retries. Token and mirror writes are separate; the token is authoritative and mirror failure is best effort. Judd chose to preserve the current reducer's rejection of spectator chat (PLAYER_NOT_ACTIVE); rejected chat does not renew. Any accepted spectator intent uses the same hook. Full API/client obligations are in addendum §2.16 and the pass record in main-plan §15.
+
+**22C.4 author validation:** deno task check PASS; all 86 offline server test files PASS, 833 tests plus 16 steps, zero failures; git diff --check PASS. Static SQL inventory and exact source-restoration checks PASS. PostgreSQL 17.6 execution remains pending with the planning assistant; no live/database/deployment action or commit was performed.

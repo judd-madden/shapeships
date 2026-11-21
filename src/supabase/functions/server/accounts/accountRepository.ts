@@ -35,6 +35,10 @@ export interface AccountPreferences {
   revision: string;
   updatedAt: string;
 }
+export type PreferencePatch = Partial<PreferenceValues>;
+export type PreferenceUpdateResult =
+  | { status: "updated"; preferences: AccountPreferences }
+  | { status: "conflict"; preferences: AccountPreferences };
 export interface AccountLink {
   sessionId: string;
   accountId: string;
@@ -75,6 +79,12 @@ export interface AccountRepository {
   ): Promise<AccountEntry>;
   resume(tokenHash: Uint8Array, sessionId?: string): Promise<AccountEntry>;
   logout(tokenHash: Uint8Array): Promise<void>;
+  getPreferences(tokenHash: Uint8Array): Promise<AccountPreferences>;
+  updatePreferences(
+    tokenHash: Uint8Array,
+    patch: PreferencePatch,
+    expectedRevision: string,
+  ): Promise<PreferenceUpdateResult>;
   changePassword(
     snapshot: CredentialSnapshot,
     passwordHash: string,
@@ -223,6 +233,7 @@ const sqlErrors: Record<string, AccountErrorCode> = {
   P2208: "ACCOUNT_TOKEN_INVALID",
   P2209: "NAME_BANNED",
   P2210: "NAME_RESERVED",
+  P2212: "INVALID_REQUEST",
 };
 
 // Never retain the raw error as a cause, message or logging field.
@@ -344,9 +355,10 @@ export function createAccountProtectionRepository(
     },
   };
 }
-function entry(value: unknown, sessionId?: string): AccountEntry {
-  const row = object(value), p = object(row.preferences), v = object(p.values);
+function preferences(value: unknown): AccountPreferences {
+  const p = object(value), v = object(p.values);
   const values = {} as PreferenceValues;
+  if (Object.keys(v).length !== 5) fault();
   for (
     const key of [
       "soundEnabled",
@@ -359,13 +371,13 @@ function entry(value: unknown, sessionId?: string): AccountEntry {
     if (typeof v[key] !== "boolean") fault();
     values[key] = v[key];
   }
+  return { values, revision: version(p.revision), updatedAt: iso(p.updatedAt) };
+}
+function entry(value: unknown, sessionId?: string): AccountEntry {
+  const row = object(value);
   const result: AccountEntry = {
     account: identity(row.account),
-    preferences: {
-      values,
-      revision: version(p.revision),
-      updatedAt: iso(p.updatedAt),
-    },
+    preferences: preferences(row.preferences),
     expiresAt: iso(row.expiresAt),
   };
   if (sessionId !== undefined) {
@@ -487,6 +499,25 @@ export function createAccountRepository(
     },
     async logout(hash) {
       await rpc("account_logout", { p_token_hash: bytea(hash) });
+    },
+    async getPreferences(hash) {
+      const row = object(
+        await rpc("account_get_preferences", {
+          p_token_hash: bytea(hash),
+        }),
+      );
+      return preferences(row.preferences);
+    },
+    async updatePreferences(hash, patch, expectedRevision) {
+      const row = object(
+        await rpc("account_update_preferences", {
+          p_token_hash: bytea(hash),
+          p_patch: patch,
+          p_expected_revision: expectedRevision,
+        }),
+      );
+      if (row.status !== "updated" && row.status !== "conflict") fault();
+      return { status: row.status, preferences: preferences(row.preferences) };
     },
     async changePassword(s, hash, format, token, sessionId) {
       return entry(

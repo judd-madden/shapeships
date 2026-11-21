@@ -13,6 +13,8 @@
 import type { Hono } from "npm:hono";
 import { accountsMode } from '../accounts/accountsMode.ts';
 import { gameIdentityError, gameIdentityRequest, type GameIdentityRouteOptions } from '../accounts/gameRequestIdentity.ts';
+import type { GameSessionRenewer } from '../accounts/gameRequestIdentity.ts';
+import type { GameSession } from '../accounts/accountService.ts';
 import { applyIntent, type IntentRequest } from '../engine/intent/IntentReducer.ts';
 import { accrueClocks } from '../engine/clock/clock.ts';
 import { runBotsUntilSettled } from '../engine/bot/botRunner.ts';
@@ -811,17 +813,30 @@ export function registerIntentRoutes(
   requireSession: (c: any) => Promise<any>,
   persistence: IntentPersistence,
   identityOptions: GameIdentityRouteOptions = {},
+  renewSession?: GameSessionRenewer,
 ) {
-  app.post("/make-server-825e19ab/intent", (c) =>
-    handleIntentRequest({
+  app.post("/make-server-825e19ab/intent", async (c) => {
+    let validatedSession: GameSession | undefined;
+    const response = await handleIntentRequest({
       c,
       kvGet,
       kvSet,
-      requireSession,
+      requireSession: async (context) => {
+        const result = await requireSession(context);
+        if (!(result instanceof Response)) validatedSession = result;
+        return result;
+      },
       persistence,
       identityOptions,
-    })
-  );
+    });
+    // Every existing 200 path is an accepted intent, including duplicate/fallback.
+    if (response.status === 200 && validatedSession && renewSession) {
+      try {
+        await renewSession(c.req.header('X-Session-Token') ?? '', validatedSession);
+      } catch { /* Renewal cannot fail the player's accepted action. */ }
+    }
+    return response;
+  });
 
   
   // ============================================================================

@@ -12,7 +12,8 @@ export type AccountCategory =
   | "sign-in"
   | "password"
   | "resume"
-  | "logout";
+  | "logout"
+  | "preferences";
 export interface AccountAdmissionContext {
   category: AccountCategory;
   // Gateway/session/account credentials are removed; never log this context.
@@ -49,6 +50,7 @@ export const LA13_SIGNIN_LIMIT = 600;
 export const LA13_PASSWORD_LIMIT = 60;
 export const LA13_RESUME_LIMIT = 1200;
 export const LA13_LOGOUT_LIMIT = 1200;
+export const LA13_PREFERENCES_LIMIT = 1200;
 export const LA13_GLOBAL_LIMITS: Record<
   AccountCategory,
   { limit: number; seconds: number; scope: string }
@@ -67,6 +69,11 @@ export const LA13_GLOBAL_LIMITS: Record<
   },
   resume: { limit: LA13_RESUME_LIMIT, seconds: 60, scope: "resume_global" },
   logout: { limit: LA13_LOGOUT_LIMIT, seconds: 60, scope: "logout_global" },
+  preferences: {
+    limit: LA13_PREFERENCES_LIMIT,
+    seconds: 60,
+    scope: "preferences_global",
+  },
 };
 export interface RateLimitConfig {
   secret?: string;
