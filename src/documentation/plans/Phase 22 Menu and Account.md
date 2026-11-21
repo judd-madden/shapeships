@@ -674,3 +674,177 @@ git diff --check
 
 - **Server Pass:** humanCheck.ts now uses `TURNSTILE_CLOCK_SKEW_TOLERANCE_MS = 60000`, accepting proof ages from -60,000 through 300,000 ms inclusive in all modes. This prevents small server/Cloudflare clock differences from rejecting fresh proofs; the five-minute maximum and all success, hostname, action, dummy-key and replay checks are unchanged. The contract is recorded in addendum L14.
 - **Validation:** `deno task check` PASS; explicitly listed `humanCheck_test.ts` and `accountService_test.ts` PASS (**25 tests, zero failures**) with cached/frozen dependencies, only the named ACCOUNTS_MODE/ENABLE_SERVER_DEBUG_LOGS environment permissions and no `--allow-net`. Coverage includes future proofs at 2/59/60 seconds, rejection at 60,001 ms/61 seconds and over five minutes old, and the captured dummy response including metadata with test-mode/real-secret restrictions. Existing Deno ignored-option warnings remain. No SQL, configuration, database, local-live or deployment changes; no commit.
+
+### 22C.3b — Game-request names, account provenance and seat authority — 21 November 2026
+
+- **Pass/ownership:** Server Pass. Human identity resolution, assignment eligibility and account seat checks belong on the authoritative server. The engine receives the same session-derived participant IDs; networking/client/display code is untouched. Judd reports SQL sets 01–03 applied, 03-verify PASS on 21 November and the 14-check account smoke PASS; this supersedes historical set-03-unapplied notes above. This pass does not access the live database.
+- **Changed server files** (relative to `src/supabase/functions/server/`): `accounts/accountRepository.ts`, new `accounts/gameRequestIdentity.ts`, `index.tsx`, `routes/auth_routes.ts`, `routes/game_routes.ts`, `routes/intent_routes.ts`, `engine/state/GameStateTypes.ts`, `engine/state/ancientState.ts`; `tests/accounts/fakeAccountRepository.ts`, new `tests/accounts/gameIdentityFixture.ts`, new `tests/accounts/gameRequestIdentity_test.ts`; new `tests/routes/game_identity_fixture.ts`, `off_mode_game_contract_test.ts`, `game_name_identity_routes_test.ts`, `session_start_identity_routes_test.ts`, `computer_game_identity_routes_test.ts`. Documentation changes are this §15 record and addendum §2.15.
+- **Off / R2:** Every mutation route has an explicit mode guard before resolver acquisition, including error handling. The nine original contracts remain intact: no name/account work, no new errors, unchanged validation ordering, original create/rematch/reset trim behavior and raw join/session labels. A throwing acquisition spy proves the resolver is never invoked. Constructors add no field for anonymous/off participants. The shared sanitizer's only change is omitting `accountId`; equality tests compare otherwise identical projections.
+- **Assignments:** The shared resolver selects verified linked account casing, otherwise the bound guest name, otherwise a validated legacy hint. Anonymous hints cannot replace a binding; bind-once uses a JSON-value CAS on the session-token KV row and synchronizes the session-id metadata mirror. A different concurrent winning name returns 409 so the retry uses that binding without a second name RPC. Guest surrounding whitespace is trimmed before the 3–20 ASCII alphanumeric check; internal whitespace is invalid. New account participants/spectators carry server-derived accountId, never body-provided provenance. Existing guest participants are not converted on claim/sign-in; new seats use the current account name.
+- **Existing seats / R1:** Guest/grandfathered actions retain labels, accept original-session rejoin and ignore irrelevant optional account credentials. Only bans are rechecked. Unavailable lookups log the safe `game-name`/`BAN_LOOKUP_UNAVAILABLE_FAIL_OPEN` outcome and continue; no failure is cached as allowed. Known bans reject. New assignments, promotions, rematches and replacements fail closed on account-service failure (503, Retry-After 5). On-mode account seats require valid matching account/token/security-version/active-link state and never downgrade to guest authority. Reads/polls are exempt. Names-only uses session authority and permits provenanced source-name reuse for rematches/replacements/promotions.
+- **Server generation / R4:** Computer construction and System action/chat emission are never resolver inputs. No checks were inserted into the engine or bot runner. Human requested names still undergo reservation/moderation. The on-mode route lifecycle test plays through species/Mission/matchup setup and bot turns, sends chat, finishes with legal SURRENDER, rematches and resets into a neutral replacement. It deliberately bans the two server labels in its fake rules and verifies neither label reaches the name service during server execution. The test does not fabricate a terminal game state.
+- **Caching / R3:** At most 1,024 entries in each verdict and identity cache. Ban verdicts/rule snapshots expire after 60 seconds; linked identity after 15 seconds, capped by token expiry. Windows begin at lookup start, so slow responses and memoized CAS retries cannot extend them. New assignments do not reuse verdict cache entries. Per-request promises include failures, limiting retries to one name RPC and one joined identity read. Changed participant name/provenance on reload produces 409 rather than authorizing stale identity. Logout/password/reset/block suspend account authority within 15 seconds; a previously authorized KV request can finish. Due-only renewal uses the existing hourly-throttled resume RPC without sessionId, never relinks an action, and revalidates credentials separately.
+
+#### D3 — Exact gameplay error envelopes
+
+| Route (existing function prefix omitted) | Name/account failure JSON |
+| --- | --- |
+| POST `/session/start` | `{error: CODE, message: SAFE_MESSAGE}` |
+| POST `/create-game` | `{error: CODE, message: SAFE_MESSAGE}` |
+| POST `/create-computer-game` | `{error: CODE, message: SAFE_MESSAGE}` |
+| POST `/new-game-from/:gameId` | `{error: CODE, message: SAFE_MESSAGE}` |
+| POST `/reset-win-streak/:gameId` | `{error: CODE, message: SAFE_MESSAGE}` |
+| POST `/join-game/:gameId` | `{error: CODE, message: SAFE_MESSAGE}` |
+| POST `/switch-role/:gameId` | `{error: CODE, message: SAFE_MESSAGE}` |
+| POST `/leave-spectator/:gameId` | `{error: CODE, message: SAFE_MESSAGE}` |
+| POST `/intent` (including chat) | `{ok:false,state:null,events:[],rejected:{code:CODE,message:SAFE_MESSAGE}}` |
+
+Messages/statuses come from the locked ACCOUNT_ERRORS table: INVALID_NAME / INVALID_REQUEST 400; ACCOUNT_TOKEN_REQUIRED / ACCOUNT_TOKEN_INVALID / ACCOUNT_TOKEN_EXPIRED 401; NAME_BANNED / NAME_RESERVED / CLAIMED_NAME_REQUIRES_ACCOUNT / ACCOUNT_BLOCKED 403; SESSION_LINK_CONFLICT 409 if returned by linking; ACCOUNT_SERVICE_UNAVAILABLE 503 with Retry-After 5. These failures are no-store. Existing requireSession 401 bodies/messages are unchanged, particularly `Invalid or expired session token`; account errors do not trigger sessionManager's session replacement. Identity/name changes during CAS retries use the existing game-conflict style `{error:"Game changed during identity resolution; retry the request"}` (409), or the intent envelope with rejected code STATE_CONFLICT and that message. These are concurrency outcomes, not account codes. Other existing errors keep their original envelopes.
+
+#### R3 — On-mode account database calls
+
+Counts below are client-to-database operations beyond the unchanged session/game/history KV operations. They are tested with the pinned Supabase client and instrumented repositories, not claimed as hosted SQL measurements. Each joined identity GET is one operation even though it joins token/account/link tables. Missing or malformed inputs may return before any operation; cache hits count zero. The separate renewal RPC internally rechecks token/account state and name rules.
+
+| Route / branch | Name RPCs | Identity GETs | Other account operations |
+| --- | --- | --- | --- |
+| Unnamed anonymous session start | 0 | 0 | 0 |
+| Named anonymous session start | 1 | 0 | 0 |
+| Account session start | 0 | 1 | 1 resume/link RPC, including its renewal handling |
+| Create-game / create-computer-game | 1 | 0–1 | 0–1 due-renewal RPC |
+| Join: new player or spectator | 1 | 0–1 | 0–1 due-renewal RPC |
+| New-game-from / new streak replacement / promotion | 1 | 0–1 | 0–1 due-renewal RPC; optional rule pages for a distinct stored source label |
+| Join: existing participant | 0–1 | 0–1 | 0–1 due-renewal RPC; rule pages instead of a name RPC for a legacy label |
+| Switch-role without promotion | 0–1 | 0–1 | Same as existing participant |
+| Leave-spectator with existing seat | 0–1 | 0–1 | Same as existing participant |
+| Completed streak-reset replay | 0–1 | 0–1 | Existing-seat checks only; no new assignment |
+| Intent / chat | 0–1 | 0–1 | Same as existing participant |
+| Game-state / head / history / chat-state / previews | 0 | 0 | 0 |
+| Server Computer/System creation and internal bot execution | 0 | 0 | 0 |
+
+The identity count is zero for guest seats regardless of optional account headers, and for anonymous assignments without an account token. Live-rule fallback retrieves all banned/exception rows with exact counts and ordered pagination, advancing by returned rows to respect lower PostgREST row caps. Missing counts, incomplete pages or changing counts fail as unavailable; the R1 policy then applies. Each page is an explicit additional table GET, never hidden in the name-RPC count. Pinned-client tests exercise both 1,001-row/two-page and 501-row/500-row-cap cases. New-name RPCs remain authoritative. Observed route assertions include: cold account join after two CAS conflicts = 1 name RPC + 1 identity GET; hour-due intent after two conflicts = 1 name RPC + 1 identity GET + 1 renewal RPC; its immediate successor = zero account operations; source-label/new-account-label revalidation = 1 name RPC plus at most one identity GET and rule pages when uncached. No fallback diagnostic lookup occurs after a failed identity read.
+
+#### D2 — Client name inputs left for 22C.5 / 22B
+
+- `src/game/hooks/usePlayer.tsx`: generates two-word names, restores sessionStorage names without validation, and accepts arbitrary updatePlayerName values.
+- `src/game/client/gameSession/playerName.ts`: trusts prop and localStorage names and generates a spaced friendly fallback.
+- `src/App.tsx`: Single Player/Multiplayer launchers and development Create Game forward player.name; session-ID/streak lookup also forwards that name. The session-debug reset control checks only nonempty trimmed text. `startPlayerSession` trusts its caller; ordinary AlphaEntryPanel validates format locally but does not check server eligibility.
+- `src/game/client/gameSession/clienteffects/useNetworkingEffects.ts`: auto-join and its retry send the unchecked effectivePlayerName after ensureSession.
+- `src/utils/sessionManager.ts`: creation and opt-in session recovery accept arbitrary displayName; storage reuse may retain an older local label. `src/game/client/useGameSession.ts` also forwards effective names into session/streak lookup. These networking helpers currently do not attach account tokens, so account-owned gameplay requires the later 22C.5 integration. Claim/account error mapping is likewise deferred. No client fixes are bundled here.
+
+#### Validation and explicit regression enumeration
+
+- **R6 baseline before production changes:** off_mode_game_contract_test.ts, **9 passed, 0 failed**. Only the two new test/fixture files existed at that point; route implementations were unmodified. The baseline command appears below. Post-implementation: the same nine contract tests pass, with unchanged expectations and the resolver acquisition spy active.
+- **Final checks:** `deno task check --frozen` PASS; all **83 offline server test files, 807 tests plus 16 steps, zero failures**; `git diff --check` PASS. Existing ignored-option warnings (allowImportingTsExtensions/allowJs) remain. No live integration, network grant, SQL execution, npm checks, environment/configuration changes, deployment or commit.
+- Coverage includes whitespace boundaries, all assignment paths in both enforced modes, anonymous/account bootstrap, casing, bind-once/CAS winner, guest grandfathering, source-name changes, new spectator provenance, accepted/rejected/read projection privacy, account logout/relink and revocation, exact cache/renewal deadlines, slow lookups, CAS name changes, availability policies and trusted bot lifecycle.
+
+```powershell
+# R6 baseline command, run before editing production routes; repeated afterward:
+deno test --cached-only --frozen '--allow-env=ACCOUNTS_MODE,ENABLE_SERVER_DEBUG_LOGS' src/supabase/functions/server/tests/routes/off_mode_game_contract_test.ts
+
+deno task check --frozen
+$serverTestFiles = @(rg --files src/supabase/functions/server/tests -g '*test.ts' | Where-Object { $_ -notmatch 'intent_persistence_live_integration_test\.ts$' } | Sort-Object)
+$serverTestFiles
+deno test --cached-only --frozen '--allow-env=ACCOUNTS_MODE,ENABLE_SERVER_DEBUG_LOGS' '--allow-read=src/supabase/functions/server/engine/bot/botRunner.ts,src/game/data/ShipDefinitions.json.ts,supabase/manual/account' @serverTestFiles
+git diff --check
+```
+
+PHASE14E0_RUN_LIVE_SUPABASE_INTEGRATION was verified **unset**. The excluded file is `routes/intent_persistence_live_integration_test.ts`. Every selected test file is listed below, relative to `src/supabase/functions/server/tests/`:
+
+```text
+accounts/accountRepository_test.ts
+accounts/accountService_test.ts
+accounts/accountServiceLoader_test.ts
+accounts/clientIp_test.ts
+accounts/gameRequestIdentity_test.ts
+accounts/hashAdmission_test.ts
+accounts/humanCheck_test.ts
+accounts/nameKeys_test.ts
+accounts/nameRules_test.ts
+accounts/nameRulesGenerator_test.ts
+accounts/password_test.ts
+accounts/rateLimit_test.ts
+accounts/tokens_test.ts
+engine/ancient/blackHoleSolarPower_test.ts
+engine/ancient/manualSolarDeclaration_test.ts
+engine/ancient/simulacrumSolarPower_test.ts
+engine/ancient/solarPowerResolvers_test.ts
+engine/bot/ancientAuthoredPlans_test.ts
+engine/bot/ancientBotPlanner_test.ts
+engine/bot/ancientBotRunner_test.ts
+engine/bot/ancientBuildPayload_test.ts
+engine/bot/ancientFirstStrike_test.ts
+engine/bot/ancientFullGameValidation_test.ts
+engine/bot/ancientPlans_test.ts
+engine/bot/botControllerProjection_test.ts
+engine/bot/botRunner_test.ts
+engine/bot/buildPlanner_test.ts
+engine/bot/drawingPreludeBotRunner_test.ts
+engine/intent/buildForeignLegality_test.ts
+engine/intent/buildSubmitResolution_test.ts
+engine/intent/chargeDeclarationResolution_test.ts
+engine/intent/drawingPreludeIntent_test.ts
+engine/intent/drawingPreludeResolution_test.ts
+engine/intent/IntentReducer_test.ts
+engine/intent/matchupIntroIntent_test.ts
+engine/intent/missionChallengeIntent_test.ts
+engine/lines/computeLineBonusForPlayer_test.ts
+engine/mission/missionChallenge_test.ts
+engine/phase/chargeDeclarationPhase_test.ts
+engine/phase/cubeDiceManipulation_test.ts
+engine/phase/drawingPreludeCutover_test.ts
+engine/phase/drawingPreludeFoundation_test.ts
+engine/phase/thirdSpiralFirstStrike_test.ts
+engine/phase/turnPhaseProgress_test.ts
+engine/phase/winStreakLineGeneration_test.ts
+engine/state/ancientState_test.ts
+engine/state/battleLogCurrentTurnProjection_test.ts
+engine/state/battleLogHistory_test.ts
+engine/state/currentTurnEstimator_performance_test.ts
+engine/state/currentTurnEstimator_test.ts
+engine/state/drawingPreludeProjection_test.ts
+engine/state/drawingPreludeState_test.ts
+engine/state/speciesSelection_test.ts
+engine_shared/dreadnoughtRevealCounting_test.ts
+engine_shared/effects/appliedEffectVerification_test.ts
+engine_shared/effects/applyEffects_test.ts
+engine_shared/maximumHealth_test.ts
+engine_shared/resolve/ancientSolarBreakdown_test.ts
+engine_shared/resolve/destroyRules_test.ts
+engine_shared/resolve/phaseComputedEffects_test.ts
+engine_shared/shipDefinitionMetadata_test.ts
+routes/account_enabled_routes_test.ts
+routes/account_name_check_routes_test.ts
+routes/account_routes_test.ts
+routes/ancient_state_routes_test.ts
+routes/bot_game_state_read_only_test.ts
+routes/computer_game_identity_routes_test.ts
+routes/current_turn_projection_performance_test.ts
+routes/current_turn_projection_routes_test.ts
+routes/game_history_checkpoint_recovery_test.ts
+routes/game_id_allocation_test.ts
+routes/game_name_identity_routes_test.ts
+routes/game_record_mutation_concurrency_test.ts
+routes/game_state_head_test.ts
+routes/game_state_timeout_persistence_concurrency_test.ts
+routes/intent_persistence_adapter_test.ts
+routes/intent_persistence_concurrency_test.ts
+routes/missionChallengeRoutes_test.ts
+routes/off_mode_game_contract_test.ts
+routes/session_start_identity_routes_test.ts
+routes/species_selection_visibility_routes_test.ts
+routes/timeControlPresets_test.ts
+routes/win_streak_routes_test.ts
+```
+
+#### Owner local gameplay checklist and remaining boundary
+
+Judd runs this first with ACCOUNTS_MODE=off, then on, using separate browser contexts and valid unclaimed alphanumeric names (the development-generated spaced defaults intentionally remain unfixed):
+
+1. Browser A creates multiplayer; B joins. Select species, continue the intro, play several turns, and exchange chat.
+2. C joins as spectator. B switches to spectator; C promotes to player. C demotes; B promotes back. C leaves spectating and rejoins. Verify roles, labels and system/presence messages.
+3. Reload/rejoin A and B with their original sessions; verify names and participant IDs remain unchanged.
+4. Finish by surrendering, create a rematch, and join it from the other browser. Verify the new game and its messages.
+5. Create/play a computer game through bot turns and chat. Separately create an eligible positive-streak computer game, reset before the first human build, verify the zero-bonus replacement and rejoin it. The reset control is available only for a positive streak; a zero-streak game is not a valid reset fixture.
+6. In on mode, use fresh guest sessions to try System and Computer (NAME_RESERVED) and Smoke347059 (CLAIMED_NAME_REQUIRES_ACCOUNT), all 403. Ordinary bound-name requests cannot rename an existing session by changing body hints.
+
+The new joined PostgREST read and session JSON CAS are pinned-client/fake tested; this pass does not prove live ACL/isolation or hosted runtime behavior. The manual local gameplay run remains pending, and no public activation is requested. Session-token binding and its metadata mirror are separate KV writes, with the token row authoritative. Account linking and KV game/session writes are not one cross-store transaction; a request already authorized may finish during revocation. The approved legacy matcher/availability and names-only provenance refinements are recorded in addendum §2.15. Durable ownership/import/cross-device evidence remains 22D; preferences and owner routines remain 22C.4.

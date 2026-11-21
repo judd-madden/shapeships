@@ -1143,7 +1143,7 @@ function sanitizePlayers(
     !publicOnly && requester?.role === 'player';
   return players.map((player) => {
     if (!isObject(player)) return player;
-    const { energy: _obsoleteEnergy, ...safePlayer } = player;
+    const { energy: _obsoleteEnergy, accountId: _accountId, ...safePlayer } = player;
     const playerId = typeof safePlayer.id === 'string' ? safePlayer.id : null;
     const publicResources = playerId
       ? getDrawingPublicSavedResources(state, playerId)

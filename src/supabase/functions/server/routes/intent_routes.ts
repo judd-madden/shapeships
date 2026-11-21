@@ -11,6 +11,8 @@
  */
 
 import type { Hono } from "npm:hono";
+import { accountsMode } from '../accounts/accountsMode.ts';
+import { gameIdentityError, gameIdentityRequest, type GameIdentityRouteOptions } from '../accounts/gameRequestIdentity.ts';
 import { applyIntent, type IntentRequest } from '../engine/intent/IntentReducer.ts';
 import { accrueClocks } from '../engine/clock/clock.ts';
 import { runBotsUntilSettled } from '../engine/bot/botRunner.ts';
@@ -410,9 +412,11 @@ async function handleIntentRequest(args: {
   kvSet: (key: string, value: any) => Promise<void>;
   requireSession: (c: any) => Promise<any>;
   persistence: IntentPersistence;
+  identityOptions: GameIdentityRouteOptions;
 }) {
   const { c, kvGet, kvSet, requireSession, persistence } = args;
   let committedFallbackResponse: ReturnType<typeof responseBody> | null = null;
+  const mode = args.identityOptions.mode ?? accountsMode;
   try {
     const session = await requireSession(c);
     if (session instanceof Response) return session;
@@ -440,6 +444,7 @@ async function handleIntentRequest(args: {
     };
     const gameKey = `game_${intentRequest.gameId}`;
     const nowMs = Date.now();
+    const identity = mode !== 'off' ? gameIdentityRequest(args.identityOptions, c, session) : undefined;
 
     for (let attempt = 0; attempt <= MAX_INTENT_CONFLICT_RETRIES; attempt += 1) {
       const loaded = await persistence.load(gameKey);
@@ -464,6 +469,10 @@ async function handleIntentRequest(args: {
       }
 
       const rawState = structuredClone(loaded.value);
+      if (identity) {
+        const participant = rawState?.players?.find((p: any) => p?.id === sessionPlayerId);
+        if (participant) await identity.seat(participant);
+      }
       const revisionToken = getPersistedStateRevisionToken(rawState);
       if (revisionToken.kind === 'invalid') {
         return c.json({
@@ -780,6 +789,10 @@ async function handleIntentRequest(args: {
       console.error('[Intent] Post-commit operation failed; preserving accepted response:', error);
       return c.json(committedFallbackResponse, 200);
     }
+    if (mode !== 'off') {
+      const response = gameIdentityError(c, error, true);
+      if (response) return response;
+    }
     console.error('[Intent] Internal error before authoritative commit:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     return c.json({
@@ -797,6 +810,7 @@ export function registerIntentRoutes(
   kvSet: (key: string, value: any) => Promise<void>,
   requireSession: (c: any) => Promise<any>,
   persistence: IntentPersistence,
+  identityOptions: GameIdentityRouteOptions = {},
 ) {
   app.post("/make-server-825e19ab/intent", (c) =>
     handleIntentRequest({
@@ -805,6 +819,7 @@ export function registerIntentRoutes(
       kvSet,
       requireSession,
       persistence,
+      identityOptions,
     })
   );
 

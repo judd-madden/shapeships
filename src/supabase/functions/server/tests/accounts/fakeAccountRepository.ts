@@ -7,6 +7,7 @@ import {
   type AccountRepository,
   type ClaimInput,
   type CredentialSnapshot,
+  type GameIdentitySnapshot,
 } from "../../accounts/accountRepository.ts";
 import { nameKeys } from "../../accounts/nameKeys.ts";
 import { matchingBans, type NameRule } from "../../accounts/nameRules.ts";
@@ -178,6 +179,7 @@ export class FakeAccountRepository implements AccountRepository {
     }));
   }
   nameStatus(displayName: string) {
+    this.#step("nameStatus");
     const keys = nameKeys(displayName);
     const account = [...this.accounts.values()].find((a) =>
       a.nameKey === keys.nameKey
@@ -474,6 +476,44 @@ export class FakeAccountRepository implements AccountRepository {
     } catch {
       return Promise.resolve(null);
     }
+  }
+  tokenSnapshot(
+    hash: Uint8Array,
+    sessionId?: string,
+  ): Promise<GameIdentitySnapshot | null> {
+    this.#step("tokenSnapshot");
+    const t = this.#token(hash);
+    if (!t) return Promise.resolve(null);
+    const a = this.accounts.get(t.accountId)!;
+    const l = sessionId === undefined ? undefined : this.links.get(sessionId);
+    return Promise.resolve(structuredClone({
+      account: {
+        id: a.id,
+        displayName: a.displayName,
+        badge: "claimed-name" as const,
+      },
+      accountStatus: a.status,
+      accountVersion: a.version,
+      tokenVersion: t.version,
+      tokenId: t.id,
+      revokedAt: t.revoked === null ? null : new Date(t.revoked).toISOString(),
+      expiresAt: new Date(t.expires).toISOString(),
+      lastUsedAt: new Date(t.lastUsed).toISOString(),
+      link: l
+        ? {
+          sessionId: l.sessionId,
+          accountId: l.accountId,
+          tokenId: l.tokenId,
+          detachedAt: l.detached === null
+            ? null
+            : new Date(l.detached).toISOString(),
+        }
+        : null,
+    }));
+  }
+  liveNameRules() {
+    this.#step("liveNameRules");
+    return Promise.resolve(this.#rules());
   }
   // Test-only simulation of set 04 reset/block; no production owner API.
   ownerTransition(

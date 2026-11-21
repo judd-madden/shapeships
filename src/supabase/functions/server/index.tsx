@@ -32,6 +32,14 @@ import {
 } from "./routes/account_routes.ts";
 import type { AccountLog } from "./accounts/accountService.ts";
 import { accountServiceLoader } from "./accounts/accountServiceLoader.ts";
+import { accountsMode } from "./accounts/accountsMode.ts";
+import { createGameIdentityRepository } from "./accounts/accountRepository.ts";
+import {
+  createGameRequestIdentity,
+  createGameSessionNameBinder,
+  type GameIdentityRouteOptions,
+  type GameRequestIdentity,
+} from "./accounts/gameRequestIdentity.ts";
 import { accountError } from "./accounts/accountResponses.ts";
 import { registerTestRoutes } from "./routes/test_routes.ts";
 import { registerGameRoutes } from "./routes/game_routes.ts";
@@ -243,7 +251,20 @@ registerAccountRoutes(app, {
     }
   },
 });
-registerAuthRoutes(app, kvGet, kvSet);
+let gameIdentity: GameRequestIdentity | undefined;
+const gameIdentityOptions: GameIdentityRouteOptions = {
+  mode: accountsMode,
+  getResolver: () => {
+    if (accountsMode === "off") throw new Error("Dormant game identity resolver");
+    return gameIdentity ??= createGameRequestIdentity({
+      mode: accountsMode,
+      getRepository: () => createGameIdentityRepository(supabase),
+      bindName: createGameSessionNameBinder(supabase, kvGet, kvSet),
+      log: (code) => logAccountOutcome("game-name", code),
+    });
+  },
+};
+registerAuthRoutes(app, kvGet, kvSet, gameIdentityOptions);
 if (ENABLE_TEST_ROUTES) {
   registerTestRoutes(app, kvGet, kvSet, kvDel);
 }
@@ -255,6 +276,8 @@ registerGameRoutes(
   requireSession,
   generateSecureGameId,
   intentPersistence,
+  undefined,
+  gameIdentityOptions,
 );
 registerIntentRoutes(
   app,
@@ -262,6 +285,7 @@ registerIntentRoutes(
   kvSet,
   requireSession,
   intentPersistence,
+  gameIdentityOptions,
 );
 
 // ============================================================================

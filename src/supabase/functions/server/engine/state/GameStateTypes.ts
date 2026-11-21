@@ -71,6 +71,8 @@ export type PlayerState = {
   
   /** Player display name */
   name?: string;
+  /** Server-only seat provenance; excluded from every gameplay projection. */
+  accountId?: string;
   
   /** Current health */
   health: number;

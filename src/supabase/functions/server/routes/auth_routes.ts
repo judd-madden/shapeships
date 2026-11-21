@@ -6,12 +6,17 @@
 
 import type { Hono } from "npm:hono";
 import { debugLog } from '../utils/serverLogger.ts';
+import { accountsMode } from '../accounts/accountsMode.ts';
+import { AccountFault } from '../accounts/accountRepository.ts';
+import { gameIdentityError, gameIdentityRequest, type GameIdentityRouteOptions } from '../accounts/gameRequestIdentity.ts';
 
 export function registerAuthRoutes(
   app: Hono,
   kvGet: (key: string) => Promise<any>,
-  kvSet: (key: string, value: any) => Promise<void>
+  kvSet: (key: string, value: any) => Promise<void>,
+  identityOptions: GameIdentityRouteOptions = {},
 ) {
+  const mode = identityOptions.mode ?? accountsMode;
   // Generate cryptographically secure session token
   const generateSessionToken = () => {
     const array = new Uint8Array(32);
@@ -39,16 +44,32 @@ export function registerAuthRoutes(
     try {
       // Parse request body (optional displayName)
       let displayName: string | undefined;
-      try {
-        const body = await c.req.json();
-        displayName = body?.displayName;
-      } catch {
-        // No body provided, that's fine - displayName is optional
+      if (mode !== 'off') {
+        const text = await c.req.text();
+        if (text.trim()) {
+          let body;
+          try { body = JSON.parse(text); }
+          catch { throw new AccountFault('INVALID_REQUEST'); }
+          displayName = body?.displayName;
+        }
+      } else {
+        try {
+          const body = await c.req.json();
+          displayName = body?.displayName;
+        } catch {
+          // No body provided, that's fine - displayName is optional
+        }
       }
 
       const sessionToken = generateSessionToken();
       const sessionId = generateSessionId();
       const createdAt = new Date().toISOString();
+
+      if (mode !== 'off') {
+        const resolved = await gameIdentityRequest(identityOptions, c,
+          { sessionId, createdAt, displayName: null }).resolve({ hint: displayName, bootstrap: true, start: true });
+        displayName = resolved?.displayName;
+      }
 
       // Store session data in KV store
       const sessionData = {
@@ -73,6 +94,10 @@ export function registerAuthRoutes(
       });
 
     } catch (error) {
+      if (mode !== 'off') {
+        const response = gameIdentityError(c, error);
+        if (response) return response;
+      }
       console.error("Session creation error:", error);
       return c.json({ error: "Failed to create session" }, 500);
     }

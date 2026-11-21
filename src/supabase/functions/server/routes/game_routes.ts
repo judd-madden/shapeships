@@ -8,6 +8,8 @@
 // ============================================================================
 
 import type { Hono } from "npm:hono";
+import { accountsMode } from '../accounts/accountsMode.ts';
+import { gameIdentityError, gameIdentityRequest, type GameIdentityRouteOptions } from '../accounts/gameRequestIdentity.ts';
 import { advancePhaseCore } from '../engine/phase/advancePhase.ts';
 import { onEnterPhase } from '../engine/phase/onEnterPhase.ts';
 import { syncPhaseFields } from '../engine/phase/syncPhaseFields.ts';
@@ -217,6 +219,7 @@ function createFreshGameData(
   playerId: string,
   playerName: string,
   timeControl?: TimeControlConfig | null,
+  accountId?: string,
 ) {
   const nowIso = new Date().toISOString();
 
@@ -226,6 +229,7 @@ function createFreshGameData(
       {
         id: playerId,
         name: playerName,
+        ...(accountId ? { accountId } : {}),
         faction: null,
         isReady: false,
         isActive: true,
@@ -288,9 +292,13 @@ function createFreshComputerGameData(
   playerName: string,
   timeControl?: TimeControlConfig | null,
   winStreakCount = 0,
+  accountId?: string,
 ): any {
   const nowIso = new Date().toISOString();
   const botPlayerId = `bot_${gameId}`;
+
+  // Only the human name is resolved at the HTTP boundary. Computer and System
+  // are trusted server identities and never enter name/ban enforcement.
 
   let gameData = {
     gameId,
@@ -298,6 +306,7 @@ function createFreshComputerGameData(
       {
         id: playerId,
         name: playerName,
+        ...(accountId ? { accountId } : {}),
         faction: null,
         isReady: false,
         isActive: true,
@@ -1207,7 +1216,9 @@ export function registerGameRoutes(
   generateGameId: () => string,
   persistence: GameRoutePersistence,
   currentTurnTimingObserver?: CurrentTurnRouteTimingObserver,
+  identityOptions: GameIdentityRouteOptions = {},
 ) {
+  const mode = identityOptions.mode ?? accountsMode;
   registerCurrentTurnProjectionRoutes({
     app,
     requireSession,
@@ -1337,13 +1348,20 @@ export function registerGameRoutes(
       // Note: Client may send playerId for backward compat, but it's IGNORED
       // Server-side identity is derived from sessionToken only
       const playerId = session.sessionId; // AUTHORITY: Server-minted identity
-      const playerName =
+      let playerName =
         typeof requestBody?.playerName === 'string'
           ? requestBody.playerName.trim()
           : '';
       
-      if (!playerName) {
+      if (mode === 'off' && !playerName) {
         return c.json({ error: "Player name is required" }, 400);
+      }
+
+      let accountId: string | undefined;
+      if (mode !== 'off') {
+        const resolved = (await gameIdentityRequest(identityOptions, c, session).resolve({ hint: requestBody?.playerName }))!;
+        playerName = resolved.displayName;
+        accountId = resolved.accountId;
       }
 
       let timeControl: TimeControlConfig | null;
@@ -1365,6 +1383,7 @@ export function registerGameRoutes(
               playerId,
               playerName,
               timeControl,
+              accountId,
             ),
           ),
         insertIfMissing: (key, value) =>
@@ -1394,6 +1413,10 @@ export function registerGameRoutes(
       return c.json({ gameId, message: "Game created successfully" });
 
     } catch (error) {
+      if (mode !== 'off') {
+        const response = gameIdentityError(c, error);
+        if (response) return response;
+      }
       console.error("Create game error:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
@@ -1406,13 +1429,20 @@ export function registerGameRoutes(
 
       const requestBody = await c.req.json() as CreateComputerGameRequestBody;
       const playerId = session.sessionId;
-      const playerName =
+      let playerName =
         typeof requestBody?.playerName === 'string'
           ? requestBody.playerName.trim()
           : '';
 
-      if (!playerName) {
+      if (mode === 'off' && !playerName) {
         return c.json({ error: "Player name is required" }, 400);
+      }
+
+      let accountId: string | undefined;
+      if (mode !== 'off') {
+        const resolved = (await gameIdentityRequest(identityOptions, c, session).resolve({ hint: requestBody?.playerName }))!;
+        playerName = resolved.displayName;
+        accountId = resolved.accountId;
       }
 
       let timeControl: TimeControlConfig | null;
@@ -1435,6 +1465,7 @@ export function registerGameRoutes(
               playerName,
               timeControl,
               winStreakCount,
+              accountId,
             ),
           ),
         insertIfMissing: (key, value) =>
@@ -1467,6 +1498,10 @@ export function registerGameRoutes(
         chosenBotPlanId: null,
       });
     } catch (error) {
+      if (mode !== 'off') {
+        const response = gameIdentityError(c, error);
+        if (response) return response;
+      }
       console.error("Create computer game error:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
@@ -1480,6 +1515,7 @@ export function registerGameRoutes(
       const sourceGameId = c.req.param('gameId');
       const sourceKey = `game_${sourceGameId}`;
       const requestingPlayerId = session.sessionId;
+      const identity = mode !== 'off' ? gameIdentityRequest(identityOptions, c, session) : undefined;
       let maintenanceNowMs: number | null = null;
 
       for (
@@ -1523,6 +1559,7 @@ export function registerGameRoutes(
           existingLifecycle?.kind === 'source' &&
           existingLifecycle.status === 'completed'
         ) {
+          if (identity) await identity.seat(humanPlayer);
           return c.json({
             gameId: existingLifecycle.replacementGameId,
             sourceGameId,
@@ -1532,6 +1569,7 @@ export function registerGameRoutes(
         if (existingLifecycle && existingLifecycle.kind !== 'source') {
           return c.json({ error: 'Replacement games cannot be restarted as sources' }, 409);
         }
+        const resolved = identity ? (await identity.resolve({ source: humanPlayer }))! : undefined;
         if (!existingLifecycle) {
           maintenanceNowMs ??= Date.now();
           const previousStatus = sourceState?.status;
@@ -1578,9 +1616,9 @@ export function registerGameRoutes(
           }
         }
 
-        const playerName = typeof humanPlayer.name === 'string'
+        const playerName = resolved?.displayName ?? (typeof humanPlayer.name === 'string'
           ? humanPlayer.name.trim()
-          : '';
+          : '');
         if (!playerName) {
           return c.json({ error: 'Player name is required' }, 400);
         }
@@ -1592,6 +1630,7 @@ export function registerGameRoutes(
             playerName,
             inheritedTimeControl,
             0,
+            resolved?.accountId,
           ));
           replacement.winStreakRestart = {
             kind: 'replacement',
@@ -1758,6 +1797,10 @@ export function registerGameRoutes(
 
       return c.json({ error: 'Game changed during restart; retry the request' }, 409);
     } catch (error) {
+      if (mode !== 'off') {
+        const response = gameIdentityError(c, error);
+        if (response) return response;
+      }
       console.error('Win-streak restart error:', error);
       return c.json({ error: 'Internal server error' }, 500);
     }
@@ -1782,12 +1825,12 @@ export function registerGameRoutes(
         return c.json({ error: "Only players from this finished game can create a new game" }, 403);
       }
 
-      const playerName =
+      let playerName =
         typeof sourcePlayer.name === 'string'
           ? sourcePlayer.name.trim()
           : '';
 
-      if (!playerName) {
+      if (mode === 'off' && !playerName) {
         return c.json({ error: "Player name is required" }, 400);
       }
 
@@ -1799,6 +1842,13 @@ export function registerGameRoutes(
         sourceGame.winStreakRestart?.kind === 'source'
       ) {
         return c.json({ error: "Restarted games cannot create ordinary rematches" }, 409);
+      }
+
+      let accountId: string | undefined;
+      if (mode !== 'off') {
+        const resolved = (await gameIdentityRequest(identityOptions, c, session).resolve({ source: sourcePlayer }))!;
+        playerName = resolved.displayName;
+        accountId = resolved.accountId;
       }
 
       const inheritedTimeControl = sourceGame?.gameData?.clock?.timeControl ?? null;
@@ -1829,12 +1879,14 @@ export function registerGameRoutes(
                 playerName,
                 inheritedTimeControl,
                 winStreakCount,
+                accountId,
               )
               : createFreshGameData(
                 candidateGameId,
                 playerId,
                 playerName,
                 inheritedTimeControl,
+                accountId,
               ),
           ),
         insertIfMissing: (key, value) =>
@@ -1903,6 +1955,10 @@ export function registerGameRoutes(
 
       return c.json({ gameId: newGameId });
     } catch (error) {
+      if (mode !== 'off') {
+        const response = gameIdentityError(c, error);
+        if (response) return response;
+      }
       console.error("New game from finished game error:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
@@ -1919,17 +1975,20 @@ export function registerGameRoutes(
       if (session instanceof Response) return session; // Return 401 if validation failed
 
       const gameId = c.req.param('gameId');
-      const { playerName } = await c.req.json();
+      const { playerName: requestedPlayerName } = await c.req.json();
+      let playerName = requestedPlayerName;
       
       // Note: Client may send playerId for backward compat, but it's IGNORED
       // Server-side identity is derived from sessionToken only
       const playerId = session.sessionId; // AUTHORITY: Server-minted identity
       
-      if (!playerName) {
+      if (mode === 'off' && !playerName) {
         return c.json({ error: "Player name is required" }, 400);
       }
 
       debugLog(`Joining game ${gameId} - Session: ${session.sessionId}, Display name: ${playerName}`);
+
+      const identity = mode !== 'off' ? gameIdentityRequest(identityOptions, c, session) : undefined;
 
       const gameKey = `game_${gameId}`;
       for (
@@ -1974,6 +2033,10 @@ export function registerGameRoutes(
         } | null = null;
 
       const existingPlayer = gameData.players.find((p: any) => p.id === playerId);
+      if (identity && existingPlayer) {
+        await identity.seat(existingPlayer);
+        playerName = existingPlayer.name;
+      }
 
       // Determine final role:
       // - Existing participants keep their stored role on rejoin.
@@ -1986,9 +2049,12 @@ export function registerGameRoutes(
             : 'spectator';
       
       if (!existingPlayer) {
+        const resolved = identity ? (await identity.resolve({ hint: requestedPlayerName }))! : undefined;
+        if (resolved) playerName = resolved.displayName;
         const newPlayer = {
           id: playerId, // Server-derived from sessionToken
-          name: playerName, // Client-provided metadata
+          name: playerName,
+          ...(resolved?.accountId ? { accountId: resolved.accountId } : {}),
           faction: null, // Species to be selected
           isReady: false,
           isActive: finalRole === 'player', // PART C: All players are active (no longer just first player)
@@ -2176,6 +2242,10 @@ export function registerGameRoutes(
       }, 409);
 
     } catch (error) {
+      if (mode !== 'off') {
+        const response = gameIdentityError(c, error);
+        if (response) return response;
+      }
       console.error("Join game error:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
@@ -2192,6 +2262,7 @@ export function registerGameRoutes(
       const gameId = c.req.param('gameId');
       const playerId = session.sessionId;
       const gameKey = `game_${gameId}`;
+      const identity = mode !== 'off' ? gameIdentityRequest(identityOptions, c, session) : undefined;
 
       for (
         let attempt = 0;
@@ -2230,6 +2301,7 @@ export function registerGameRoutes(
         if (participant?.role !== 'spectator') {
           return c.json({ error: "Only spectators may leave through this route" }, 403);
         }
+        if (identity) await identity.seat(participant);
 
         const participantName =
           typeof participant.name === 'string' && participant.name.length > 0
@@ -2289,6 +2361,10 @@ export function registerGameRoutes(
         error: "Game changed while leaving; retry the request",
       }, 409);
     } catch (error) {
+      if (mode !== 'off') {
+        const response = gameIdentityError(c, error);
+        if (response) return response;
+      }
       console.error("Leave spectator error:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
@@ -2320,6 +2396,8 @@ export function registerGameRoutes(
       }
 
       debugLog(`Role switch from session ${session.sessionId}: ${newRole} in game ${gameId}`);
+
+      const identity = mode !== 'off' ? gameIdentityRequest(identityOptions, c, session) : undefined;
 
       const gameKey = `game_${gameId}`;
       for (
@@ -2368,6 +2446,17 @@ export function registerGameRoutes(
 
       const oldRole = player.role;
       const isPromotingToPlayer = oldRole !== 'player' && newRole === 'player';
+
+      if (identity) {
+        if (isPromotingToPlayer) {
+          const resolved = (await identity.resolve({ source: player }))!;
+          if (player.name !== resolved.displayName || player.accountId !== resolved.accountId) {
+            player.name = resolved.displayName;
+            if (resolved.accountId) player.accountId = resolved.accountId;
+            didMutate = true;
+          }
+        } else await identity.seat(player);
+      }
       
       // Find player index to update the player properly
       const playerIndex = gameData.players.findIndex((p: any) => p.id === playerId);
@@ -2515,6 +2604,10 @@ export function registerGameRoutes(
       }, 409);
 
     } catch (error) {
+      if (mode !== 'off') {
+        const response = gameIdentityError(c, error);
+        if (response) return response;
+      }
       console.error("Switch role error:", error);
       return c.json({ error: "Internal server error" }, 500);
     }

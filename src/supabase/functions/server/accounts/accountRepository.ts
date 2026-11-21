@@ -1,4 +1,5 @@
 import type { AccountErrorCode } from "./accountResponses.ts";
+import { type NameRule, rulePattern } from "./nameRules.ts";
 
 export class AccountFault extends Error {
   readonly retryAfterSeconds?: number;
@@ -97,6 +98,143 @@ export interface NameStatus {
   nameKey: string;
   displayName: string;
   outcome: "available" | "claimed" | "banned" | "reserved";
+}
+
+// Gameplay needs one strict snapshot, rather than optionalIdentity's null result
+// followed by diagnostic reads. Never include passwords or raw bearer tokens.
+export interface GameIdentitySnapshot {
+  account: AccountIdentity;
+  accountStatus: "active" | "blocked";
+  accountVersion: string;
+  tokenVersion: string;
+  tokenId: string;
+  revokedAt: string | null;
+  expiresAt: string;
+  lastUsedAt: string;
+  link: {
+    sessionId: string;
+    accountId: string;
+    tokenId: string;
+    detachedAt: string | null;
+  } | null;
+}
+export interface GameIdentityRepository
+  extends Pick<AccountRepository, "nameStatus" | "resume"> {
+  tokenSnapshot(
+    hash: Uint8Array,
+    sessionId?: string,
+  ): Promise<GameIdentitySnapshot | null>;
+  liveNameRules(): Promise<NameRule[]>;
+}
+
+export function createGameIdentityRepository(
+  client: AccountRpcClient & { from(table: string): any },
+): GameIdentityRepository {
+  const repository = createAccountRepository(client);
+  const nullableIso = (value: unknown) => value === null ? null : iso(value);
+  return {
+    nameStatus: repository.nameStatus,
+    resume: repository.resume,
+    async tokenSnapshot(hash, sessionId) {
+      try {
+        // Cast bigint versions in PostgreSQL: JSON numbers can lose precision.
+        let query = client.from("account_tokens").select(
+          "id,version:security_version::text,revoked_at,expires_at,last_used_at," +
+            "account:account_accounts!account_tokens_account_id_fkey(id,display_name,status,version:security_version::text)" +
+            (sessionId === undefined
+              ? ""
+              : ",links:account_session_links!account_session_links_token_id_fkey(session_id,account_id,token_id,detached_at)"),
+        ).eq("token_hash", bytea(hash));
+        if (sessionId !== undefined) {
+          query = query.eq("links.session_id", sessionId);
+        }
+        const result = await query.maybeSingle();
+        if (result.error) fault();
+        if (result.data === null) return null;
+        const row = object(result.data), a = object(row.account);
+        if (a.status !== "active" && a.status !== "blocked") fault();
+        let link: GameIdentitySnapshot["link"] = null;
+        if (sessionId !== undefined) {
+          if (!Array.isArray(row.links) || row.links.length > 1) fault();
+          if (row.links.length) {
+            const l = object(row.links[0]);
+            link = {
+              sessionId: string(l.session_id),
+              accountId: uuid(l.account_id),
+              tokenId: uuid(l.token_id),
+              detachedAt: nullableIso(l.detached_at),
+            };
+            if (link.sessionId !== sessionId) fault();
+          }
+        }
+        return {
+          account: {
+            id: uuid(a.id),
+            displayName: name(a.display_name),
+            badge: "claimed-name",
+          },
+          accountStatus: a.status,
+          accountVersion: version(a.version),
+          tokenVersion: version(row.version),
+          tokenId: uuid(row.id),
+          revokedAt: nullableIso(row.revoked_at),
+          expiresAt: iso(row.expires_at),
+          lastUsedAt: iso(row.last_used_at),
+          link,
+        };
+      } catch {
+        throw new AccountFault("ACCOUNT_SERVICE_UNAVAILABLE");
+      }
+    },
+    async liveNameRules() {
+      try {
+        const rules: NameRule[] = [];
+        let total: number | undefined;
+        for (let offset = 0;;) {
+          const result = await client.from("account_name_rules")
+            .select("kind,match_kind,match_key,safe_substrings", {
+              count: "exact",
+            }).in("kind", [
+              "banned",
+              "exception",
+            ])
+            .order("id").range(offset, offset + 999);
+          if (
+            result.error || !Array.isArray(result.data) ||
+            !Number.isSafeInteger(result.count) || result.count < 0
+          ) fault();
+          if (total !== undefined && total !== result.count) fault();
+          total = result.count;
+          for (const value of result.data) {
+            const r = object(value);
+            if (
+              (r.kind !== "banned" && r.kind !== "exception") ||
+              (r.match_kind !== "exact" && r.match_kind !== "contains")
+            ) fault();
+            const key = string(r.match_key);
+            rulePattern(key);
+            if (
+              !Array.isArray(r.safe_substrings) ||
+              r.safe_substrings.some((s: unknown) =>
+                typeof s !== "string" || !/^[a-z]+$/.test(s)
+              )
+            ) fault();
+            rules.push({
+              kind: r.kind,
+              match_kind: r.match_kind,
+              match_key: key,
+              safe_substrings: r.safe_substrings as string[],
+            });
+          }
+          offset += result.data.length;
+          if (offset === total) return rules;
+          if (offset > total! || result.data.length === 0) fault();
+        }
+      } catch {
+        throw new AccountFault("ACCOUNT_SERVICE_UNAVAILABLE");
+      }
+    },
+  };
 }
 export interface RateBucket {
   scope: string;
