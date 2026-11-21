@@ -71,7 +71,7 @@ function RailAction({
         <div
           id={tooltipId}
           role="tooltip"
-          className="pointer-events-none absolute left-1/2 top-full z-30 mt-[20px] hidden w-max max-w-[min(430px,calc(100vw-32px))] -translate-x-1/2 rounded-[10px] border border-shapeships-grey-70 bg-shapeships-grey-90 px-[20px] py-[16px] text-[16px] font-normal leading-normal text-shapeships-white min-[1025px]:[@media(hover:hover)_and_(pointer:fine)]:block"
+          className="pointer-events-none absolute left-1/2 top-full z-30 mt-[20px] hidden w-max max-w-[min(460px,calc(100vw-32px))] -translate-x-1/2 rounded-[10px] border border-shapeships-grey-70 bg-shapeships-grey-90 px-[20px] py-[16px] text-[16px] font-normal leading-normal text-shapeships-white min-[1025px]:[@media(hover:hover)_and_(pointer:fine)]:block"
         >
           <span aria-hidden="true" className="absolute left-1/2 top-[-13px] size-[24px] -translate-x-1/2 rotate-45 border-l border-t border-shapeships-grey-70 bg-shapeships-grey-90" />
           <span className="relative">{tooltip}</span>
