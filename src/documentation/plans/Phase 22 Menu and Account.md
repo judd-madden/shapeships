@@ -1025,3 +1025,127 @@ routes/species_selection_visibility_routes_test.ts
 routes/timeControlPresets_test.ts
 routes/win_streak_routes_test.ts
 ~~~
+
+### 22C.T — Local owner password-reset generator — 22 November 2026
+
+- **Pass type / layer:** small Tooling Pass. Added local tooling outside the deployed function folder and one account test file; production hashing/policy/token modules, server routes, SQL, UI, environment files and Deno configuration are unchanged. No SQL, deployment or commit was performed.
+- **Owner amendments R1–R3:** generate 12 uniformly sampled characters from the existing 31-symbol alphabet, rejecting bytes 248-255, and display them once as three groups of four. This is the explicit owner-approved deviation from original addendum §2.8 (20 characters/four groups of five), now recorded in §2.17 with the approximately 59-bit rationale. Notes reject controls/line breaks and use plain standard SQL literals with apostrophes doubled. README includes the separate one-time global-cache download command.
+- **Behavior:** validates UUID, positive bigint version and optional nonblank/≤500-character note; uses unchanged production hash/verify and frozen PHC/format checks before emitting either block. SQL is exactly one named-argument account_owner_apply_password_reset SELECT, without plaintext. Self-check failures expose no generated values or raw exceptions. Runtime requires no Deno permissions, environment variables, network, database or service-role key; generated password/hash values are never saved.
+- **Owner flow / limits:** README supplies O3 ownership proof, lookup, generator, SQL/result review, private delivery and forced password change. Stale P2241 requires a fresh lookup and fresh generation, never edited/reused output. Standard SQL literals assume standard_conforming_strings=on. Judd reports set 04 applied, 04-verify PASS and account-smoke-4 9/9 on 22 November 2026; no live validation was performed here. The unbuilt 22B forced-change screen still prevents end-to-end player recovery.
+
+#### Changed files
+
+- `supabase/manual/account/tools/owner-password-reset.ts`
+- `src/supabase/functions/server/tests/accounts/ownerPasswordResetGenerator_test.ts`
+- `supabase/manual/account/README.md`
+- `src/documentation/plans/Phase 22 Addendum - Account Design.md`
+- `src/documentation/plans/Phase 22 Menu and Account.md` (§15)
+
+#### Validation
+
+- Focused generator tests: **10 passed, zero failures**. Nine behavior tests explicitly disable all permissions; the source/import guard uses only the existing public manual-account read grant. Cases cover all 248 accepted byte mappings, all eight rejected bytes, policy-valid twelve-character passwords, production verification, grouped delivery, safe single-statement SQL, bigint/Unicode/control boundaries and secret-free failures. No generated secret snapshot is saved.
+- `deno task check`: **PASS**. Existing ignored compiler-option warnings for allowImportingTsExtensions/allowJs remain.
+- Actual CLI: **PASS** with synthetic UUID/version and the exact no-config/cached-only/node-modules-dir=none/no-prompt command below, without permission grants. Only password/hash-redacted output was reported; values were held only in memory and no SQL was executed. An invalid-UUID CLI invocation returned status 1 with a safe message.
+- Full offline suite: **PASS — 87 files, 843 tests plus 16 steps, zero failures**; all files are explicitly listed below. The live-integration flag was verified unset; no --allow-net, --allow-run or new read/environment grant was used.
+- Final `git diff --check`: **PASS**. Only the five scoped files changed; SQL, production code, configuration and lockfiles remain unchanged. No generated password/hash was saved or included in the report.
+
+~~~powershell
+deno run --no-config --cached-only --node-modules-dir=none --no-prompt .\supabase\manual\account\tools\owner-password-reset.ts "11111111-1111-4111-8111-111111111111" "1" "Owner password reset"
+deno task check
+if (Test-Path Env:PHASE14E0_RUN_LIVE_SUPABASE_INTEGRATION) { throw 'Live integration flag must be unset.' }
+$offlineTestFiles = @(rg --files src/supabase/functions/server -g '*_test.ts' | Where-Object { $_ -notmatch 'intent_persistence_live_integration_test\.ts$' } | Sort-Object)
+deno test --cached-only --frozen --no-prompt '--allow-env=ACCOUNTS_MODE,ENABLE_SERVER_DEBUG_LOGS' '--allow-read=supabase/manual/account,src/supabase/functions/server/engine/bot/botRunner.ts,src/game/data/ShipDefinitions.json.ts' @offlineTestFiles
+git diff --check
+~~~
+
+Exact 22C.T offline test files (relative to src/supabase/functions/server/tests/); routes/intent_persistence_live_integration_test.ts is excluded:
+
+~~~text
+accounts/accountRepository_test.ts
+accounts/accountService_test.ts
+accounts/accountServiceLoader_test.ts
+accounts/clientIp_test.ts
+accounts/gameRequestIdentity_test.ts
+accounts/gameSessionRenewal_test.ts
+accounts/hashAdmission_test.ts
+accounts/humanCheck_test.ts
+accounts/nameKeys_test.ts
+accounts/nameRules_test.ts
+accounts/nameRulesGenerator_test.ts
+accounts/ownerPasswordResetGenerator_test.ts
+accounts/password_test.ts
+accounts/rateLimit_test.ts
+accounts/tokens_test.ts
+engine/ancient/blackHoleSolarPower_test.ts
+engine/ancient/manualSolarDeclaration_test.ts
+engine/ancient/simulacrumSolarPower_test.ts
+engine/ancient/solarPowerResolvers_test.ts
+engine/bot/ancientAuthoredPlans_test.ts
+engine/bot/ancientBotPlanner_test.ts
+engine/bot/ancientBotRunner_test.ts
+engine/bot/ancientBuildPayload_test.ts
+engine/bot/ancientFirstStrike_test.ts
+engine/bot/ancientFullGameValidation_test.ts
+engine/bot/ancientPlans_test.ts
+engine/bot/botControllerProjection_test.ts
+engine/bot/botRunner_test.ts
+engine/bot/buildPlanner_test.ts
+engine/bot/drawingPreludeBotRunner_test.ts
+engine/intent/buildForeignLegality_test.ts
+engine/intent/buildSubmitResolution_test.ts
+engine/intent/chargeDeclarationResolution_test.ts
+engine/intent/drawingPreludeIntent_test.ts
+engine/intent/drawingPreludeResolution_test.ts
+engine/intent/IntentReducer_test.ts
+engine/intent/matchupIntroIntent_test.ts
+engine/intent/missionChallengeIntent_test.ts
+engine/lines/computeLineBonusForPlayer_test.ts
+engine/mission/missionChallenge_test.ts
+engine/phase/chargeDeclarationPhase_test.ts
+engine/phase/cubeDiceManipulation_test.ts
+engine/phase/drawingPreludeCutover_test.ts
+engine/phase/drawingPreludeFoundation_test.ts
+engine/phase/thirdSpiralFirstStrike_test.ts
+engine/phase/turnPhaseProgress_test.ts
+engine/phase/winStreakLineGeneration_test.ts
+engine/state/ancientState_test.ts
+engine/state/battleLogCurrentTurnProjection_test.ts
+engine/state/battleLogHistory_test.ts
+engine/state/currentTurnEstimator_performance_test.ts
+engine/state/currentTurnEstimator_test.ts
+engine/state/drawingPreludeProjection_test.ts
+engine/state/drawingPreludeState_test.ts
+engine/state/speciesSelection_test.ts
+engine_shared/dreadnoughtRevealCounting_test.ts
+engine_shared/effects/appliedEffectVerification_test.ts
+engine_shared/effects/applyEffects_test.ts
+engine_shared/maximumHealth_test.ts
+engine_shared/resolve/ancientSolarBreakdown_test.ts
+engine_shared/resolve/destroyRules_test.ts
+engine_shared/resolve/phaseComputedEffects_test.ts
+engine_shared/shipDefinitionMetadata_test.ts
+routes/account_enabled_routes_test.ts
+routes/account_name_check_routes_test.ts
+routes/account_preferences_routes_test.ts
+routes/account_routes_test.ts
+routes/ancient_state_routes_test.ts
+routes/bot_game_state_read_only_test.ts
+routes/computer_game_identity_routes_test.ts
+routes/current_turn_projection_performance_test.ts
+routes/current_turn_projection_routes_test.ts
+routes/game_history_checkpoint_recovery_test.ts
+routes/game_id_allocation_test.ts
+routes/game_name_identity_routes_test.ts
+routes/game_record_mutation_concurrency_test.ts
+routes/game_state_head_test.ts
+routes/game_state_timeout_persistence_concurrency_test.ts
+routes/intent_persistence_adapter_test.ts
+routes/intent_persistence_concurrency_test.ts
+routes/missionChallengeRoutes_test.ts
+routes/off_mode_game_contract_test.ts
+routes/session_renewal_routes_test.ts
+routes/session_start_identity_routes_test.ts
+routes/species_selection_visibility_routes_test.ts
+routes/timeControlPresets_test.ts
+routes/win_streak_routes_test.ts
+~~~

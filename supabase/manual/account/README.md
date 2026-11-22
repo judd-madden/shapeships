@@ -238,19 +238,43 @@ Sign out everywhere without changing the credential:
 SELECT public.account_owner_sign_out_everywhere('REPLACE_WITH_ACCOUNT_UUID'::uuid, REPLACE_WITH_CURRENT_VERSION::bigint, 'REPLACE_WITH_NOTE') AS outcome;
 ~~~
 
-Apply a password reset only after ownership checks. **22C.T generates the hash and this SELECT; do not invent a temporary password/hash by hand.** The named interface is frozen:
+**Password reset — one owner flow (22C.T).** Judd reports set 04 applied, 04-verify PASS on 22 November 2026, and account-smoke-4 passed 9/9; this updates the historical authoring status above. The local [generator](tools/owner-password-reset.ts) supplies the temporary password and the frozen named-argument SELECT. Do not invent a password/hash by hand.
 
-~~~sql
-SELECT public.account_owner_apply_password_reset(
-  p_account_id => 'REPLACE_WITH_ACCOUNT_UUID'::uuid,
-  p_expected_security_version => REPLACE_WITH_CURRENT_VERSION::bigint,
-  p_password_hash => 'REPLACE_WITH_22CT_ENCODED_HASH',
-  p_password_format => 'nfc-argon2id-v1',
-  p_note => 'REPLACE_WITH_NOTE'
-) AS outcome;
+1. **Establish ownership under O3.** Discord contact alone is insufficient. Prefer an established community identity plus independently known account evidence, or a still-valid signed-in session demonstrated through an owner-agreed process. Decline the reset if ownership cannot be established; collect no extra personal details or security answers.
+
+2. **Look up the exact account** in the SQL editor as postgres:
+
+   ~~~sql
+   SELECT public.account_owner_lookup('REPLACE_WITH_DISPLAY_NAME') AS outcome;
+   ~~~
+
+   Note the returned accountId and decimal securityVersion. The account must be active.
+
+3. **Run the generator in a private Windows PowerShell terminal from the repository root**, replacing the UUID and version with the lookup results:
+
+   ~~~powershell
+   deno run --no-config --cached-only --node-modules-dir=none --no-prompt .\supabase\manual\account\tools\owner-password-reset.ts "REPLACE_WITH_ACCOUNT_UUID" "REPLACE_WITH_CURRENT_VERSION" "Owner password reset"
+   ~~~
+
+   The final note argument is optional and defaults to Owner password reset. Notes must be nonblank, at most 500 Unicode characters, contain no control characters or line breaks, and contain no passwords or personal details. UUIDs are validated and versions must be positive decimal PostgreSQL bigint values.
+
+   The command generates **12 characters**, displayed once in **three groups of four**; the player types them without spaces. This is Judd's approved deviation from the original 20-character §2.8 requirement (see addendum §2.17). The second block contains only one SELECT with the encoded hash and metadata. The command uses cached production hashing, verifies its result before printing, requests no Deno permissions, and reads no environment variables. It writes no files, logs, clipboard or environment values, and accesses no network or database. Do not redirect or transcript its output.
+
+4. **Paste only the generated SQL block** into the SQL editor as postgres. Keep standard_conforming_strings=on (the PostgreSQL default): notes use plain SQL literals with apostrophes doubled and backslashes preserved. Expect one outcome row with the matching accountId, securityVersion increased by one, revokedTokens, detachedLinks, eventId and updatedAt. The routine validates the exact nfc-argon2id-v1/Argon2id v19 policy (m=19456,t=2,p=1, canonical unpadded base64, 16-byte salt and 32-byte hash), sets must_change_password=true, revokes tokens, detaches links and records password_reset. It never returns a hash.
+
+5. **Send the temporary password privately**, only after the SQL succeeds. Never paste the password into a note or SQL.
+
+6. **The player signs in with the temporary password**, receives PASSWORD_CHANGE_REQUIRED without an account token, and sets a new password through the forced change-password screen. **That 22B screen is not built yet: the generator is ready, but player recovery is not usable end to end until it exists.**
+
+If the SQL returns P2241 / ACCOUNT_OWNER_STALE_SECURITY_VERSION, discard both output blocks and repeat the lookup and generator. Never reuse old output or edit its version to force it through.
+
+If --cached-only reports that npm:hash-wasm@4.12.0 is missing, run this one-time dependency download separately, then repeat the generator command unchanged:
+
+~~~powershell
+deno cache --no-config --no-lock --node-modules-dir=none npm:hash-wasm@4.12.0
 ~~~
 
-The routine validates Argon2id v19, m=19456,t=2,p=1, canonical unpadded base64 for a 16-byte salt/32-byte hash and the exact nfc-argon2id-v1 format. It requires an active account, sets must_change_password=true, advances the version, revokes tokens, detaches links and appends password_reset. It never returns a hash. After SQL success, Judd privately delivers the generated secret; sign-in must return PASSWORD_CHANGE_REQUIRED without issuing a token until password change completes.
+This downloads only into the global Deno cache; it does not run the generator or change the repository lockfile/node_modules. The generator itself remains offline and permission-free.
 
 Bounded cleanup retains tokens until expiry or revocation is **more than seven days old**. It removes at most 100 old detached/dead-token links, then at most 100 eligible tokens with no remaining links; thus token FK cascades cannot bypass the row bound. It calls account_cleanup_rate_limits() for at most 100 expired counter/replay rows and preserves replay/expiry margins. Repeat while eligible counts remain; locked rows may require a later batch. It records cleanup and returns tokensDeleted, linksDeleted, rateLimitsDeleted, matching RemainingEligible counts and eventId.
 
