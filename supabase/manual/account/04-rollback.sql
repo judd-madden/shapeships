@@ -548,7 +548,7 @@ BEGIN
 END;
 $body$)
   ) expected(signature,body) LEFT JOIN pg_catalog.pg_proc p ON p.oid=pg_catalog.to_regprocedure(expected.signature)
-    WHERE pg_catalog.replace(p.prosrc,E'\r\n',E'\n') IS DISTINCT FROM expected.body) THEN
+    WHERE pg_catalog.replace(p.prosrc,E'\r','') IS DISTINCT FROM pg_catalog.replace(expected.body,E'\r','')) THEN
     RAISE EXCEPTION 'Set 04 function body drift; review before rollback'; END IF;
 END;
 $preconditions$;

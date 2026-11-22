@@ -151,8 +151,8 @@ WITH expected(signature, mutator, result_type) AS (VALUES
 SELECT category, check_name, CASE WHEN passed THEN 'PASS' ELSE 'FAIL' END AS result, detail
 FROM results ORDER BY sort_order, category, check_name
   ) baseline WHERE baseline.result<>'PASS') THEN RAISE EXCEPTION 'Set 04 requires 03-verify PASS; inspect drift'; END IF;
-  IF (SELECT pg_catalog.replace(p.prosrc,E'\r\n',E'\n') FROM pg_catalog.pg_proc p WHERE p.oid='public.account_rate_hit(jsonb,bytea)'::regprocedure)
-    IS DISTINCT FROM $set03body$
+  IF (SELECT pg_catalog.replace(p.prosrc,E'\r','') FROM pg_catalog.pg_proc p WHERE p.oid='public.account_rate_hit(jsonb,bytea)'::regprocedure)
+    IS DISTINCT FROM pg_catalog.replace($set03body$
 DECLARE b jsonb; v_scope text; v_hash bytea; v_limit integer; v_seconds integer; v_operation text;
   v_now timestamptz := pg_catalog.clock_timestamp(); v_start timestamptz; v_end timestamptz;
   v_count integer; v_allowed boolean := true; v_retry integer := 0; v_counts jsonb := '{}';
@@ -194,7 +194,7 @@ BEGIN
   END LOOP;
   RETURN pg_catalog.jsonb_build_object('allowed',v_allowed,'retryAfterSeconds',v_retry,'counts',v_counts);
 END;
-$set03body$ THEN
+$set03body$,E'\r','') THEN
     RAISE EXCEPTION 'Set 03 account_rate_hit body drift'; END IF;
 
   -- Owner deletion must not cascade or trigger into unrelated data.
