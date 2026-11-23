@@ -84,9 +84,10 @@ function RailAction({
 interface MenuProfileRailProps {
   identity: MenuIdentity;
   onChangeName: () => void;
+  onLogout: () => void;
 }
 
-export function MenuProfileRail({ identity, onChangeName }: MenuProfileRailProps) {
+export function MenuProfileRail({ identity, onChangeName, onLogout }: MenuProfileRailProps) {
   const musicEnabled = usePlayerPreference('musicEnabled');
   const soundEnabled = usePlayerPreference('soundEnabled');
   const claimed = identity.status === 'claimed';
@@ -114,7 +115,7 @@ export function MenuProfileRail({ identity, onChangeName }: MenuProfileRailProps
           <div className="flex items-center justify-center gap-[28px] xl:gap-[36px]">
             {claimed ? (
               <>
-                <RailAction label="Logout" icon={ExitToAppIcon} />
+                <RailAction label="Logout" icon={ExitToAppIcon} onClick={onLogout} />
                 <RailAction label="My Stats" icon={BarChartIcon} inactive color="text-shapeships-grey-50" tooltip="Stats coming soon" />
               </>
             ) : (

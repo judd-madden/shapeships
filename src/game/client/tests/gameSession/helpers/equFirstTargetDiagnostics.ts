@@ -96,7 +96,7 @@ ${anchor}`);
   if (guardStats && fileName.endsWith('/useGameSession.ts')) {
     // Controlled experiment: run the same synchronizer, but dispatch only a changed result.
     // Never written back to the production file.
-    const match = code.match(/setTurnStartStatPresentationState\(\(current\) =>\s*syncTurnStartStatPresentation\(current, (\{[\s\S]*?\n      \})\)\s*\);/);
+    const match = code.match(/setTurnStartStatPresentationState\(\(current\) =>\s*syncTurnStartStatPresentation\(current, (\{[\s\S]*?\n {6}\})\)\s*\);/);
     if (!match) throw new Error('Stats guard experiment anchor changed');
     code = code.replace(match[0], `const nextStats = syncTurnStartStatPresentation(turnStartStatPresentationState, ${match[1]});
     ${diagnostic}.emit('experiment.stats-guard', {changed: nextStats !== turnStartStatPresentationState});

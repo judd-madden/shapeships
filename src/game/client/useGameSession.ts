@@ -22,7 +22,10 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { attemptMobileGameFullscreen } from '../../utils/mobileFullscreen';
-import { authenticatedGet, authenticatedPost, ensureSession } from '../../utils/sessionManager';
+import {
+  authenticatedGet as sessionGet, authenticatedPost as sessionPost, ensureSession as sessionEnsure,
+  getSessionGeneration, SessionRequestError,
+} from '../../utils/sessionManager';
 import {
   normalizeActionPanelId,
   type ActionPanelId,
@@ -884,6 +887,23 @@ export function useGameSession(
   options: UseGameSessionOptions = {}
 ) {
   const boardFlashEnabled = options.boardFlashEnabled ?? true;
+  const sessionGeneration = useRef(getSessionGeneration());
+  // Deferred game work must never bootstrap a guest session after Logout or an Entry reset.
+  const assertGameSession = useCallback(() => {
+    if (sessionGeneration.current !== getSessionGeneration()) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
+  }, []);
+  const authenticatedGet = useCallback(async (endpoint: string, timeoutMs?: number) => {
+    assertGameSession();
+    return sessionGet(endpoint, timeoutMs);
+  }, [assertGameSession]);
+  const authenticatedPost = useCallback(async (endpoint: string, body: any, timeoutMs?: number) => {
+    assertGameSession();
+    return sessionPost(endpoint, body, timeoutMs);
+  }, [assertGameSession]);
+  const ensureSession = useCallback(async (displayName?: string) => {
+    assertGameSession();
+    return sessionEnsure(displayName);
+  }, [assertGameSession]);
   const winStreakStore = getWinStreakProfileStore();
 
   // Stop /game-state polling once an authoritative finished payload has been stored.
@@ -893,10 +913,7 @@ export function useGameSession(
   // EFFECTIVE PLAYER NAME RESOLUTION
   // ============================================================================
   
-  // Resolve effectivePlayerName with priority order:
-  // 1. props.playerName (if provided by dashboard launcher)
-  // 2. localStorage stored name (key: ss_playerName)
-  // 3. Generate random friendly name and store to localStorage
+  // The app supplies an Entry name or validated account name; there is no generated fallback.
   const effectivePlayerName = getPlayerName(propsPlayerName);
   
   // ============================================================================

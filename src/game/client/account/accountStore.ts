@@ -221,6 +221,19 @@ export function createAccountStore({ api, storage, eventTarget, clock, preferenc
 
   return {
     getSnapshot: (): AccountSnapshot => snapshot,
+    hasRememberedToken: (): boolean => !disposed && Boolean(readToken()),
+    // A validated account still cannot enter play if its game-session bootstrap fails.
+    // Retain the credential for next visit, but expose no identity or guest account writes.
+    suspendForSessionFailure(code = 'ACCOUNT_SERVICE_UNAVAILABLE'): void {
+      if (disposed || state.status !== 'signedIn') return;
+      generation++;
+      authSequence++;
+      state = { status: 'unavailable' };
+      lastError = { code };
+      preferenceSync = idlePreferences;
+      sync.pause();
+      publish();
+    },
     subscribe(listener: () => void): () => void {
       if (!disposed) listeners.add(listener);
       return () => { listeners.delete(listener); };

@@ -20,6 +20,7 @@ import { MenuProfileRail } from './menu/MenuProfileRail';
 import { MenuNavigation, type MenuPageId } from './menu/MenuNavigation';
 import { MenuBottomNav } from './menu/MenuBottomNav';
 import { getMenuIdentity } from './menu/menuIdentity';
+import type { AccountIdentity } from '../../game/client/account/types';
 import { attemptMobileGameFullscreen } from '../../utils/mobileFullscreen';
 import { readMenuSetupMemory, writeMenuSetupMemory } from '../../game/client/preferences/menuSetupMemory';
 import {
@@ -42,6 +43,7 @@ interface MenuShellProps {
   onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<string>;
   user: any;
   player: any;
+  accountIdentity: AccountIdentity | null;
   alphaDisableAuth: boolean;
   winStreakViewModel: WinStreakMenuViewModel;
   winStreakActions: WinStreakMenuActions;
@@ -56,6 +58,7 @@ export function MenuShell({
   onCreateComputerGame,
   user, 
   player, 
+  accountIdentity,
   alphaDisableAuth,
   winStreakViewModel,
   winStreakActions,
@@ -95,7 +98,7 @@ export function MenuShell({
     return null;
   }
 
-  const identity = getMenuIdentity(player.name);
+  const identity = getMenuIdentity(player.name, accountIdentity);
 
   const handleCreateGameWithSettings = async (settings: CreatePrivateGameSettings) => {
     attemptMobileGameFullscreen();
@@ -130,7 +133,7 @@ export function MenuShell({
       {/* End Welcome's mobile centring space at the nav, before the outer scroll clearance. */}
       <div className={`relative flex w-full max-w-[1430px] shrink-0 flex-col items-center ${activePanel === 'welcome' ? 'max-md:min-h-[calc(100vh_-_20px_-_86px_-_env(safe-area-inset-bottom))] max-md:supports-[height:100svh]:min-h-[calc(100svh_-_20px_-_86px_-_env(safe-area-inset-bottom))]' : ''}`}>
         <MenuHeader />
-        <MenuProfileRail identity={identity} onChangeName={alphaDisableAuth ? onExit : onLogout} />
+        <MenuProfileRail identity={identity} onChangeName={alphaDisableAuth ? onExit : onLogout} onLogout={onLogout} />
         <MenuBottomNav activePanel={activePanel} isLoreUnread={isLoreUnread} onSelect={setActivePanel} />
 
         {/* Main Wrapper */}

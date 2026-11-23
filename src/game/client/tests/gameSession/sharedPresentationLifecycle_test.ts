@@ -160,7 +160,7 @@ afterEach(async () => {
 afterAll(() => { vi.unstubAllGlobals(); });
 
 class ProbeBoundary extends React.Component<{
-  children: React.ReactNode; onError: (error: Error) => void;
+  children?: React.ReactNode; onError: (error: Error) => void;
 }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -172,8 +172,8 @@ function mountProbe(Probe: () => React.ReactElement | null, errors: Error[], str
   roots.push(root);
   return () => React.act(async () => {
     const content = React.createElement(Probe);
-    root.render(React.createElement(ProbeBoundary, { onError: (error: Error) => errors.push(error),
-      children: strict ? React.createElement(React.StrictMode, null, content) : content }));
+    root.render(React.createElement(ProbeBoundary, { onError: (error: Error) => errors.push(error) },
+      strict ? React.createElement(React.StrictMode, null, content) : content));
   });
 }
 function assertHealthy(errors: Error[]) {

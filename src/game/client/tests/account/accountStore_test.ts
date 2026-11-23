@@ -9,6 +9,44 @@ import {
 afterEach(cleanup);
 
 describe('account store lifecycle and storage', () => {
+  it('checks remembered storage synchronously without network or identity', async () => {
+    const h = harness();
+    expect(h.store.hasRememberedToken()).toBe(false);
+    h.storage!.setItem(tokenKey, TOKEN);
+    expect(h.store.hasRememberedToken()).toBe(true);
+    expect(h.store.getSnapshot().status).toBe('signedOut');
+    expect(h.fetchMock).not.toHaveBeenCalled();
+    await h.store.resume();
+    vi.mocked(h.storage!.removeItem).mockImplementationOnce(() => { throw new Error('blocked'); });
+    await h.store.logout();
+    expect(h.store.hasRememberedToken()).toBe(false);
+  });
+
+  it('checks memory-only remembered authority without requiring storage', async () => {
+    const h = harness({ storage: null });
+    expect(h.store.hasRememberedToken()).toBe(false);
+    await h.signIn();
+    h.fetchMock.mockClear();
+    expect(h.store.hasRememberedToken()).toBe(true);
+    expect(h.fetchMock).not.toHaveBeenCalled();
+    h.store.dispose();
+    expect(h.store.hasRememberedToken()).toBe(false);
+  });
+
+  it('suspends identity on a game-session bootstrap failure while retaining the remembered sign-in', async () => {
+    const h = harness();
+    await h.signIn();
+    h.store.suspendForSessionFailure('GAME_SESSION_INVALID');
+    expect(h.store.getSnapshot()).toMatchObject({ status: 'unavailable', lastError: { code: 'GAME_SESSION_INVALID' } });
+    expect(h.store.getSnapshot()).not.toHaveProperty('identity');
+    expect(h.store.getAccountTokenForSession('session_tab')).toBeNull();
+    expect(h.store.hasRememberedToken()).toBe(true);
+    h.preferences.setPreference('musicEnabled', false);
+    expect(h.fetchMock).toHaveBeenCalledOnce();
+    await h.store.resume(SESSION_TOKEN);
+    expect(h.store.getAccountTokenForSession('session_tab')).toBe(TOKEN);
+  });
+
   it('starts signed out without requests or token writes and has a stable snapshot', () => {
     const h = harness({ savedToken: TOKEN });
     expect(h.store.getSnapshot()).toMatchObject({ status: 'signedOut', lastError: null, remoteLogoutPending: false });

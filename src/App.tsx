@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from './components/ui/button';
 
 // Force rebuild - fixed intents.ts species verification
@@ -10,11 +10,14 @@ import { Input } from './components/ui/input';
 import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
 import { gameFunctionBaseUrl } from './utils/supabase/runtimeConfig';
-import { ensureSession, authenticatedFetch, authenticatedGet, authenticatedPostWithSessionRecovery, getSessionToken, clearSession } from './utils/sessionManager';
+import { ensureSession, authenticatedFetch, authenticatedGet, authenticatedPostWithSessionRecovery, getSessionToken, clearSession, subscribeSessionEntryRequired, SessionRequestError } from './utils/sessionManager';
 import ScreenManager from './components/ScreenManager';
 import type { CreatePrivateGameSettings } from './components/panels/CreatePrivateGamePanel';
 import GameScreen from './game/display/GameScreen';
 import { usePlayer } from './game/hooks/usePlayer';
+import { getAccountStore } from './game/client/account/accountStore';
+import { useAccountState } from './game/client/account/useAccountState';
+import { bootstrapRememberedAccount, observeAccountSession, type AccountStartupOutcome } from './game/client/gameSession/accountSessionWiring';
 import { useWinStreakMenu } from './game/client/winStreak/useWinStreakProfile';
 import { WIN_STREAK_RECONCILIATION_TIMEOUT_MS } from './game/client/winStreak/workflow';
 
@@ -163,6 +166,16 @@ function pushUrl(params: URLSearchParams) {
 }
 
 export default function App() {
+  const [accountStore] = useState(getAccountStore);
+  const account = useAccountState();
+  const [needsAccountBootstrap] = useState(() => accountStore.hasRememberedToken());
+  const [checkingAccount, setCheckingAccount] = useState(needsAccountBootstrap);
+  const bootstrapInProgress = useRef(needsAccountBootstrap);
+  const bootstrapPromise = useRef<Promise<AccountStartupOutcome> | null>(null);
+  const lifecycleGeneration = useRef(0);
+  const renderGeneration = lifecycleGeneration.current;
+  const [startupGameId] = useState(readGameIdFromUrl);
+  const [entryRevision, setEntryRevision] = useState(0);
   const initialStoredPlayerIdentity = hasStoredPlayerIdentity();
   const initialRoute = readRouteStateFromUrl(initialStoredPlayerIdentity);
   const [mode, setMode] = useState<AppMode>(initialRoute.mode);
@@ -172,13 +185,16 @@ export default function App() {
   const [hasUsablePlayerIdentity, setHasUsablePlayerIdentity] = useState(initialStoredPlayerIdentity);
   const [deploymentStatus, setDeploymentStatus] = useState<'unknown' | 'ready' | 'error'>('unknown');
   const [gameId, setGameId] = useState<string | null>(() => readGameIdFromUrl());
+  const pendingInviteRef = useRef(pendingInviteGameId);
+  pendingInviteRef.current = pendingInviteGameId;
 
   const {
     player,
     updatePlayerName,
     clearPlayer,
     isReady: playerReady,
-  } = usePlayer();
+    isInitialized: playerInitialized,
+  } = usePlayer(account);
 
   useEffect(() => {
     if (mode === 'dev') {
@@ -191,7 +207,7 @@ export default function App() {
       setCurrentView(nextRoute.dashboardView);
       setPendingInviteGameId(nextRoute.pendingInviteGameId);
       setGameId(readGameIdFromUrl());
-      setPlayerShellStart('login');
+      setPlayerShellStart(accountStore.getSnapshot().status === 'signedIn' ? 'menu' : 'login');
     };
 
     window.addEventListener('popstate', onPopState);
@@ -258,6 +274,7 @@ export default function App() {
   };
 
   const launchGame = (nextGameId: string) => {
+    if (renderGeneration !== lifecycleGeneration.current || !getSessionToken()) return;
     const params = new URLSearchParams();
     params.set('game', nextGameId);
     pushUrl(params);
@@ -269,6 +286,7 @@ export default function App() {
 
   const winStreakMenu = useWinStreakMenu({
     createComputerGameRequest: async (settings, winStreakCount) => {
+      if (renderGeneration !== lifecycleGeneration.current) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
       if (!player?.name) {
         throw new Error('Player not initialized');
       }
@@ -281,11 +299,12 @@ export default function App() {
         winStreakCount,
       }, player.name);
     },
-    getGameState: (trackedGameId) => authenticatedGet(
-      `/game-state/${trackedGameId}`,
-      WIN_STREAK_RECONCILIATION_TIMEOUT_MS,
-    ),
+    getGameState: async (trackedGameId) => {
+      if (renderGeneration !== lifecycleGeneration.current) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
+      return authenticatedGet(`/game-state/${trackedGameId}`, WIN_STREAK_RECONCILIATION_TIMEOUT_MS);
+    },
     getCurrentSession: async () => {
+      if (renderGeneration !== lifecycleGeneration.current) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
       const session = await ensureSession(player?.name);
       return { sessionId: session.sessionId };
     },
@@ -293,12 +312,16 @@ export default function App() {
   });
 
   const startPlayerSession = async (displayName: string) => {
+    const generation = renderGeneration;
+    if (generation !== lifecycleGeneration.current) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
     await ensureSession(displayName);
+    if (generation !== lifecycleGeneration.current) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
     updatePlayerName(displayName);
     setHasUsablePlayerIdentity(true);
   };
 
   const createPrivateGame = async (settings: CreatePrivateGameSettings): Promise<string> => {
+    if (renderGeneration !== lifecycleGeneration.current) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
     if (!player?.name) {
       throw new Error('Player not initialized');
     }
@@ -317,18 +340,77 @@ export default function App() {
     }
 
     const result = await response.json();
+    if (renderGeneration !== lifecycleGeneration.current) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
     return result.gameId;
   };
 
   const createComputerGame = async (settings: CreatePrivateGameSettings): Promise<string> =>
     winStreakMenu.requestComputerGame(settings);
 
-  const resetPlayerSession = () => {
+  const resetPlayerSession = useCallback((inviteGameId?: string) => {
+    lifecycleGeneration.current++;
     clearPlayer();
     clearSession();
     setHasUsablePlayerIdentity(false);
-    switchToPlayerMode('login');
-  };
+    const pending = inviteGameId ?? pendingInviteRef.current;
+    pendingInviteRef.current = pending;
+    const params = new URLSearchParams();
+    if (pending) params.set('game', pending);
+    pushUrl(params);
+    setGameId(null);
+    setPendingInviteGameId(pending);
+    setPlayerShellStart('login');
+    setMode('player');
+    setEntryRevision((revision) => revision + 1);
+  }, [clearPlayer]);
+
+  const logoutAccount = useCallback(() => {
+    const generation = lifecycleGeneration.current;
+    void accountStore.logout(); // Local authority is removed synchronously; revocation stays in the store.
+    if (generation === lifecycleGeneration.current) resetPlayerSession();
+  }, [accountStore, resetPlayerSession]);
+
+  const onMenuEntered = useCallback(() => {
+    if (accountStore.getSnapshot().status === 'signedIn') accountStore.retryUnsavedPreferences();
+  }, [accountStore]);
+
+  useEffect(() => {
+    const stopAccount = observeAccountSession(accountStore, () => {
+      if (!bootstrapInProgress.current) resetPlayerSession();
+    });
+    const stopSession = subscribeSessionEntryRequired(({ inviteGameId }) => resetPlayerSession(inviteGameId));
+    return () => { stopAccount(); stopSession(); };
+  }, [accountStore, resetPlayerSession]);
+
+  useEffect(() => {
+    if (!needsAccountBootstrap) return;
+    let active = true;
+    const generation = lifecycleGeneration.current;
+    bootstrapPromise.current ??= bootstrapRememberedAccount({
+      store: accountStore, ensureSession, clearSession, requestedGameId: startupGameId,
+      isCurrent: () => generation === lifecycleGeneration.current,
+    });
+    void bootstrapPromise.current.then((outcome) => {
+      if (!active) return;
+      bootstrapInProgress.current = false;
+      if (generation === lifecycleGeneration.current) {
+        if (outcome.destination === 'game' || outcome.destination === 'menu') {
+          setHasUsablePlayerIdentity(true);
+          if (outcome.destination === 'game') launchGame(outcome.gameId);
+          else switchToPlayerMode('menu');
+        } else {
+          resetPlayerSession(outcome.destination === 'entry' ? outcome.pendingInviteGameId ?? undefined : startupGameId ?? undefined);
+        }
+      }
+      setCheckingAccount(false);
+    });
+    return () => { active = false; };
+  }, [accountStore, needsAccountBootstrap, resetPlayerSession, startupGameId]);
+
+  useEffect(() => {
+    if (checkingAccount || !playerInitialized || account.status === 'resuming') return;
+    if (mode === 'game' && !player?.name) resetPlayerSession(gameId ?? undefined);
+  }, [checkingAccount, playerInitialized, account.status, mode, player?.name, gameId, resetPlayerSession]);
 
   const exitGame = () => {
     switchToPlayerMode('menu');
@@ -340,11 +422,11 @@ export default function App() {
     }
   };
 
-  if (mode === 'game') {
-    if (!playerReady) {
-      return <div className="fixed inset-0 overflow-hidden bg-black flex items-center justify-center">Loading player...</div>;
-    }
+  if (checkingAccount || (mode === 'game' && !playerReady)) {
+    return <div className="fixed inset-0 overflow-hidden bg-black flex items-center justify-center">Loading player...</div>;
+  }
 
+  if (mode === 'game') {
     if (!gameId) {
       return (
         <div className="fixed inset-0 overflow-hidden bg-black flex items-center justify-center">
@@ -383,7 +465,11 @@ export default function App() {
       <>
         <Toaster />
         <ScreenManager
+          key={entryRevision}
           player={player}
+          accountIdentity={account.status === 'signedIn' ? account.identity : null}
+          onAccountLogout={logoutAccount}
+          onMenuEntered={onMenuEntered}
           initialShell={playerShellStart}
           pendingInviteGameId={pendingInviteGameId}
           onCreatePrivateGame={createPrivateGame}
@@ -505,7 +591,8 @@ export default function App() {
                 
                 <CreateTestGameSection
                   player={player}
-                  playerReady={playerReady}
+                  playerReady={playerInitialized}
+                  onRequireEntry={() => resetPlayerSession()}
                   gameId={gameId}
                   onGameCreated={launchGame}
                 />
@@ -799,11 +886,13 @@ function CreateTestGameSection({
   playerReady,
   gameId,
   onGameCreated,
+  onRequireEntry,
 }: {
   player: any;
   playerReady: boolean;
   gameId: string | null;
   onGameCreated: (newGameId: string) => void;
+  onRequireEntry: () => void;
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -812,6 +901,10 @@ function CreateTestGameSection({
   const createTestGame = async () => {
     if (!playerReady) {
       setError('Player is not ready.');
+      return;
+    }
+    if (!player?.name) {
+      onRequireEntry();
       return;
     }
 

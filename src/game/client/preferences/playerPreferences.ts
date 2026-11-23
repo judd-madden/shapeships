@@ -109,7 +109,9 @@ export function createPlayerPreferencesStore({ storage, eventTarget }: {
         // The user action still takes effect when persistence is unavailable.
       }
       applySnapshot({ [key]: value });
-      deliberateListeners.forEach((listener) => listener({ [key]: value }));
+      deliberateListeners.forEach((listener) => {
+        try { listener({ [key]: value }); } catch { /* Account listeners cannot break a local toggle. */ }
+      });
     },
     dispose(): void {
       eventTarget?.removeEventListener('storage', onStorage);

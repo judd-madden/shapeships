@@ -1180,3 +1180,56 @@ routes/win_streak_routes_test.ts
 - `npm run build`: **PASS**, with the existing >500 kB chunk-size warning. Build output filenames/sizes are unchanged across the pass checks; no account module is wired into the application.
 - `git diff --check`: **PASS**. Only the scoped files above are changed/new; all remain uncommitted. Browser checks: **Not run — browser/Vite testing handled by user**. No dev server, browser or live API/DB checks were run.
 - **Limits / next pass:** runtime behavior is fake-backed; live account activation and 5b/22B entry/session/game integration remain separate. Offline revocation cannot be promised before a retry succeeds. Memory-only storage provides no remembered return; if a browser blocks removal of an existing stored token, only the live tab's logout fence is guaranteed until server revocation. Terminal preference authority errors follow the explicit owner clarification, and checking/unavailable identity follows R1.
+
+### 22C.5b — App account/session wiring — 23 November 2026
+
+- **Pass / layer:** Client/UI ownership, runtime wiring and existing shell callbacks only. The server still decides account/name eligibility and canonical game identity. No server, SQL, environment, config, deployment, layout, new screen or commit. The supplied N1–N3 summary was used; the referenced `claude/briefs/22C.5a.md` is absent locally.
+- **Startup / owner R1:** synchronous remembered-token check; guests make no account request and retain existing routing. Returning players see the existing Loading presentation, bootstrap an unnamed game session and resume with S before any remembered name is shown. After successful linked bootstrap, nonempty `?game=` launches that game through the Entry invite launch path, using the account name and existing join/rejoin behavior; otherwise open Welcome. Failed/dormant/unavailable/signed-out bootstrap returns ordinary Entry with the requested game preserved as pending invite context. Account-token retention remains the store's policy.
+- **Linking:** never session-start-with-A, and never send a signed-in display name as a guest session-start assignment. Link every replacement session through resume before game requests. Startup repairs an invalid S once after account-only resume, then stops on failure; ordinary gameplay does not gain session replacement. The local `suspendForSessionFailure` seam handles successful account validation followed by failed game-session repair without leaving an account name/token accessor active at guest Entry. The remembered account token survives that failure.
+- **Identity / menu:** `usePlayer` derives the account's exact casing while signedIn, and no name is generated for unnamed tabs. Explicit Entry names remain tab-local; legacy `ss_playerName` is ignored. Real identity drives claimed rail/shield/name, while preview remains DEV-only. Logout is live, My Stats remains inactive, and signed-in menu entry retries unsaved preferences.
+- **Requests / refusals:** authenticatedFetch is the sole A-header seam, guarded by linked session ID. Both game and intent authority-error envelopes trigger one coalesced resume revalidation without replay. Guest assignment refusals from session start, game/computer creation, join, rematch and streak replacement/reset clear the tab session/player and preserve invite context. Typed session errors supply the four specified temporary Entry alerts; other errors retain their generic presentation. Join refusals cannot fall through to spectator joining. Successful reads and polling cadence remain unchanged.
+- **Sign-out / approved outage fallback:** store logout removes account authority first; the tab session/player are cleared immediately and Entry starts a fresh named guest session only after submission. SignedOut transitions, including sibling logout and terminal preference/game rejection, follow the same path from menu or game. Owner-approved unavailable/dormant revalidation also returns guest Entry, retaining the account token. Session/account-generation checks and cancelled join work fence stale responses, including guest failures arriving after claim/sign-in on the same S. No active-match recovery design or remoteLogoutPending UI is added.
+- **N1 / N3:** isolate each deliberate preference listener so guest toggles complete even if one throws. Replace the diagnostic regex's six literal spaces with the equivalent quantified space, and pass React children as a createElement argument with an optional children type; both lint fixes preserve runtime behavior.
+
+#### Changed files
+
+- `src/App.tsx`
+- `src/components/ScreenManager.tsx`
+- `src/components/shells/MenuShell.tsx`
+- `src/components/shells/menu/MenuProfileRail.tsx`
+- `src/components/shells/menu/menuIdentity.ts`
+- `src/utils/sessionManager.ts`
+- `src/game/hooks/usePlayer.tsx`
+- `src/game/client/account/accountStore.ts`
+- `src/game/client/gameSession/accountSessionWiring.ts` (new)
+- `src/game/client/gameSession/playerName.ts`
+- `src/game/client/gameSession/clienteffects/useNetworkingEffects.ts`
+- `src/game/client/useGameSession.ts`
+- `src/game/client/preferences/playerPreferences.ts`
+- `src/game/client/tests/account/accountAppLifecycle_test.ts` (new)
+- `src/game/client/tests/account/gameAccountNetworking_test.ts` (new)
+- `src/game/client/tests/account/playerIdentity_test.ts` (new)
+- `src/game/client/tests/account/accountStore_test.ts`
+- `src/game/client/tests/account/playerPreferencesSeams_test.ts`
+- `src/game/client/tests/gameSession/helpers/equFirstTargetDiagnostics.ts`
+- `src/game/client/tests/gameSession/sharedPresentationLifecycle_test.ts`
+- This §15 record and `Phase 22 Addendum - Account Design.md` (22C.5b runtime wiring after §2.16).
+
+#### Validation
+
+- `npm run typecheck`: **PASS**.
+- `npm run lint`: **PASS — 0 errors, 28 existing warnings**. Both specified pre-existing errors are fixed.
+- `npm run test:client`: **PASS — 1,086 passed, 7 skipped; 60 files passed, 1 skipped (61 total)**. Added 88 tests across the three new files listed above plus extensions to accountStore_test.ts and playerPreferencesSeams_test.ts. Tests use Vitest/node with fake fetch/storage/EventTarget; no new UI/layout/browser tests. Coverage includes R1 game/menu routing, guest inactivity, bounded session repair, retention/fallback, headers/linking, both error envelopes, every refusal/assignment route, fresh guest sessions after logout/outage, same-session sign-in races and N1.
+- `npm run build`: **PASS**, with the existing >500 kB chunk-size warning.
+- `git diff --check`: **PASS**. All changes remain in the working tree, uncommitted.
+- Supplemental TypeScript inspection explicitly includes App/ScreenManager, which the normal tsconfig does not root. It finds the same two App diagnostics as HEAD: nullable setup minutes passed to ComputerGameCreateSettings, and GraphicsTest's missing onBack. No new diagnostics in App, ScreenManager or usePlayer; configuration and unrelated existing errors remain untouched.
+- Browser checks: **Not run — browser/Vite testing handled by user**. No Vite/dev server, browser, live account/API/database request, deployment or commit was performed. Expired-session behavior is unit-tested here; planning-assistant local-stack verification replaces a manual 24-hour browser-expiry check.
+
+#### Owner checks / remaining limits
+
+1. With no account token, test Entry, private/computer creation, guest reload into a game and invite Entry/join with accounts off, then on.
+2. With accounts on, verify all four name-refusal alerts and that an invite remains pending after refusal.
+3. Insert a valid token from the planning-assistant script into `shapeships.accountToken.v1`. Reload without a game URL for Loading → Welcome with account name/shield/Logout. Refresh an existing game and open a friend's `?game=` invite while signed in; both should open the game with account identity through existing join/rejoin.
+4. Check linked A headers during play, preference retry on menu entry, Logout and sibling-tab Logout from menu/game. Check account unavailability/disabled fallback: ordinary Entry without a stale account name, followed by guest play; the remembered token remains for next startup.
+
+Live modes, CAPTCHA/sign-in screens and token acquisition remain owner/planning-assistant work. No live behavior is claimed from fake-backed tests. Offline remote revocation and storage-denied persistence keep the 22C.5a limitations. No manual expired-session browser check is requested.

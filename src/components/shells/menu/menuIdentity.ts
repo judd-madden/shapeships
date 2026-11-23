@@ -1,3 +1,5 @@
+import type { AccountIdentity } from '../../../game/client/account/types';
+
 export type MenuIdentity = {
   status: 'guest' | 'claimed';
   displayName: string;
@@ -6,7 +8,8 @@ export type MenuIdentity = {
 const PREVIEW_STORAGE_KEY = 'shapeships.dev.menuAccountPreview';
 let claimedPreview = false;
 
-export function getMenuIdentity(displayName: string): MenuIdentity {
+export function getMenuIdentity(displayName: string, account: AccountIdentity | null = null): MenuIdentity {
+  const identity: MenuIdentity = { status: account ? 'claimed' : 'guest', displayName: account?.displayName ?? displayName };
   if (import.meta.env.DEV && typeof window !== 'undefined') {
     const preview = new URLSearchParams(window.location.search).get('accountPreview');
     if (preview === 'claimed' || preview === 'guest') {
@@ -27,7 +30,7 @@ export function getMenuIdentity(displayName: string): MenuIdentity {
         // Retain the in-memory preview when session storage is unavailable.
       }
     }
-    return { status: claimedPreview ? 'claimed' : 'guest', displayName };
+    return { ...identity, status: preview === 'guest' ? 'guest' : claimedPreview ? 'claimed' : identity.status };
   }
-  return { status: 'guest', displayName };
+  return identity;
 }

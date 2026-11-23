@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import type { Player } from '../game/hooks/usePlayer';
+import type { AccountIdentity } from '../game/client/account/types';
+import { getEntrySessionErrorMessage } from '../game/client/gameSession/accountSessionWiring';
 import type { CreatePrivateGameSettings } from './panels/CreatePrivateGamePanel';
 import { LoginShell } from './shells/LoginShell';
 import { MenuShell } from './shells/MenuShell';
@@ -14,6 +16,9 @@ type ShellId = 'login' | 'menu';
 
 interface ScreenManagerProps {
   player: Player | null;
+  accountIdentity: AccountIdentity | null;
+  onAccountLogout: () => void;
+  onMenuEntered: () => void;
   initialShell: ShellId;
   pendingInviteGameId: string | null;
   onCreatePrivateGame: (settings: CreatePrivateGameSettings) => Promise<string>;
@@ -29,6 +34,9 @@ interface ScreenManagerProps {
 
 export default function ScreenManager({
   player,
+  accountIdentity,
+  onAccountLogout,
+  onMenuEntered,
   initialShell,
   pendingInviteGameId,
   onCreatePrivateGame,
@@ -48,6 +56,10 @@ export default function ScreenManager({
   useEffect(() => {
     setCurrentShell(initialShell);
   }, [initialShell]);
+
+  useEffect(() => {
+    if (currentShell === 'menu') onMenuEntered();
+  }, [currentShell, onMenuEntered]);
 
   const navigateToShell = (shell: string) => {
     if (shell === 'login' || shell === 'menu') {
@@ -74,7 +86,7 @@ export default function ScreenManager({
       setCurrentShell('menu');
     } catch (error) {
       console.error('[Entry] Failed to start session:', error);
-      alert('Failed to start session. Please try again.');
+      alert(getEntrySessionErrorMessage(error));
     } finally {
       setIsStartingSession(false);
     }
@@ -96,7 +108,7 @@ export default function ScreenManager({
   };
 
   const handleLogout = () => {
-    onResetPlayerSession();
+    onAccountLogout();
     setUser(null);
     setCurrentShell('login');
   };
@@ -114,6 +126,7 @@ export default function ScreenManager({
             onCreateComputerGame={onCreateComputerGame}
             user={user}
             player={player}
+            accountIdentity={accountIdentity}
             alphaDisableAuth={ALPHA_DISABLE_AUTH}
             winStreakViewModel={winStreakViewModel}
             winStreakActions={winStreakActions}

@@ -5,6 +5,20 @@ import { cleanup, envelope, harness, memoryStorage } from './fixtures';
 afterEach(cleanup);
 
 describe('player preference account seams', () => {
+  it('isolates a throwing deliberate listener and still completes a guest toggle', () => {
+    const h = harness();
+    const notified = vi.fn(), nextListener = vi.fn();
+    h.preferences.subscribe('soundEnabled', notified);
+    h.preferences.subscribeDeliberateChanges(() => { throw new Error('listener failed'); });
+    h.preferences.subscribeDeliberateChanges(nextListener);
+    expect(() => h.preferences.setPreference('soundEnabled', false)).not.toThrow();
+    expect(h.preferences.getSnapshot().soundEnabled).toBe(false);
+    expect(h.storage!.getItem(keys.soundEnabled)).toBe('false');
+    expect(notified).toHaveBeenCalledOnce();
+    expect(nextListener).toHaveBeenCalledExactlyOnceWith({ soundEnabled: false });
+    expect(h.fetchMock).not.toHaveBeenCalled();
+  });
+
   it('persists all five external values, notifies only changed fields and emits no deliberate change', () => {
     const h = harness();
     const sound = vi.fn(), music = vi.fn(), deliberate = vi.fn();

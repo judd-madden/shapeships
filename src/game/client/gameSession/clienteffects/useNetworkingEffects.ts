@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { isAccountAuthorityError } from '../../account/preferenceSync';
+import { isNameAssignmentRefusal, readGameErrorCode } from '../accountSessionWiring';
 import type React from 'react';
 import type { UntimedPollingMode } from './useUntimedPollingThrottle';
 import type { ShipEffectSyncObservation } from './useShipEffectPresentation';
@@ -141,21 +143,25 @@ export function useAutoJoinEffect(args: {
 
   useEffect(() => {
     if (effectiveGameId && attemptedJoinForGameRef.current.has(effectiveGameId)) return;
-    if (!effectiveGameId) return;
+    if (!effectiveGameId || !effectivePlayerName) return;
 
     attemptedJoinForGameRef.current.add(effectiveGameId);
+    let cancelled = false;
 
     const attemptJoin = async () => {
       try {
         console.log(`[useGameSession] Auto-join attempt for gameId=${effectiveGameId}, playerName=${effectivePlayerName}`);
 
         const sessionData = await ensureSession(effectivePlayerName);
+        if (cancelled) return;
         console.log(`[useGameSession] Session ensured before join (sessionId: ${sessionData.sessionId})`);
         setMySessionId(sessionData.sessionId);
 
         const confirmAuthorized = async (): Promise<boolean> => {
+          if (cancelled) return false;
           try {
             const confirmResponse = await authenticatedGet(`/game-state/${effectiveGameId}`);
+            if (cancelled) return false;
             if (confirmResponse.ok) {
               return true;
             }
@@ -171,15 +177,21 @@ export function useAutoJoinEffect(args: {
 
         const MAX_ATTEMPTS = 3;
         for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+          if (cancelled) return;
           console.log(`[useGameSession] Attempting join as player (attempt ${attempt}/${MAX_ATTEMPTS})...`);
 
           let response = await authenticatedPost(`/join-game/${effectiveGameId}`, {
             playerName: effectivePlayerName,
             role: 'player',
           });
+          if (cancelled) return;
 
           if (!response.ok) {
+            const code = await readGameErrorCode(response);
+            if (cancelled) return;
+            if (isNameAssignmentRefusal(code) || (code && isAccountAuthorityError(code))) return;
             const errorText = await response.text();
+            if (cancelled) return;
             const isBenignError =
               errorText.toLowerCase().includes('already joined') ||
               errorText.toLowerCase().includes('already in game') ||
@@ -218,6 +230,7 @@ export function useAutoJoinEffect(args: {
                 playerName: effectivePlayerName,
                 role: 'spectator',
               });
+              if (cancelled) return;
 
               if (response.ok) {
                 console.log(`[useGameSession] Auto-join request ok (confirming via game-state)...`);
@@ -271,7 +284,11 @@ export function useAutoJoinEffect(args: {
       }
     };
 
-    attemptJoin();
+    void attemptJoin();
+    return () => {
+      cancelled = true;
+      attemptedJoinForGameRef.current.delete(effectiveGameId);
+    };
   }, [effectiveGameId, effectivePlayerName]);
 }
 
