@@ -1149,3 +1149,34 @@ routes/species_selection_visibility_routes_test.ts
 routes/timeControlPresets_test.ts
 routes/win_streak_routes_test.ts
 ~~~
+
+### 22C.5a — Client account runtime — 23 November 2026
+
+- **Pass / layer:** Client/UI ownership, client runtime only. Added an injected account transport, lazy session-wide external store/hook, token/generation/logout lifecycle and account preference synchronization. No startup, screen, menu, session-manager, player/name, game-networking, server, SQL, environment, tooling or deployment changes. No commit.
+- **API / state machine:** eight §2.16 account requests return `kind:ok/error/unavailable`, validate successful envelopes and preserve operational error codes. `status` is signedOut/resuming/signedIn/passwordChangeRequired/dormant/unavailable; snapshots expose lastError, remoteLogoutPending and preferenceSync saving/unsaved. signedIn contains identity, preferences, expiresAt, linkedSessionId and tokenPersistence. Tokens stay outside snapshots; ordinary request access is guarded by matching the tab's linked session.
+- **Storage / owner R1:** localStorage `shapeships.accountToken.v1` holds the token only. No cached name exists: resuming and unavailable have no identity/display name to render. The addendum runtime API section explicitly hands 5b/22B the short checking/unavailable start needed before a returning player enters the signed-in menu. Storage-denied sign-in is memory-only. Logout clears matching authority before its request, fences stale work and retries failed revocation only in memory; blocked deletion is fenced within the tab. Cross-tab replacement signs out without adopting the replacement until resume.
+- **Preferences:** existing guest setters, keys, defaults, field hook and storage-event semantics remain intact. Added only the external-snapshot seam and a deliberate-change subscription. Hydration writes all five local keys without a PUT. Signed-in edits coalesce for 300 ms; serialized PUTs preserve newer edits, rebase one conflict and otherwise expose unsaved with deliberate retry. Same-account hydration overlays pending keys; a different account discards outgoing work. **Owner clarification during planning:** terminal authority rejection on PUT immediately signs out using resume's reason mapping; other failures remain unsaved. This and R1 are recorded in the runtime API handoff; no other contract deviation is intended.
+
+#### Changed files
+
+- `src/game/client/account/types.ts`
+- `src/game/client/account/accountApi.ts`
+- `src/game/client/account/accountStore.ts`
+- `src/game/client/account/preferenceSync.ts`
+- `src/game/client/account/useAccountState.ts`
+- `src/game/client/preferences/playerPreferences.ts` (two seams only)
+- `src/game/client/tests/account/fixtures.ts`
+- `src/game/client/tests/account/accountApi_test.ts`
+- `src/game/client/tests/account/accountStore_test.ts`
+- `src/game/client/tests/account/preferenceSync_test.ts`
+- `src/game/client/tests/account/playerPreferencesSeams_test.ts`
+- This §15 record and `Phase 22 Addendum - Account Design.md` (runtime API after §2.16).
+
+#### Validation
+
+- `npm run typecheck`: **PASS**.
+- `npm run test:client`: **PASS — 998 passed, 7 skipped; 57 files passed, 1 skipped (58 total)**. The four new files are accountApi_test.ts, accountStore_test.ts, preferenceSync_test.ts and playerPreferencesSeams_test.ts under `src/game/client/tests/account/`; tests use fake fetch/storage/EventTarget and timers. They cover all routes/envelopes, memory fallback, token/generation/cross-tab/logout behavior, preference batching/conflicts/overlays/authority rejection, import-time inactivity and reentrant logout. Existing preference tests pass untouched.
+- `npm run lint`: **FAIL — 2 pre-existing errors, 28 pre-existing warnings**, all in untouched files. Errors: `src/game/client/tests/gameSession/helpers/equFirstTargetDiagnostics.ts:99` (no-regex-spaces) and `src/game/client/tests/gameSession/sharedPresentationLifecycle_test.ts:175` (react/no-children-prop). Scoped ESLint for account runtime/tests and playerPreferences.ts passes; the final full run reports no diagnostics in changed files. No out-of-scope lint fixes.
+- `npm run build`: **PASS**, with the existing >500 kB chunk-size warning. Build output filenames/sizes are unchanged across the pass checks; no account module is wired into the application.
+- `git diff --check`: **PASS**. Only the scoped files above are changed/new; all remain uncommitted. Browser checks: **Not run — browser/Vite testing handled by user**. No dev server, browser or live API/DB checks were run.
+- **Limits / next pass:** runtime behavior is fake-backed; live account activation and 5b/22B entry/session/game integration remain separate. Offline revocation cannot be promised before a retry succeeds. Memory-only storage provides no remembered return; if a browser blocks removal of an existing stored token, only the live tab's logout fence is guaranteed until server revocation. Terminal preference authority errors follow the explicit owner clarification, and checking/unavailable identity follows R1.

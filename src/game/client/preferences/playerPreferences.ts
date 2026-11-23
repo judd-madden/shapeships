@@ -44,6 +44,7 @@ export function createPlayerPreferencesStore({ storage, eventTarget }: {
   }
   let snapshot: Readonly<PlayerPreferences> = Object.freeze(initial);
   const listeners = new Map<PlayerPreferenceKey, Set<() => void>>();
+  const deliberateListeners = new Set<(patch: Partial<PlayerPreferences>) => void>();
 
   // Applying external values is separate from the deliberate persistence path.
   function applySnapshot(patch: Partial<PlayerPreferences>): void {
@@ -77,6 +78,20 @@ export function createPlayerPreferencesStore({ storage, eventTarget }: {
 
   return {
     getSnapshot: (): Readonly<PlayerPreferences> => snapshot,
+    applyExternalSnapshot(values: Readonly<PlayerPreferences>): void {
+      for (const key of preferenceKeys) {
+        try {
+          storage?.setItem(PLAYER_PREFERENCE_STORAGE_KEYS[key], String(values[key]));
+        } catch {
+          // Hydration still applies in memory when persistence is unavailable.
+        }
+      }
+      applySnapshot(values);
+    },
+    subscribeDeliberateChanges(listener: (patch: Partial<PlayerPreferences>) => void): () => void {
+      deliberateListeners.add(listener);
+      return () => { deliberateListeners.delete(listener); };
+    },
     subscribe(key: PlayerPreferenceKey, listener: () => void): () => void {
       let fieldListeners = listeners.get(key);
       if (!fieldListeners) {
@@ -94,10 +109,12 @@ export function createPlayerPreferencesStore({ storage, eventTarget }: {
         // The user action still takes effect when persistence is unavailable.
       }
       applySnapshot({ [key]: value });
+      deliberateListeners.forEach((listener) => listener({ [key]: value }));
     },
     dispose(): void {
       eventTarget?.removeEventListener('storage', onStorage);
       listeners.clear();
+      deliberateListeners.clear();
     },
   };
 }
