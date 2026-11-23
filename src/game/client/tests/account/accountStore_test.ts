@@ -9,6 +9,38 @@ import {
 afterEach(cleanup);
 
 describe('account store lifecycle and storage', () => {
+  it.each(['available', 'RATE_LIMITED'] as const)('invalidates a pending %s name check before a failed claim', async (outcome) => {
+    const h = harness(), pending = deferred<Response>();
+    h.fetchMock.mockReturnValueOnce(pending.promise);
+    const checking = h.store.nameCheck('Pilot1');
+    h.store.invalidateNameChecks();
+    h.fetchMock.mockResolvedValueOnce(error('CAPTCHA_REPLAY', 409));
+    await h.store.claim({ name: 'Pilot1', password: 'synthetic-password', turnstileToken: 'synthetic-proof', preferences: h.preferences.getSnapshot() }, SESSION_TOKEN);
+    expect(h.store.getSnapshot().lastError?.code).toBe('CAPTCHA_REPLAY');
+    pending.resolve(outcome === 'available'
+      ? json({ ok: true, nameKey: 'pilot1', displayName: 'Pilot1', outcome })
+      : error(outcome, 429));
+    expect(await checking).toBeNull();
+    expect(h.store.getSnapshot().lastError?.code).toBe('CAPTCHA_REPLAY');
+  });
+
+  it('claims with current local preferences and links the supplied tab session', async () => {
+    const h = harness();
+    h.preferences.setPreference('musicEnabled', false);
+    h.preferences.setPreference('soundEnabled', false);
+    const preferences = h.preferences.getSnapshot();
+    h.fetchMock.mockResolvedValueOnce(json(entry(TOKEN, undefined, 'Pilot1', envelope('1', preferences)), 201));
+    await h.store.claim({ name: 'Pilot1', password: 'synthetic-password', turnstileToken: 'synthetic-proof', preferences }, SESSION_TOKEN);
+    const [, request] = h.fetchMock.mock.calls[0];
+    expect(JSON.parse(String(request?.body))).toEqual({
+      name: 'Pilot1', password: 'synthetic-password', turnstileToken: 'synthetic-proof', preferences,
+    });
+    expect(new Headers(request?.headers).get('X-Session-Token')).toBe(SESSION_TOKEN);
+    expect(h.store.getSnapshot()).toMatchObject({ status: 'signedIn', linkedSessionId: 'session_tab', lastError: null });
+    expect(h.store.getAccountTokenForSession('session_tab')).toBe(TOKEN);
+    expect(h.fetchMock).toHaveBeenCalledOnce();
+  });
+
   it('checks remembered storage synchronously without network or identity', async () => {
     const h = harness();
     expect(h.store.hasRememberedToken()).toBe(false);

@@ -17,6 +17,8 @@ import GameScreen from './game/display/GameScreen';
 import { usePlayer } from './game/hooks/usePlayer';
 import { getAccountStore } from './game/client/account/accountStore';
 import { useAccountState } from './game/client/account/useAccountState';
+import type { ClaimNameActions } from './game/client/account/claimNameForm';
+import { getPlayerPreferencesStore } from './game/client/preferences/playerPreferences';
 import { bootstrapRememberedAccount, observeAccountSession, type AccountStartupOutcome } from './game/client/gameSession/accountSessionWiring';
 import { useWinStreakMenu } from './game/client/winStreak/useWinStreakProfile';
 import { WIN_STREAK_RECONCILIATION_TIMEOUT_MS } from './game/client/winStreak/workflow';
@@ -347,6 +349,35 @@ export default function App() {
   const createComputerGame = async (settings: CreatePrivateGameSettings): Promise<string> =>
     winStreakMenu.requestComputerGame(settings);
 
+  const claimNameActions: ClaimNameActions = {
+    checkName: (name) => accountStore.nameCheck(name),
+    invalidateNameChecks: () => accountStore.invalidateNameChecks(),
+    claim: async (input) => {
+      const generation = renderGeneration;
+      if (generation !== lifecycleGeneration.current) return { kind: 'cancelled' };
+      const sessionToken = getSessionToken();
+      await accountStore.claim({ ...input, preferences: getPlayerPreferencesStore().getSnapshot() }, sessionToken ?? '');
+      // Capture before any other await: name checks also write lastError.
+      const result = accountStore.getSnapshot();
+      if (generation !== lifecycleGeneration.current || getSessionToken() !== sessionToken) return { kind: 'cancelled' };
+      if (result.status === 'signedIn') return { kind: 'ok' };
+      const error = result.lastError ?? { code: 'UNKNOWN' };
+      if (error.code === 'GAME_SESSION_INVALID') {
+        // Recovery is for menu entry only, and never replays the single-use proof.
+        if (!player?.name || readGameIdFromUrl()) return { kind: 'cancelled' };
+        clearSession();
+        try {
+          await ensureSession(player.name);
+        } catch {
+          if (generation !== lifecycleGeneration.current) return { kind: 'cancelled' };
+          return { kind: 'error', error };
+        }
+        if (generation !== lifecycleGeneration.current) return { kind: 'cancelled' };
+      }
+      return { kind: 'error', error };
+    },
+  };
+
   const resetPlayerSession = useCallback((inviteGameId?: string) => {
     lifecycleGeneration.current++;
     clearPlayer();
@@ -469,6 +500,7 @@ export default function App() {
           player={player}
           accountIdentity={account.status === 'signedIn' ? account.identity : null}
           onAccountLogout={logoutAccount}
+          claimNameActions={claimNameActions}
           onMenuEntered={onMenuEntered}
           initialShell={playerShellStart}
           pendingInviteGameId={pendingInviteGameId}

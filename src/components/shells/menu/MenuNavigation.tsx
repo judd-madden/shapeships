@@ -6,7 +6,7 @@ export const MENU_PAGES = [
   { id: 'lore', label: 'Lore' },
 ] as const;
 
-export type MenuPageId = typeof MENU_PAGES[number]['id'];
+export type MenuPageId = typeof MENU_PAGES[number]['id'] | 'claimName';
 
 export interface MenuNavigationProps {
   activePanel: MenuPageId;

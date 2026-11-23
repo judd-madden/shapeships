@@ -15,6 +15,8 @@ export { ChatSendButton } from './buttons/ChatSendButton';
 
 // Inputs
 export { InputField } from './inputs/InputField';
+export { PasswordInput } from './inputs/PasswordInput';
+export { FormField } from './inputs/FormField';
 
 // Lobby
 export { LobbyRow } from './lobby/LobbyRow';

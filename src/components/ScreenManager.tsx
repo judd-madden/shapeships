@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import type { Player } from '../game/hooks/usePlayer';
 import type { AccountIdentity } from '../game/client/account/types';
+import type { ClaimNameActions } from '../game/client/account/claimNameForm';
 import { getEntrySessionErrorMessage } from '../game/client/gameSession/accountSessionWiring';
 import type { CreatePrivateGameSettings } from './panels/CreatePrivateGamePanel';
 import { LoginShell } from './shells/LoginShell';
@@ -17,6 +18,7 @@ type ShellId = 'login' | 'menu';
 interface ScreenManagerProps {
   player: Player | null;
   accountIdentity: AccountIdentity | null;
+  claimNameActions: ClaimNameActions;
   onAccountLogout: () => void;
   onMenuEntered: () => void;
   initialShell: ShellId;
@@ -35,6 +37,7 @@ interface ScreenManagerProps {
 export default function ScreenManager({
   player,
   accountIdentity,
+  claimNameActions,
   onAccountLogout,
   onMenuEntered,
   initialShell,
@@ -127,6 +130,7 @@ export default function ScreenManager({
             user={user}
             player={player}
             accountIdentity={accountIdentity}
+            claimNameActions={claimNameActions}
             alphaDisableAuth={ALPHA_DISABLE_AUTH}
             winStreakViewModel={winStreakViewModel}
             winStreakActions={winStreakActions}

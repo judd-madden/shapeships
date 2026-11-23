@@ -95,7 +95,9 @@ Blue:           #2555FF
 #### InputField
 - **Used on**: Login screens
 - **States**: Default, Hover, Focus, Error
-- **Props**: `value`, `onChange`, `placeholder`, `error`, `disabled`, `className`, `type`
+- **Props**: `value`, `onChange`, `placeholder`, `error`, `disabled`, `className`, `type`, `onKeyDown`
+- **Optional form attributes**: `id`, `name`, `autoComplete`, `autoCapitalize`, `spellCheck`, `aria-describedby`. `aria-invalid` follows `error`.
+- **Trailing content**: `trailing?: ReactNode` sits inside the field, centred vertically and 20px from the right. Its presence reserves 60px right padding. Omitting these new props preserves the existing input appearance.
 
 ```tsx
 <InputField 
@@ -105,6 +107,25 @@ Blue:           #2555FF
   error={hasError}
   type="text"
 />
+```
+
+#### PasswordInput
+
+- Composes `InputField`; accepts its props except `type` and `trailing`.
+- Starts hidden, with a non-submit show/hide button using the existing 24px visibility icons. The button supplies `aria-label` and `aria-pressed`, and follows `disabled`.
+- Pass `autoComplete="new-password"` for claim or `autoComplete="current-password"` for sign-in.
+
+#### FormField
+
+- **Props**: `htmlFor`, `messageId`, `label`, `hint`, optional `error`, and `children` (the control).
+- Associates the label with the control's `id`. Pass `messageId` to the control's `aria-describedby` and set its `error` when needed.
+- Renders one polite live message below the control; a pastel-red error replaces the hint. Hints support multiple lines.
+- Labels use 20px mobile / 24px desktop; messages use 14px mobile / 16px desktop with 22px desktop line-height. Label/control/message gaps are 12px mobile and 20px desktop. The parent supplies spacing between fields.
+
+```tsx
+<FormField htmlFor="claim-password" messageId="claim-password-message" label="Set password" hint="10+ characters. No other requirements." error={passwordError}>
+  <PasswordInput id="claim-password" name="password" value={password} onChange={setPassword} autoComplete="new-password" aria-describedby="claim-password-message" error={Boolean(passwordError)} />
+</FormField>
 ```
 
 ### Lobby (`/lobby/`)

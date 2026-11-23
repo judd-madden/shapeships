@@ -15,6 +15,8 @@ import { LorePanel } from '../panels/lore/LorePanel';
 import { CreatePrivateGamePanel, type CreatePrivateGameSettings } from '../panels/CreatePrivateGamePanel';
 import { SinglePlayerFeatures } from '../panels/SinglePlayerFeatures';
 import { WelcomePanel } from '../panels/WelcomePanel';
+import { ClaimNamePanel } from '../panels/ClaimNamePanel';
+import type { ClaimNameActions } from '../../game/client/account/claimNameForm';
 import { MenuHeader } from './menu/MenuHeader';
 import { MenuProfileRail } from './menu/MenuProfileRail';
 import { MenuNavigation, type MenuPageId } from './menu/MenuNavigation';
@@ -44,6 +46,7 @@ interface MenuShellProps {
   user: any;
   player: any;
   accountIdentity: AccountIdentity | null;
+  claimNameActions: ClaimNameActions;
   alphaDisableAuth: boolean;
   winStreakViewModel: WinStreakMenuViewModel;
   winStreakActions: WinStreakMenuActions;
@@ -59,6 +62,7 @@ export function MenuShell({
   user, 
   player, 
   accountIdentity,
+  claimNameActions,
   alphaDisableAuth,
   winStreakViewModel,
   winStreakActions,
@@ -86,6 +90,10 @@ export function MenuShell({
       onEnterPlayComputerRef.current();
     }
   }, [activePanel]);
+
+  useEffect(() => {
+    if (activePanel === 'claimName' && accountIdentity) setActivePanel('welcome');
+  }, [activePanel, accountIdentity]);
 
   // SESSION INVARIANT GUARD:
   // MenuShell should only render when a valid player exists
@@ -133,7 +141,7 @@ export function MenuShell({
       {/* End Welcome's mobile centring space at the nav, before the outer scroll clearance. */}
       <div className={`relative flex w-full max-w-[1430px] shrink-0 flex-col items-center ${activePanel === 'welcome' ? 'max-md:min-h-[calc(100vh_-_20px_-_86px_-_env(safe-area-inset-bottom))] max-md:supports-[height:100svh]:min-h-[calc(100svh_-_20px_-_86px_-_env(safe-area-inset-bottom))]' : ''}`}>
         <MenuHeader />
-        <MenuProfileRail identity={identity} onChangeName={alphaDisableAuth ? onExit : onLogout} onLogout={onLogout} />
+        <MenuProfileRail identity={identity} onChangeName={onExit} onLogout={onLogout} onClaimName={() => setActivePanel('claimName')} />
         <MenuBottomNav activePanel={activePanel} isLoreUnread={isLoreUnread} onSelect={setActivePanel} />
 
         {/* Main Wrapper */}
@@ -144,6 +152,9 @@ export function MenuShell({
           <div className="content-stretch relative flex w-full min-w-0 max-w-full flex-1 shrink-0 flex-col items-start">
             {/* Render active panel */}
             {activePanel === 'welcome' && <WelcomePanel />}
+            {activePanel === 'claimName' && !accountIdentity && (
+              <ClaimNamePanel currentName={player.name} actions={claimNameActions} onClaimed={() => setActivePanel('welcome')} />
+            )}
             {activePanel === 'multiplayer' && (
               <CreatePrivateGamePanel
                 onSubmit={handleCreateGameWithSettings}

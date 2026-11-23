@@ -290,6 +290,9 @@ export function createAccountStore({ api, storage, eventTarget, clock, preferenc
     claim: (request: ClaimRequest, sessionToken: string): Promise<void> => enter(request.name, () => api.claim(request, sessionToken)),
     signIn: (request: SignInRequest, sessionToken: string): Promise<void> => enter(request.name, () => api.signIn(request, sessionToken)),
     changePassword: (request: ChangePasswordRequest, sessionToken: string): Promise<void> => enter(request.name, () => api.changePassword(request, sessionToken)),
+    invalidateNameChecks(): void {
+      nameSequence++;
+    },
     async nameCheck(name: string) {
       if (disposed) return null;
       const captured = generation, sequence = ++nameSequence;

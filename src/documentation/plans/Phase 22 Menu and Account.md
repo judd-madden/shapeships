@@ -204,7 +204,7 @@ The entry design includes a video area. Use a media/poster integration, not a li
 - Prefill from the current guest name where appropriate, while allowing an eligible different name to be claimed.
 - Clearly state that claiming creates an account and requires no email.
 - Account-storage copy must describe the preferences actually saved in this phase.
-- Replace the mockup's claim of an encrypted password with accurate plain-language secure-storage wording or "securely hashed".
+- Use exactly: "We'll create a very simple account for you that only stores your player name, settings, and password (securely hashed)."
 - Future Stats, history and ranked features mentioned in copy remain future intentions, not Phase 22 implementation scope.
 - The illustrated CAPTCHA is not a locked provider choice.
 
@@ -1233,3 +1233,57 @@ routes/win_streak_routes_test.ts
 4. Check linked A headers during play, preference retry on menu entry, Logout and sibling-tab Logout from menu/game. Check account unavailability/disabled fallback: ordinary Entry without a stale account name, followed by guest play; the remembered token remains for next startup.
 
 Live modes, CAPTCHA/sign-in screens and token acquisition remain owner/planning-assistant work. No live behavior is claimed from fake-backed tests. Offline remote revocation and storage-denied persistence keep the 22C.5a limitations. No manual expired-session browser check is requested.
+
+### 22B.3 — Claim Name page and Turnstile — 23 November 2026
+
+- **Pass / layer:** Client/UI, presentation with thin existing-runtime callbacks. The server remains authoritative for names, account creation and session linking. No server, SQL, tooling/config, environment-file, deployment, legacy-auth removal or commit changes.
+- **Primitives:** optional InputField form attributes, accessibility and trailing content preserve existing uses. PasswordInput supplies an accessible non-submit visibility toggle; FormField associates labels and one polite hint/error message. Both are exported and documented for 22B.4 reuse.
+- **Page:** the guest rail opens `claimName`, absent from MENU_PAGES, so neither navigation selects an item. The form starts with the guest's current name; nav/Change Name/browser navigation discards its local state. It follows the supplied desktop layout with an xl column split, stacked smaller layout, and the existing private MenuButton size. Successful claim opens Welcome with the real claimed rail and no extra success message. Change Name now receives onExit directly; account Logout is unchanged.
+- **Name checks / validation:** reusable React-independent nameCheckScheduler provides an immediate opening check, 500ms edit debounce, unchanged-input suppression, request fencing and disposal. The new store invalidation method advances only the existing name-request sequence. Submitting cancels pending checks before claim, and App captures lastError immediately after it resolves. Pure form helpers map all specified outcomes/errors and count password length as NFC Unicode code points.
+- **Turnstile:** lazy shared explicit-render script loading; required claim/sign-in actions; dark normal widget with reserved 65px height; reset after every unsuccessful claim. The loader receives browser objects, timers and environment values through a Node-testable seam. A per-mount cancelled flag prevents delayed render/callbacks after navigation, including unmount before script/SDK readiness. Missing production key, script/render failure and a bounded readiness timeout report verification unavailable. Client variable: `VITE_TURNSTILE_SITE_KEY`; DEV-only unset-key fallback uses the documented public pass key. No credentials or CAPTCHA proofs are logged or persisted.
+- **Claim wiring:** App passes all five current local preferences and the tab session token to the existing account store. Success preserves the session. GAME_SESSION_INVALID attempts one replacement with the same guest name and asks the player to try again; it never replays claim or replaces an active match session. Existing generation and Entry refusal guards remain in use. Guest flows that never open Claim Name gain no account operation or Turnstile loading.
+- **Owner copy correction:** §5.6 and the implemented info paragraph now say password **securely hashed**. All other page copy follows the brief. Entry/sign-in/forced-password and legacy panel removal remain 22B.4.
+
+#### Changed files
+
+- `src/App.tsx`
+- `src/components/ScreenManager.tsx`
+- `src/components/shells/MenuShell.tsx`
+- `src/components/shells/menu/MenuProfileRail.tsx`
+- `src/components/shells/menu/MenuNavigation.tsx`
+- `src/components/panels/ClaimNamePanel.tsx` (new)
+- `src/components/ui/primitives/inputs/InputField.tsx`
+- `src/components/ui/primitives/inputs/PasswordInput.tsx` (new)
+- `src/components/ui/primitives/inputs/FormField.tsx` (new)
+- `src/components/ui/primitives/index.ts`
+- `src/components/ui/primitives/README.md`
+- `src/components/ui/turnstile/TurnstileWidget.tsx` (new)
+- `src/components/ui/turnstile/turnstileLoader.ts` (new)
+- `src/game/client/account/accountStore.ts`
+- `src/game/client/account/claimNameForm.ts` (new)
+- `src/game/client/account/nameCheckScheduler.ts` (new)
+- `src/game/client/tests/account/accountStore_test.ts`
+- `src/game/client/tests/account/claimNameForm_test.ts` (new)
+- `src/game/client/tests/account/nameCheckScheduler_test.ts` (new)
+- `src/game/client/tests/account/turnstileLoader_test.ts` (new)
+- This §15 record / §5.6 correction and `Phase 22 Addendum - Account Design.md` (22B.3 note).
+
+#### Validation
+
+- `npm run typecheck`: **PASS**.
+- Supplemental in-memory TypeScript compilation including App and ScreenManager: **no new diagnostics against HEAD** (13 existing diagnostics across the expanded graph, including App's existing nullable setup-settings and GraphicsTest onBack diagnostics). No config change.
+- `npm run lint`: **PASS — 0 errors, 28 existing warnings**; no findings in new runtime helpers/tests.
+- Direct ESLint invocation on InputField, PasswordInput, FormField, both Turnstile files and ClaimNamePanel: **PASS — no file findings**, with the existing config's React-version-detection notice outside its usual client/display scope.
+- `npm run test:client`: **PASS — 1,167 passed, 7 skipped; 63 files passed, 1 skipped**. Adds 81 tests through the three new suites listed above plus accountStore_test extensions. Tests run in Node with fake timers/browser objects and existing fake fetch/storage; no UI/layout/browser suite. Covers format/outcome/claim error messages, eligibility and Unicode boundaries; scheduling/debounce/stale cancellation; late lookups preserving claim errors; claim preference/session transport; shared SDK loading, key modes, failures/timeouts, lifecycle token clearing/removal and both forms of unmount-before-ready.
+- `npm run build`: **PASS**, with the existing >500 kB chunk-size warning.
+- `git diff --check`: **PASS**. Changes remain uncommitted.
+- Browser checks: **Not run — browser/Vite testing handled by user**. No Vite/dev server, browser, live API/database operation or deployment was run.
+
+#### Subsequent local-stack checks
+
+1. The planning assistant drives Claim Name on the local stack first; no browser verification is claimed by this pass.
+2. With accounts on and the local dummy Turnstile secret/test mode, enter as a guest, open Claim Name and confirm the current name is prefilled. Check name feedback while typing, password visibility/Enter submission, then claim a new eligible name. Expect Welcome with the account name, shield and claimed rail; Logout returns to Entry.
+3. Check desktop and mobile layout, no selected nav item on Claim Name, and discarded input when leaving/reopening via nav or Change Name. Repeat with an ordinary guest who never opens Claim Name; private/computer games must follow the existing flow, with no Turnstile script/name-check request.
+4. Exercise claimed/banned/reserved feedback, failed verification and account-service errors. Every unsuccessful submission needs a fresh check. Navigate away while SDK loading is delayed and confirm no detached widget. Use a production build without a site key to confirm unavailable feedback and no script request.
+
+These are follow-up checks for the planning assistant and Judd, not checks executed here. Live Turnstile/server behavior, layout and bounded session repair still need that local-stack verification. Existing account storage/offline-revocation limitations remain unchanged.
