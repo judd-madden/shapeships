@@ -158,7 +158,7 @@ export function MenuShell({
             {activePanel === 'multiplayer' && (
               <CreatePrivateGamePanel
                 onSubmit={handleCreateGameWithSettings}
-                initialTimed={rememberedSetup?.timed ?? true}
+                initialTimed={rememberedSetup?.timed ?? false}
                 initialPresetKey={rememberedSetup?.presetKey ?? '15_10'}
                 onSetupChange={(setup) => writeMenuSetupMemory('multiplayer', setup)}
                 secondaryAction={(
