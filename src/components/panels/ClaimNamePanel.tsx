@@ -90,10 +90,10 @@ export function ClaimNamePanel({ currentName, actions, onClaimed }: ClaimNamePan
           <h1 id={`${id}-heading`} className="text-[24px] font-black leading-[28px] sm:text-[36px] sm:leading-[42px]">
             Claim Your Name
           </h1>
-          <p className="text-[15px] font-normal leading-[18px] sm:text-[20px] sm:leading-[24px]">No one else will be able to use your name. This will create a very minimal Shapeships Account.</p>
+          <p className="text-[15px] font-normal leading-[18px] sm:text-[20px] sm:leading-[24px]">Only you can use your name. This creates a simple account.</p>
         </div>
       </div>
-      <div className="flex w-full flex-col items-center gap-[32px] md:gap-[48px] xl:ml-[58px] xl:grid xl:w-[calc(100%_-_58px)] xl:max-w-[958px] xl:grid-cols-[minmax(300px,520fr)_2px_minmax(0,340fr)] xl:items-stretch xl:gap-x-[48px] xl:gap-y-0">
+      <div className="flex w-full flex-col items-center gap-[32px] md:ml-[58px] md:w-[calc(100%_-_58px)] md:items-start md:gap-[48px] xl:grid xl:max-w-[958px] xl:grid-cols-[minmax(300px,520fr)_2px_minmax(0,340fr)] xl:items-stretch xl:gap-x-[48px] xl:gap-y-0">
         <form onSubmit={submit} className="flex w-full max-w-[520px] min-w-0 flex-col" aria-busy={submitting}>
           <div className="flex flex-col gap-[28px] md:gap-[44px]">
             <FormField htmlFor={`${id}-name`} messageId={`${id}-name-message`} label="Enter your name" hint={NAME_HINT} error={nameError}>
@@ -110,7 +110,7 @@ export function ClaimNamePanel({ currentName, actions, onClaimed }: ClaimNamePan
             </FormField>
             <FormField
               htmlFor={`${id}-password`} messageId={`${id}-password-message`} label="Set password"
-              hint={<>10+ characters. No other requirements.<br />Password resets are via Discord.</>}
+              hint={<>10+ characters, case sensitive.<br />Password resets are via Discord.</>}
               error={passwordError}
             >
               <PasswordInput
@@ -143,10 +143,12 @@ export function ClaimNamePanel({ currentName, actions, onClaimed }: ClaimNamePan
           </div>
         </form>
         <div aria-hidden="true" className="h-[2px] w-full max-w-[520px] bg-shapeships-grey-70 xl:h-auto xl:w-[2px]" />
-        <div className="flex w-full max-w-[520px] min-w-0 flex-col gap-[20px] text-[16px] leading-[24px] md:gap-[28px] md:text-[20px] md:leading-[28px] xl:max-w-[340px]">
+        <div className="flex w-full max-w-[520px] min-w-0 flex-col gap-[12px] text-[15px] leading-[20px] md:gap-[20px] md:text-[18px] md:leading-[24px] xl:max-w-[340px]">
           <p className="font-bold">No email address required.</p>
-          <p>We'll create a very simple account for you that only stores your player name, settings, and password (securely hashed).</p>
-          <p>In the future, we plan to add more account features like Ranked Multiplayer, Game History, and Stats. Accounts will always stay free, and require minimal information from you.</p>
+          <p>Your account only stores your player name, settings and password (securely hashed).</p>
+          <p><em><strong>Two-name limit per player.</strong> Players found in breach of this limit will be... frowned upon. Maybe banned.</em></p>
+          <p>Accounts will always be free.</p>
+          <p>In the future, we plan to add more account features like Game History, Stats and Ranked Multiplayer.  Have fun, come and say hi on Discord!</p>
         </div>
       </div>
     </section>

@@ -141,7 +141,7 @@ export function MenuShell({
       {/* End Welcome's mobile centring space at the nav, before the outer scroll clearance. */}
       <div className={`relative flex w-full max-w-[1430px] shrink-0 flex-col items-center ${activePanel === 'welcome' ? 'max-md:min-h-[calc(100vh_-_20px_-_86px_-_env(safe-area-inset-bottom))] max-md:supports-[height:100svh]:min-h-[calc(100svh_-_20px_-_86px_-_env(safe-area-inset-bottom))]' : ''}`}>
         <MenuHeader />
-        <MenuProfileRail identity={identity} onChangeName={onExit} onLogout={onLogout} onClaimName={() => setActivePanel('claimName')} />
+        <MenuProfileRail identity={identity} onChangeName={onExit} onLogout={onLogout} onClaimName={() => setActivePanel('claimName')} claimNameOpen={activePanel === 'claimName'} />
         <MenuBottomNav activePanel={activePanel} isLoreUnread={isLoreUnread} onSelect={setActivePanel} />
 
         {/* Main Wrapper */}

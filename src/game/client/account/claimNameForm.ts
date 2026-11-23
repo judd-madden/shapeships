@@ -1,6 +1,6 @@
 import type { AccountOperationError, AccountResult, NameCheckBody } from './types';
 
-export const NAME_HINT = '3–20 letters or numbers, no spaces or symbols.';
+export const NAME_HINT = '3–20 letters or numbers, no spaces or symbols. Names are not case sensitive: jon, Jon and JON are the same name.';
 export const VERIFICATION_UNAVAILABLE = "Verification isn't available right now. Please try again later.";
 export const NAME_MESSAGES = {
   claimed: 'This name has already been claimed. Please choose another.',

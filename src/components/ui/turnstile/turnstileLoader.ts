@@ -12,7 +12,6 @@ export interface TurnstileRenderOptions {
   'error-callback'(): void;
 }
 export interface TurnstileApi {
-  ready(callback: () => void): void;
   render(container: HTMLElement, options: TurnstileRenderOptions): string | undefined;
   reset(widgetId: string): void;
   remove(widgetId: string): void;
@@ -66,8 +65,8 @@ export function createTurnstileLoader({ document, window, timers, env }: {
         script.defer = true;
         script.onload = () => {
           const api = window.turnstile;
-          if (!api) { finish(); return; }
-          try { api.ready(() => finish(api)); } catch { finish(); }
+          // The script has executed by load. ready() rejects async/dynamic script tags.
+          finish(typeof api?.render === 'function' ? api : undefined);
         };
         script.onerror = () => finish();
         timeout = timers.setTimeout(() => finish(), 12000);

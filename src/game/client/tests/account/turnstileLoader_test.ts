@@ -27,8 +27,13 @@ function setup(env: TurnstileEnvironment = { dev: true }) {
   const document = { createElement, head: { appendChild } } as unknown as Pick<Document, 'createElement' | 'head'>;
   const window: TurnstileWindow = {};
   let widgetNumber = 0;
-  const api: TurnstileApi = {
-    ready: vi.fn((callback: () => void) => callback()),
+  const api: TurnstileApi & { ready(callback: () => void): void } = {
+    ready: vi.fn((callback: () => void) => {
+      if (scripts.some((script) => script.async || script.defer)) {
+        throw new Error('TurnstileError: Remove async/defer from the Turnstile api.js script tag before using turnstile.ready()');
+      }
+      callback();
+    }),
     render: vi.fn((_container: HTMLElement, _options: TurnstileRenderOptions) => `widget-${++widgetNumber}`),
     reset: vi.fn(), remove: vi.fn(),
   };
@@ -39,7 +44,7 @@ function setup(env: TurnstileEnvironment = { dev: true }) {
       clearTimeout: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof globalThis.setTimeout>),
     },
   });
-  const ready = async () => {
+  const finishLoad = async () => {
     window.turnstile = api;
     scripts[0].onload?.();
     await vi.advanceTimersByTimeAsync(0);
@@ -50,7 +55,7 @@ function setup(env: TurnstileEnvironment = { dev: true }) {
     const lifecycle = mountTurnstileWidget({ loader, container, action, onTokenChange, onUnavailable });
     return { ...lifecycle, onTokenChange, onUnavailable, container };
   };
-  return { loader, api, scripts, createElement, appendChild, window, ready, mount };
+  return { loader, api, scripts, createElement, appendChild, window, finishLoad, mount };
 }
 
 describe('Turnstile loader without a DOM', () => {
@@ -74,23 +79,20 @@ describe('Turnstile loader without a DOM', () => {
     expect(h.scripts[0]).toMatchObject({
       src: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit', async: true, defer: true,
     });
-    await h.ready();
+    await h.finishLoad();
     expect(await first).toEqual({ api: h.api, siteKey: '1x00000000000000000000AA' });
     expect(h.loader.load()).toBe(first);
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('waits for SDK readiness after the script load event', async () => {
+  it('resolves after load without calling ready on an async/defer script (F1)', async () => {
     const h = setup();
-    let sdkReady: (() => void) | undefined;
-    vi.mocked(h.api.ready).mockImplementation((callback) => { sdkReady = callback; });
-    const widget = h.mount();
-    await h.ready();
-    expect(h.api.render).not.toHaveBeenCalled();
-    sdkReady?.();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(h.api.render).toHaveBeenCalledOnce();
-    widget.dispose();
+    const loaded = h.loader.load();
+    void loaded.catch(() => undefined);
+    await h.finishLoad();
+    await expect(loaded).resolves.toMatchObject({ api: h.api });
+    expect(h.api.ready).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('uses a configured key before the DEV fallback', () => {
@@ -142,13 +144,33 @@ describe('Turnstile loader without a DOM', () => {
     expect(widget.onUnavailable).toHaveBeenCalledOnce();
     widget.dispose();
   });
+
+  it.each([{}, { render: 'not a function' }])('rejects a loaded SDK without callable render: %j', async (api) => {
+    const h = setup(), widget = h.mount();
+    h.window.turnstile = api as unknown as TurnstileApi;
+    h.scripts[0].onload?.();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(widget.onUnavailable).toHaveBeenCalledOnce();
+    expect(h.api.render).not.toHaveBeenCalled();
+    widget.dispose();
+  });
+
+  it('accepts a loaded SDK with render but no ready method', async () => {
+    const h = setup(), widget = h.mount();
+    h.window.turnstile = { render: h.api.render, reset: h.api.reset, remove: h.api.remove };
+    h.scripts[0].onload?.();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.api.render).toHaveBeenCalledOnce();
+    expect(widget.onUnavailable).not.toHaveBeenCalled();
+    widget.dispose();
+  });
 });
 
 describe('Turnstile widget lifecycle without React or a DOM', () => {
   it('never renders an unmounted widget after shared loading completes (R2)', async () => {
     const h = setup(), abandoned = h.mount(), active = h.mount('sign-in');
     abandoned.dispose();
-    await h.ready();
+    await h.finishLoad();
     expect(h.appendChild).toHaveBeenCalledOnce();
     expect(h.api.render).toHaveBeenCalledExactlyOnceWith(active.container, expect.objectContaining({ action: 'sign-in' }));
     expect(abandoned.onTokenChange).not.toHaveBeenCalled();
@@ -158,14 +180,12 @@ describe('Turnstile widget lifecycle without React or a DOM', () => {
     expect(h.api.remove).toHaveBeenCalledExactlyOnceWith('widget-1');
   });
 
-  it('does not render when unmounted while SDK readiness is pending', async () => {
+  it('does not render when unmounted between load and its promise continuation', async () => {
     const h = setup();
-    let sdkReady: (() => void) | undefined;
-    vi.mocked(h.api.ready).mockImplementation((callback) => { sdkReady = callback; });
     const widget = h.mount();
-    await h.ready();
+    h.window.turnstile = h.api;
+    h.scripts[0].onload?.();
     widget.dispose();
-    sdkReady?.();
     await vi.advanceTimersByTimeAsync(0);
     expect(h.api.render).not.toHaveBeenCalled();
     expect(h.api.remove).not.toHaveBeenCalled();
@@ -182,7 +202,7 @@ describe('Turnstile widget lifecycle without React or a DOM', () => {
 
   it('passes the required options and clears tokens on expiry, timeout, error and reset', async () => {
     const h = setup(), widget = h.mount();
-    await h.ready();
+    await h.finishLoad();
     const options = vi.mocked(h.api.render).mock.calls[0][1];
     expect(options).toMatchObject({
       sitekey: '1x00000000000000000000AA', action: 'claim', theme: 'dark', size: 'normal',
@@ -213,7 +233,7 @@ describe('Turnstile widget lifecycle without React or a DOM', () => {
     const h = setup();
     vi.mocked(h.api.render).mockImplementationOnce(() => { throw new Error('SDK failure'); });
     const widget = h.mount();
-    await h.ready();
+    await h.finishLoad();
     expect(widget.onUnavailable).toHaveBeenCalledOnce();
     expect(widget.onTokenChange).toHaveBeenLastCalledWith(null);
     widget.dispose();

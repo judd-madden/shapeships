@@ -86,9 +86,10 @@ interface MenuProfileRailProps {
   onChangeName: () => void;
   onLogout: () => void;
   onClaimName: () => void;
+  claimNameOpen?: boolean;
 }
 
-export function MenuProfileRail({ identity, onChangeName, onLogout, onClaimName }: MenuProfileRailProps) {
+export function MenuProfileRail({ identity, onChangeName, onLogout, onClaimName, claimNameOpen = false }: MenuProfileRailProps) {
   const musicEnabled = usePlayerPreference('musicEnabled');
   const soundEnabled = usePlayerPreference('soundEnabled');
   const claimed = identity.status === 'claimed';
@@ -122,7 +123,7 @@ export function MenuProfileRail({ identity, onChangeName, onLogout, onClaimName 
             ) : (
               <>
                 <RailAction label="Change Name" icon={ExitToAppIcon} onClick={onChangeName} />
-                <RailAction label="Claim Name" icon={VerifiedUserIcon} color="text-shapeships-pastel-purple" onClick={onClaimName} tooltip="Protect your name with a password. No email required." />
+                <RailAction label="Claim Name" icon={VerifiedUserIcon} color="text-shapeships-pastel-purple" onClick={onClaimName} tooltip={claimNameOpen ? undefined : 'Protect your name with a password. No email required.'} />
               </>
             )}
           </div>
