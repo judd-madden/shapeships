@@ -404,6 +404,8 @@ Split as needed into account/session data and credentials, claim/login/remember/
 
 ### 22D — Account streak authority, imports and recovery
 
+Design record and order — see 24 November amendment 3.
+
 **Type:** Server foundation passes, then scoped client/runtime adaptation.
 
 - Audit guest reconciliation evidence and preserve current streak semantics.
@@ -534,6 +536,12 @@ These approved decisions override conflicting text elsewhere in this planning ba
 15. The account design record is locked (19 November) with Judd's answers and the lock amendments in its §2.13. Implementation follows the locked record.
 16. An owner password reset forces a change-password step. Judd designs the screen; it is built with the Entry/Claim account UI.
 17. Backups: weekly manual exports with the Supabase CLI, plus one before every SQL set, stored privately outside the repository. A restore rehearsal is part of activation.
+
+## Approved amendments — 24 November 2026 (Judd)
+
+1. No interim deploys. Phase 22 is built and tested locally with accounts on and deployed once when the phase is complete (likely with 23 and 24). Passes add no partial-deploy states. `ACCOUNTS_MODE=off` remains the emergency rollback.
+2. Don't design around active games. With a low player count, Judd deploys when no games are in progress. This satisfies §8.4's activation compatibility review without mid-match migration or grandfathering.
+3. 22D starts with 22D.0, an audit and design pass recorded in `Phase 22 Addendum - Account Streak Design.md`, which Judd locks before any SQL or server code.
 
 ## 15. Implementation record
 
@@ -1373,3 +1381,14 @@ Retry delays are feedback only (seconds below a minute, rounded-up minutes other
 - **Regression tests:** execute the production App startup completion, Entry action factory, note condition and Welcome-routing callback with injected store/session seams. Cover session-start failure before any resume → signedOut with a remembered token and visible note; another failing Try again → note retained; successful Try again → note cleared and Welcome. Additional cases verify clearing when the token disappears or account becomes signedIn, and retaining the flag while still signedOut with a token.
 - **Validation:** `npm run typecheck` PASS; `npm run test:client` **1,283 passed / 7 skipped** (68 files passed / 1 skipped); `npm run lint` **0 errors / 28 existing warnings**; direct ESLint on App/ChangePasswordPanel **0 errors / 2 existing App warnings** plus the React-version notice; supplemental in-memory App/ScreenManager compile **no new diagnostics** (13 existing); build PASS with the existing >500 kB chunk warning; `git diff --check` PASS.
 - **Browser follow-up:** owner reports the original plan's R1–R3 verified in the browser. This correction's browser checks: **Not run — browser/Vite testing handled by user**. Recheck cold startup with the whole function unreachable, a failed retry, then recovery to Welcome/invite. Inspect the forced-change column at 768–1279px and confirm xl remains unchanged. No UI/layout tests or browser/dev server were run.
+
+### 22D.0 — Account win streak audit and design — 24 November 2026
+
+- **Pass / scope:** Server Pass, audit and design only, with read-only client/runtime, game-route and SQL-convention inspection. The server remains authoritative. No code, SQL, configuration, test, database, deployment or commit changes.
+- **Files:** new [Account Streak Design addendum](Phase%2022%20Addendum%20-%20Account%20Streak%20Design.md); this main plan's three 24 November amendments, one §10 22D pointer and this §15 record only.
+- **Record status:** **proposed, awaiting owner lock**. The pass-plan approval authorises the documentation, not implementation of its P/O decisions.
+- **Audit / evidence:** traced browser storage, locking/generation, creation/reconciliation, results/reset/restart/rematch/rejoin, account provenance and LA6; reviewed the supplied CSV without running SQL. It reports 440 computer games, 234 positive-bonus games, maximum applied count 9 and 15 unfinished positive-bonus games. Existing stored difficulty does not prove all preceding wins; game/participant IDs alone do not establish unfinished-seat ownership.
+- **Recommendations:** three tables, short atomic KV/game-history/account-run RPCs in the same Postgres database, per-game result and consumed-anchor ledgers, and no operations table without a concrete uncovered failure. Prefer bounded anchor imports and shared-profile consumption over guest-lineage changes at Phase 22's difficulty/count-only stakes. Use one effective-participant helper for selected computer streak continuation; multiplayer and other seats stay unchanged. Future Stats/ranked use requires renewed trust review.
+- **Open-question count:** **5**, matching addendum §2.10: Q1 legacy trust/ceiling; Q2 missing-credential count treatment and unfinished-seat gap; Q3 anchor/profile consumption versus guest lineage; Q4 isolated streak-outage feedback; Q5 future general account-seat continuation. No owner queue is recommended by default. Q2 includes the continuation subdecision; it is not a sixth question.
+- **Validation:** Not run — documentation-only pass. Local documentation diff, source-link targets, required sections and matching question counts reviewed. No database operation, test suite, build, deployment or commit.
+- **Remaining risks / handoff:** full legacy-run proof is absent; IDs-only evidence cannot authorise another seat; anchor-only import retains bounded distinct-anchor risk; rollback loses consumption evidence unless restored. Judd/planning assistant review the audit, CSV findings and questions, then lock/amend P/O decisions before briefing 22D.1 and SQL set 05. No partial deployment or in-flight-game migration is planned.
