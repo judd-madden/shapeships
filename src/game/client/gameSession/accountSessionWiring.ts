@@ -1,4 +1,5 @@
 import type { AccountStore } from '../account/accountStore';
+import type { EntryAccountActions, EntryNotice, EntryResult } from '../account/entryForm';
 
 export class SessionRequestError extends Error {
   constructor(message: string, public readonly code?: string, public readonly status?: number) {
@@ -7,21 +8,19 @@ export class SessionRequestError extends Error {
   }
 }
 
-const nameRefusalMessages: Readonly<Record<string, string>> = {
-  INVALID_NAME: 'Use 3–20 letters or numbers, no spaces or symbols.',
-  NAME_RESERVED: 'This name is reserved. Please choose another.',
-  NAME_BANNED: 'This name is on the banned list. Please enter a different name.',
-  CLAIMED_NAME_REQUIRES_ACCOUNT: 'This name has been claimed. Please choose another name.',
-};
+const nameRefusalCodes = new Set(['INVALID_NAME', 'NAME_RESERVED', 'NAME_BANNED', 'CLAIMED_NAME_REQUIRES_ACCOUNT']);
 
 export function isNameAssignmentRefusal(code: string | undefined): boolean {
-  return code !== undefined && Object.prototype.hasOwnProperty.call(nameRefusalMessages, code);
+  return code !== undefined && nameRefusalCodes.has(code);
 }
 
-export function getEntrySessionErrorMessage(error: unknown): string {
-  return error instanceof SessionRequestError && isNameAssignmentRefusal(error.code)
-    ? nameRefusalMessages[error.code!]
-    : 'Failed to start session. Please try again.';
+export function entryNoticeForRefusal(name: string, code: string | undefined): EntryNotice | null {
+  return name && isNameAssignmentRefusal(code) ? { name, code: code! } : null;
+}
+
+export function guestEntryFailure(error: unknown): EntryResult {
+  return { kind: 'error', error: { code: error instanceof SessionRequestError && isNameAssignmentRefusal(error.code)
+    ? error.code! : 'GUEST_SESSION_FAILED' } };
 }
 
 export function getGameErrorCode(body: unknown): string | undefined {
@@ -95,4 +94,116 @@ export function observeAccountSession(store: Pick<AccountStore, 'getSnapshot' | 
       onEntry();
     }
   });
+}
+
+/** Thin Entry form actions. Store authority and session creation stay in their existing owners. */
+export function createEntryAccountActions({ store, ensureSession, clearSession, getSessionToken, getGeneration,
+  requestedGameId, onSignedIn, onRememberedEntry = () => {} }: {
+  store: Pick<AccountStore, 'getSnapshot' | 'nameCheck' | 'invalidateNameChecks' | 'signIn' | 'changePassword'
+    | 'cancelPasswordChange' | 'hasRememberedToken' | 'resume' | 'suspendForSessionFailure'>;
+  ensureSession(): Promise<{ sessionToken: string; sessionId: string }>;
+  clearSession(): void;
+  getSessionToken(): string | null;
+  getGeneration(): number;
+  requestedGameId(): string | null;
+  onSignedIn(): void;
+  onRememberedEntry?(): void;
+}): EntryAccountActions {
+  let ownedSession: string | null = null;
+  let busy = false;
+  let leaving = false;
+
+  function clearOwnedSession(): void {
+    if (ownedSession && ownedSession === getSessionToken()) clearSession();
+    ownedSession = null;
+  }
+  function leaveSignIn(): void {
+    if (busy) { leaving = true; return; }
+    clearOwnedSession();
+    store.cancelPasswordChange();
+  }
+
+  async function submit(operation: (sessionToken: string) => Promise<void>): Promise<EntryResult> {
+    if (busy) return { kind: 'cancelled' };
+    busy = true;
+    leaving = false;
+    const generation = getGeneration();
+    const current = () => generation === getGeneration();
+    store.invalidateNameChecks();
+    try {
+      const session = await ensureSession();
+      if (!current()) return { kind: 'cancelled' };
+      ownedSession = session.sessionToken;
+      if (leaving) return { kind: 'cancelled' };
+      await operation(session.sessionToken);
+      // No intervening await: a lookup can otherwise overwrite the operation error.
+      const result = store.getSnapshot();
+      if (!current() || getSessionToken() !== session.sessionToken) return { kind: 'cancelled' };
+      if (result.status === 'signedIn') {
+        ownedSession = null;
+        if (leaving) return { kind: 'cancelled' };
+        onSignedIn();
+        return { kind: 'ok' };
+      }
+      if (leaving) return { kind: 'cancelled' };
+      if (result.status === 'passwordChangeRequired' && result.lastError?.code === 'PASSWORD_CHANGE_REQUIRED') {
+        return { kind: 'passwordChangeRequired' };
+      }
+      const error = result.lastError ?? { code: 'UNKNOWN' };
+      if (error.code === 'GAME_SESSION_INVALID') {
+        // The failed account request has settled. Replace S once, without replaying its proof.
+        clearOwnedSession();
+        try {
+          const replacement = await ensureSession();
+          if (!current()) return { kind: 'cancelled' };
+          ownedSession = replacement.sessionToken;
+        } catch { /* Keep the original safe error, and let the player explicitly retry. */ }
+      }
+      return current() && !leaving ? { kind: 'error', error } : { kind: 'cancelled' };
+    } catch {
+      return current() && !leaving ? { kind: 'error', error: { code: 'ACCOUNT_SERVICE_UNAVAILABLE' } } : { kind: 'cancelled' };
+    } finally {
+      busy = false;
+      if (leaving) leaveSignIn();
+    }
+  }
+
+  return {
+    checkName: (name) => store.nameCheck(name),
+    invalidateNameChecks: () => store.invalidateNameChecks(),
+    signIn: (input) => submit((sessionToken) => store.signIn(input, sessionToken)),
+    changePassword: (input) => submit((sessionToken) => store.changePassword(input, sessionToken)),
+    leaveSignIn,
+    async retryRemembered(): Promise<EntryResult> {
+      if (busy) return { kind: 'cancelled' };
+      busy = true;
+      leaving = false;
+      const generation = getGeneration();
+      const current = () => generation === getGeneration() && !leaving;
+      store.invalidateNameChecks();
+      try {
+        const outcome = await bootstrapRememberedAccount({ store, clearSession, requestedGameId: requestedGameId(),
+          isCurrent: current,
+          ensureSession: async () => {
+            const session = await ensureSession();
+            if (current()) ownedSession = session.sessionToken;
+            return session;
+          },
+        });
+        const result = store.getSnapshot();
+        if (!current()) return { kind: 'cancelled' };
+        if (outcome.destination === 'menu' || outcome.destination === 'game') {
+          ownedSession = null;
+          onSignedIn();
+          return { kind: 'ok' };
+        }
+        clearOwnedSession();
+        onRememberedEntry();
+        return { kind: 'error', error: result.lastError ?? { code: 'ACCOUNT_SERVICE_UNAVAILABLE' } };
+      } finally {
+        busy = false;
+        if (leaving) leaveSignIn();
+      }
+    },
+  };
 }

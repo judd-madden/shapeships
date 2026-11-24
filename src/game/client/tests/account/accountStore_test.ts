@@ -9,6 +9,53 @@ import {
 afterEach(cleanup);
 
 describe('account store lifecycle and storage', () => {
+  it('publishes cancellation of passwordChangeRequired without logout semantics', async () => {
+    const h = harness();
+    h.fetchMock.mockResolvedValueOnce(error('PASSWORD_CHANGE_REQUIRED', 403));
+    await h.signIn();
+    const before = h.store.getSnapshot();
+    expect(before.status).toBe('passwordChangeRequired');
+    const snapshots: unknown[] = [];
+    const stop = h.store.subscribe(() => snapshots.push(h.store.getSnapshot()));
+    h.fetchMock.mockClear();
+    vi.mocked(h.storage!.removeItem).mockClear();
+    h.store.cancelPasswordChange();
+    expect(snapshots).toHaveLength(1);
+    expect(h.store.getSnapshot()).not.toBe(before);
+    expect(h.store.getSnapshot()).toMatchObject({ status: 'signedOut', lastError: null, remoteLogoutPending: false });
+    expect(h.store.getSnapshot()).not.toHaveProperty('reason');
+    expect(h.fetchMock).not.toHaveBeenCalled();
+    expect(h.storage!.removeItem).not.toHaveBeenCalled();
+    h.store.cancelPasswordChange();
+    expect(snapshots).toHaveLength(1);
+    stop();
+  });
+
+  it('does not cancel a signed-in account or its token', async () => {
+    const h = harness();
+    await h.signIn();
+    const before = h.store.getSnapshot();
+    const listener = vi.fn(), stop = h.store.subscribe(listener);
+    h.store.cancelPasswordChange();
+    expect(h.store.getSnapshot()).toBe(before);
+    expect(h.store.getAccountToken()).toBe(TOKEN);
+    expect(listener).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it('fences an old name check when password change is cancelled', async () => {
+    const h = harness();
+    h.fetchMock.mockResolvedValueOnce(error('PASSWORD_CHANGE_REQUIRED', 403));
+    await h.signIn();
+    const pending = deferred<Response>();
+    h.fetchMock.mockReturnValueOnce(pending.promise);
+    const check = h.store.nameCheck('Pilot1');
+    h.store.cancelPasswordChange();
+    pending.resolve(error('RATE_LIMITED', 429));
+    expect(await check).toBeNull();
+    expect(h.store.getSnapshot()).toMatchObject({ status: 'signedOut', lastError: null });
+  });
+
   it.each(['available', 'RATE_LIMITED'] as const)('invalidates a pending %s name check before a failed claim', async (outcome) => {
     const h = harness(), pending = deferred<Response>();
     h.fetchMock.mockReturnValueOnce(pending.promise);

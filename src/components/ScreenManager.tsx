@@ -3,7 +3,8 @@ import { Button } from './ui/button';
 import type { Player } from '../game/hooks/usePlayer';
 import type { AccountIdentity } from '../game/client/account/types';
 import type { ClaimNameActions } from '../game/client/account/claimNameForm';
-import { getEntrySessionErrorMessage } from '../game/client/gameSession/accountSessionWiring';
+import { guestEntryFailure } from '../game/client/gameSession/accountSessionWiring';
+import type { EntryAccountActions, EntryNotice, EntryResult } from '../game/client/account/entryForm';
 import type { CreatePrivateGameSettings } from './panels/CreatePrivateGamePanel';
 import { LoginShell } from './shells/LoginShell';
 import { MenuShell } from './shells/MenuShell';
@@ -11,14 +12,16 @@ import { attemptMobileGameFullscreen } from '../utils/mobileFullscreen';
 import { StarsBackground } from '../game/display/graphics/StarsBackground';
 import type { WinStreakMenuActions, WinStreakMenuViewModel } from '../game/client/winStreak/types';
 
-const ALPHA_DISABLE_AUTH = true;
-
 type ShellId = 'login' | 'menu';
 
 interface ScreenManagerProps {
   player: Player | null;
   accountIdentity: AccountIdentity | null;
   claimNameActions: ClaimNameActions;
+  entryActions: EntryAccountActions;
+  entryNotice: EntryNotice | null;
+  onEntryNoticeConsumed(): void;
+  rememberedAccountUnavailable: boolean;
   onAccountLogout: () => void;
   onMenuEntered: () => void;
   initialShell: ShellId;
@@ -38,6 +41,10 @@ export default function ScreenManager({
   player,
   accountIdentity,
   claimNameActions,
+  entryActions,
+  entryNotice,
+  onEntryNoticeConsumed,
+  rememberedAccountUnavailable,
   onAccountLogout,
   onMenuEntered,
   initialShell,
@@ -53,7 +60,6 @@ export default function ScreenManager({
   winStreakActions,
 }: ScreenManagerProps) {
   const [currentShell, setCurrentShell] = useState<ShellId>(initialShell);
-  const [user, setUser] = useState(null);
   const [isStartingSession, setIsStartingSession] = useState(false);
 
   useEffect(() => {
@@ -70,29 +76,18 @@ export default function ScreenManager({
     }
   };
 
-  const handleNameSubmit = async (displayName: string) => {
-    console.log('[Entry] Starting session for player:', displayName);
-    setIsStartingSession(true);
-
+  const handleNameSubmit = async (displayName: string): Promise<EntryResult> => {
     try {
-      if (pendingInviteGameId) {
-        attemptMobileGameFullscreen();
-      }
-
       await onStartSession(displayName);
-
-      if (pendingInviteGameId) {
-        onLaunchGame(pendingInviteGameId);
-        return;
-      }
-
-      setCurrentShell('menu');
+      return { kind: 'ok' };
     } catch (error) {
-      console.error('[Entry] Failed to start session:', error);
-      alert(getEntrySessionErrorMessage(error));
-    } finally {
-      setIsStartingSession(false);
+      return guestEntryFailure(error);
     }
+  };
+
+  const handleEntered = () => {
+    if (pendingInviteGameId) onLaunchGame(pendingInviteGameId);
+    else setCurrentShell('menu');
   };
 
   const handleGameCreated = (gameId: string) => {
@@ -101,18 +96,11 @@ export default function ScreenManager({
 
   const handleExitToEntry = () => {
     onResetPlayerSession();
-    setUser(null);
     setCurrentShell('login');
-  };
-
-  const handleSuccessfulLogin = (userData: any) => {
-    setUser(userData);
-    setCurrentShell('menu');
   };
 
   const handleLogout = () => {
     onAccountLogout();
-    setUser(null);
     setCurrentShell('login');
   };
 
@@ -127,11 +115,9 @@ export default function ScreenManager({
             onGameCreated={handleGameCreated}
             onCreatePrivateGame={onCreatePrivateGame}
             onCreateComputerGame={onCreateComputerGame}
-            user={user}
             player={player}
             accountIdentity={accountIdentity}
             claimNameActions={claimNameActions}
-            alphaDisableAuth={ALPHA_DISABLE_AUTH}
             winStreakViewModel={winStreakViewModel}
             winStreakActions={winStreakActions}
           />
@@ -140,12 +126,15 @@ export default function ScreenManager({
       default:
         return (
           <LoginShell
-            onNavigate={navigateToShell}
             onNameSubmit={handleNameSubmit}
-            onLogin={handleSuccessfulLogin}
-            alphaDisableAuth={ALPHA_DISABLE_AUTH}
-            alphaPrimaryCtaLabel={pendingInviteGameId ? 'JOIN GAME' : 'PLAY'}
-            isStartingSession={isStartingSession}
+            actions={entryActions}
+            notice={entryNotice}
+            onNoticeConsumed={onEntryNoticeConsumed}
+            rememberedUnavailable={rememberedAccountUnavailable}
+            onEntered={handleEntered}
+            onBusyChange={setIsStartingSession}
+            onAttempt={() => { if (pendingInviteGameId) attemptMobileGameFullscreen(); }}
+            primaryCtaLabel={pendingInviteGameId ? 'JOIN GAME' : 'PLAY'}
           />
         );
     }

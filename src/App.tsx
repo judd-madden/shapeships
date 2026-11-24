@@ -18,8 +18,9 @@ import { usePlayer } from './game/hooks/usePlayer';
 import { getAccountStore } from './game/client/account/accountStore';
 import { useAccountState } from './game/client/account/useAccountState';
 import type { ClaimNameActions } from './game/client/account/claimNameForm';
+import type { EntryNotice } from './game/client/account/entryForm';
 import { getPlayerPreferencesStore } from './game/client/preferences/playerPreferences';
-import { bootstrapRememberedAccount, observeAccountSession, type AccountStartupOutcome } from './game/client/gameSession/accountSessionWiring';
+import { bootstrapRememberedAccount, createEntryAccountActions, entryNoticeForRefusal, observeAccountSession, type AccountStartupOutcome } from './game/client/gameSession/accountSessionWiring';
 import { useWinStreakMenu } from './game/client/winStreak/useWinStreakProfile';
 import { WIN_STREAK_RECONCILIATION_TIMEOUT_MS } from './game/client/winStreak/workflow';
 
@@ -170,6 +171,8 @@ function pushUrl(params: URLSearchParams) {
 export default function App() {
   const [accountStore] = useState(getAccountStore);
   const account = useAccountState();
+  const hasRememberedAccountToken = accountStore.hasRememberedToken();
+  const [rememberedAccountBootstrapFailed, setRememberedAccountBootstrapFailed] = useState(false);
   const [needsAccountBootstrap] = useState(() => accountStore.hasRememberedToken());
   const [checkingAccount, setCheckingAccount] = useState(needsAccountBootstrap);
   const bootstrapInProgress = useRef(needsAccountBootstrap);
@@ -178,6 +181,9 @@ export default function App() {
   const renderGeneration = lifecycleGeneration.current;
   const [startupGameId] = useState(readGameIdFromUrl);
   const [entryRevision, setEntryRevision] = useState(0);
+  const [entryNotice, setEntryNotice] = useState<EntryNotice | null>(null);
+  const submittedEntryName = useRef<string | null>(null);
+  const currentPlayerName = useRef('');
   const initialStoredPlayerIdentity = hasStoredPlayerIdentity();
   const initialRoute = readRouteStateFromUrl(initialStoredPlayerIdentity);
   const [mode, setMode] = useState<AppMode>(initialRoute.mode);
@@ -197,6 +203,22 @@ export default function App() {
     isReady: playerReady,
     isInitialized: playerInitialized,
   } = usePlayer(account);
+  currentPlayerName.current = player?.name ?? '';
+
+  const [entryActions] = useState(() => createEntryAccountActions({
+    store: accountStore, ensureSession, clearSession, getSessionToken,
+    getGeneration: () => lifecycleGeneration.current,
+    requestedGameId: () => pendingInviteRef.current,
+    onSignedIn: () => {
+      setRememberedAccountBootstrapFailed(false);
+      setHasUsablePlayerIdentity(true);
+    },
+    onRememberedEntry: () => setRememberedAccountBootstrapFailed(accountStore.hasRememberedToken()),
+  }));
+
+  useEffect(() => {
+    if (!hasRememberedAccountToken || account.status === 'signedIn') setRememberedAccountBootstrapFailed(false);
+  }, [hasRememberedAccountToken, account.status]);
 
   useEffect(() => {
     if (mode === 'dev') {
@@ -316,7 +338,12 @@ export default function App() {
   const startPlayerSession = async (displayName: string) => {
     const generation = renderGeneration;
     if (generation !== lifecycleGeneration.current) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
-    await ensureSession(displayName);
+    submittedEntryName.current = displayName;
+    try {
+      await ensureSession(displayName);
+    } finally {
+      if (submittedEntryName.current === displayName) submittedEntryName.current = null;
+    }
     if (generation !== lifecycleGeneration.current) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
     updatePlayerName(displayName);
     setHasUsablePlayerIdentity(true);
@@ -378,8 +405,9 @@ export default function App() {
     },
   };
 
-  const resetPlayerSession = useCallback((inviteGameId?: string) => {
+  const resetPlayerSession = useCallback((inviteGameId?: string, notice: EntryNotice | null = null) => {
     lifecycleGeneration.current++;
+    setEntryNotice(notice);
     clearPlayer();
     clearSession();
     setHasUsablePlayerIdentity(false);
@@ -409,7 +437,10 @@ export default function App() {
     const stopAccount = observeAccountSession(accountStore, () => {
       if (!bootstrapInProgress.current) resetPlayerSession();
     });
-    const stopSession = subscribeSessionEntryRequired(({ inviteGameId }) => resetPlayerSession(inviteGameId));
+    const stopSession = subscribeSessionEntryRequired(({ code, inviteGameId }) => {
+      const notice = entryNoticeForRefusal(submittedEntryName.current ?? currentPlayerName.current, code);
+      resetPlayerSession(inviteGameId, notice);
+    });
     return () => { stopAccount(); stopSession(); };
   }, [accountStore, resetPlayerSession]);
 
@@ -425,6 +456,7 @@ export default function App() {
       if (!active) return;
       bootstrapInProgress.current = false;
       if (generation === lifecycleGeneration.current) {
+        setRememberedAccountBootstrapFailed(outcome.destination === 'entry' && accountStore.hasRememberedToken());
         if (outcome.destination === 'game' || outcome.destination === 'menu') {
           setHasUsablePlayerIdentity(true);
           if (outcome.destination === 'game') launchGame(outcome.gameId);
@@ -501,6 +533,10 @@ export default function App() {
           accountIdentity={account.status === 'signedIn' ? account.identity : null}
           onAccountLogout={logoutAccount}
           claimNameActions={claimNameActions}
+          entryActions={entryActions}
+          entryNotice={entryNotice}
+          onEntryNoticeConsumed={() => setEntryNotice((current) => current === entryNotice ? null : current)}
+          rememberedAccountUnavailable={hasRememberedAccountToken && (rememberedAccountBootstrapFailed || account.status === 'unavailable' || account.status === 'dormant')}
           onMenuEntered={onMenuEntered}
           initialShell={playerShellStart}
           pendingInviteGameId={pendingInviteGameId}

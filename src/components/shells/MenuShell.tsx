@@ -43,11 +43,9 @@ interface MenuShellProps {
   onGameCreated: (gameId: string) => void;
   onCreatePrivateGame: (settings: CreatePrivateGameSettings) => Promise<string>;
   onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<string>;
-  user: any;
   player: any;
   accountIdentity: AccountIdentity | null;
   claimNameActions: ClaimNameActions;
-  alphaDisableAuth: boolean;
   winStreakViewModel: WinStreakMenuViewModel;
   winStreakActions: WinStreakMenuActions;
 }
@@ -59,11 +57,9 @@ export function MenuShell({
   onGameCreated, 
   onCreatePrivateGame,
   onCreateComputerGame,
-  user, 
   player, 
   accountIdentity,
   claimNameActions,
-  alphaDisableAuth,
   winStreakViewModel,
   winStreakActions,
 }: MenuShellProps) {

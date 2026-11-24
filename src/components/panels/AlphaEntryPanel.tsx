@@ -1,136 +1,204 @@
-/**
- * Alpha Entry Panel
- * 
- * Panel component for Alpha v3 player name entry.
- * Contains ONLY the form body (not the header/footer chrome).
- * 
- * Responsibilities:
- * - Collect temporary player name (local state only)
- * - Validate player name client-side (3-20 alphanumeric chars)
- * - Trigger onPlay callback with player name
- * 
- * Does NOT:
- * - Render branding/logo/title (handled by LoginShell)
- * - Render footer links (handled by LoginShell)
- * - Call backend APIs
- * - Manage session state
- */
-
-import { useState } from 'react';
+/** Entry form only. Account/session requests are supplied by the client runtime. */
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { createNameCheckScheduler } from '../../game/client/account/nameCheckScheduler';
+import type { NameCheckResult } from '../../game/client/account/claimNameForm';
+import {
+  DISCORD_URL, ENTRY_NAME_ERROR, entryState, isEntryEnabled, resolveEntryPlay,
+  type EntryAccountActions, type EntryNotice, type EntryResult, type PasswordChangeContext,
+} from '../../game/client/account/entryForm';
+import type { AccountOperationError } from '../../game/client/account/types';
 import { InputField } from '../ui/primitives/inputs/InputField';
+import { PasswordInput } from '../ui/primitives/inputs/PasswordInput';
 import { PrimaryButton } from '../ui/primitives/buttons/PrimaryButton';
+import { TurnstileWidget, type TurnstileWidgetHandle } from '../ui/turnstile/TurnstileWidget';
 
 interface AlphaEntryPanelProps {
-  onPlay: (playerName: string) => void | Promise<void>;
+  actions: EntryAccountActions;
+  notice: EntryNotice | null;
+  initialCaptchaRequired?: boolean;
+  rememberedUnavailable: boolean;
+  onNoticeConsumed(): void;
+  onPlay(name: string): Promise<EntryResult>;
+  onEntered(): void;
+  onPasswordChange(context: PasswordChangeContext): void;
+  onBusyChange(busy: boolean): void;
+  onAttempt(): void;
   primaryButtonLabel?: string;
-  isStartingSession?: boolean;
 }
 
-/**
- * Validates player name (client-side only)
- * Rules: 3-20 characters, A-Z, a-z, 0-9 only (no spaces or special characters)
- */
-function validatePlayerName(name: string): boolean {
-  const regex = /^[A-Za-z0-9]{3,20}$/;
-  return regex.test(name);
-}
+export function AlphaEntryPanel({ actions, notice, initialCaptchaRequired = false, rememberedUnavailable,
+  onNoticeConsumed, onPlay, onEntered, onPasswordChange, onBusyChange, onAttempt,
+  primaryButtonLabel = 'PLAY' }: AlphaEntryPanelProps) {
+  const [name, setName] = useState(notice?.name ?? '');
+  const [password, setPassword] = useState('');
+  const [lookup, setLookup] = useState<NameCheckResult>(null);
+  const [error, setError] = useState<AccountOperationError | undefined>(notice ? { code: notice.code } : undefined);
+  const [captchaRequired, setCaptchaRequired] = useState(initialCaptchaRequired);
+  const [token, setToken] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [focusPassword, setFocusPassword] = useState(Boolean(notice?.code === 'INVALID_CREDENTIALS'));
+  const schedulerRef = useRef<ReturnType<typeof createNameCheckScheduler> | null>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const widgetRef = useRef<TurnstileWidgetHandle>(null);
+  const mounted = useRef(false);
+  const busy = useRef(false);
+  const openingName = useRef(name);
+  const latest = useRef({ actions, onPlay, onEntered, onPasswordChange, onBusyChange, onAttempt, onNoticeConsumed });
+  latest.current = { actions, onPlay, onEntered, onPasswordChange, onBusyChange, onAttempt, onNoticeConsumed };
+  const id = useId();
+  const state = entryState(name, lookup, error);
+  const enabled = isEntryEnabled({ name, mode: state.mode, password, captchaRequired, token,
+    submitting: submitting || retrying, formatError: state.formatError });
 
-export function AlphaEntryPanel({
-  onPlay,
-  primaryButtonLabel = 'PLAY',
-  isStartingSession = false,
-}: AlphaEntryPanelProps) {
-  const [playerName, setPlayerName] = useState('');
+  useEffect(() => {
+    mounted.current = true;
+    const scheduler = createNameCheckScheduler({
+      checkName: (value) => latest.current.actions.checkName(value),
+      invalidate: () => latest.current.actions.invalidateNameChecks(),
+      onResult: (_value, result) => setLookup(result),
+    });
+    schedulerRef.current = scheduler;
+    scheduler.open(openingName.current);
+    latest.current.onNoticeConsumed();
+    return () => {
+      mounted.current = false;
+      scheduler.dispose();
+      schedulerRef.current = null;
+      latest.current.onBusyChange(false);
+    };
+  }, []);
 
-  // Validation logic
-  const onlyValidChars = /^[A-Za-z0-9]*$/.test(playerName);
-  const hasInvalidChars = playerName.length > 0 && !onlyValidChars;
-  const isTooLong = playerName.length > 20;
-  
-  // Show error if:
-  // 1. Has invalid characters (immediate error)
-  // 2. OR (has only valid chars AND length >= 3 AND too long) (deferred error)
-  const showError = hasInvalidChars || (onlyValidChars && playerName.length >= 3 && isTooLong);
-  
-  // Button enabled only when fully valid (3-20 alphanumeric characters)
-  const isValid = validatePlayerName(playerName);
-  const isSubmitDisabled = !isValid || isStartingSession;
-
-  const handlePlay = () => {
-    if (isSubmitDisabled) {
-      return;
+  useEffect(() => {
+    if (focusPassword && state.mode === 'claimed') {
+      passwordRef.current?.focus();
+      setFocusPassword(false);
     }
+  }, [focusPassword, state.mode]);
 
-    onPlay(playerName.trim());
+  function resetVerification() {
+    setToken(null);
+    widgetRef.current?.reset();
+  }
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!enabled || busy.current) return;
+    busy.current = true;
+    setSubmitting(true);
+    latest.current.onBusyChange(true);
+    latest.current.onAttempt();
+    try {
+      let result: EntryResult;
+      if (state.mode === 'claimed') {
+        schedulerRef.current?.cancel();
+        result = await latest.current.actions.signIn({ name, password, ...(token ? { turnstileToken: token } : {}) });
+      } else {
+        const scheduler = schedulerRef.current;
+        if (!scheduler) return;
+        const checked = await resolveEntryPlay(name, scheduler);
+        if (!mounted.current) return;
+        setLookup(checked);
+        const decision = entryState(name, checked);
+        if (decision.mode !== 'guest') {
+          setError(undefined);
+          if (decision.mode === 'claimed') setFocusPassword(true);
+          return;
+        }
+        result = await latest.current.onPlay(name);
+      }
+      if (!mounted.current) return;
+      if (result.kind === 'ok') {
+        setPassword('');
+        latest.current.onEntered();
+        return;
+      }
+      resetVerification();
+      if (result.kind === 'passwordChangeRequired') {
+        setPassword('');
+        latest.current.onPasswordChange({ name, displayName: state.displayName, temporaryPassword: password, captchaRequired });
+      } else if (result.kind === 'error') {
+        setError(result.error);
+        if (result.error.code === 'CAPTCHA_REQUIRED') setCaptchaRequired(true);
+        if (['INVALID_CREDENTIALS', 'INVALID_PASSWORD'].includes(result.error.code)) {
+          setPassword('');
+          setFocusPassword(true);
+        }
+      }
+    } catch {
+      if (mounted.current) {
+        setError({ code: state.mode === 'claimed' ? 'ACCOUNT_SERVICE_UNAVAILABLE' : 'GUEST_SESSION_FAILED' });
+        resetVerification();
+      }
+    } finally {
+      if (mounted.current) {
+        busy.current = false;
+        setSubmitting(false);
+        latest.current.onBusyChange(false);
+      }
+    }
   };
 
-  const handleNameChange = (value: string) => {
-    setPlayerName(value);
+  const retry = async () => {
+    if (busy.current) return;
+    busy.current = true;
+    setRetrying(true);
+    latest.current.onBusyChange(true);
+    latest.current.onAttempt();
+    schedulerRef.current?.cancel();
+    try {
+      const result = await latest.current.actions.retryRemembered();
+      if (mounted.current && result.kind === 'ok') latest.current.onEntered();
+    } finally {
+      if (mounted.current) {
+        busy.current = false;
+        setRetrying(false);
+        latest.current.onBusyChange(false);
+      }
+    }
   };
 
+  const messageClasses = 'text-center text-[14px] leading-[18px] text-[var(--shapeships-pastel-purple)] sm:text-[18px] sm:leading-[22px]';
+  const message = state.message;
   return (
-    <div className="content-stretch flex flex-col items-center relative shrink-0 w-full">
+    <div className="content-stretch relative flex w-full shrink-0 flex-col items-center">
       <div className="content-stretch relative flex w-full max-w-[600px] shrink-0 flex-col items-center gap-[32px] sm:gap-[40px] md:gap-[50px]">
-        
-        {/* Name Entry Form */}
-        <div className="content-stretch relative flex w-full flex-col items-center gap-[20px] px-[20px] sm:py-[25px] sm:px-[32px] md:px-[40px]">
-          <p 
-            className="font-black leading-[normal] relative shrink-0 text-[27px] text-center w-full sm:text-[36px]"
-          >
-            Enter your name
-          </p>
-          
-          {/* Form */}
-          <div className="content-stretch relative flex w-full shrink-0 flex-col items-start gap-[12px] sm:gap-[24px]">
-            
-            {/* Input Field */}
-            <div className="w-full">
-              <InputField
-                value={playerName}
-                onChange={handleNameChange}
-                placeholder="Player name"
-                error={showError}
-                disabled={isStartingSession}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handlePlay();
-                  }
-                }}
-              />
-              {showError && (
-                <p className="font-normal text-[10.5px] text-[var(--shapeships-pastel-red)] mt-2 sm:text-[14px]">
-                  Name must be 3–20 letters or numbers only (no spaces or symbols)
-                </p>
-              )}
+        <div className="content-stretch relative flex w-full flex-col items-center gap-[20px] px-[20px] sm:px-[32px] sm:py-[25px] md:px-[40px]">
+          <h2 id={`${id}-heading`} className="relative w-full shrink-0 text-center text-[27px] font-black leading-normal sm:text-[36px]">Enter your name</h2>
+          {(rememberedUnavailable || retrying) && (
+            <div aria-live="polite" className={messageClasses}>
+              <p className="font-bold">We couldn't reach your account.</p>
+              <p><button type="button" disabled={submitting || retrying} onClick={() => { void retry(); }} className="cursor-pointer underline disabled:cursor-default">{retrying ? 'Trying...' : 'Try again'}</button> or play as a guest.</p>
             </div>
-            
-            {/* Play Button */}
-            <PrimaryButton
-              onClick={handlePlay}
-              disabled={isSubmitDisabled}
-              loading={isStartingSession}
-              loadingLabel="ENTERING VOID..."
-              className="w-full"
-            >
-              {primaryButtonLabel}
-            </PrimaryButton>
-
-          </div>
+          )}
+          <form onSubmit={(event) => { void submit(event); }} aria-labelledby={`${id}-heading`} aria-busy={submitting || retrying} className="flex w-full flex-col items-stretch gap-[20px]">
+            <div className="w-full">
+              <InputField id={`${id}-name`} name="username" value={name} placeholder="Player name" align="center"
+                autoComplete="username" autoCapitalize="none" spellCheck={false} error={state.formatError}
+                disabled={submitting || retrying} aria-describedby={`${id}-name-message`}
+                onChange={(value) => {
+                  if (busy.current) return;
+                  latest.current.actions.leaveSignIn();
+                  setName(value); setPassword(''); setError(undefined); setCaptchaRequired(false);
+                  resetVerification();
+                  schedulerRef.current?.update(value);
+                }} />
+              {state.formatError && <p id={`${id}-name-message`} className="mt-2 text-[10.5px] font-normal text-[var(--shapeships-pastel-red)] sm:text-[14px]">{ENTRY_NAME_ERROR}</p>}
+            </div>
+            <div id={state.formatError ? undefined : `${id}-name-message`} aria-live="polite" className={message ? messageClasses : 'sr-only'}>
+              {message && <><p className="font-bold">{message.title}</p><p>{message.discord ? <>{message.detail.split('Discord')[0]}<a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="underline">Discord</a>{message.detail.split('Discord')[1]}</> : message.detail}</p></>}
+            </div>
+            {state.mode === 'claimed' && <PasswordInput inputRef={passwordRef} id={`${id}-password`} name="password"
+              value={password} onChange={setPassword} placeholder="Password" align="center" autoComplete="current-password"
+              disabled={submitting || retrying} />}
+            {state.mode === 'claimed' && captchaRequired && <TurnstileWidget ref={widgetRef} action="sign-in"
+              onTokenChange={setToken} onUnavailable={() => setError({ code: 'CAPTCHA_UNAVAILABLE' })} />}
+            <PrimaryButton disabled={!enabled} loading={submitting} loadingLabel="ENTERING VOID..." className="w-full">{primaryButtonLabel}</PrimaryButton>
+          </form>
         </div>
-
-        {/* Session Disclaimer */}
-        <div className="content-stretch relative flex w-full flex-col items-center gap-[20px] px-[20px] py-[0px] sm:py-[25px] sm:px-[32px] md:px-[40px]">
-          <p 
-            className="font-normal leading-[16px] relative shrink-0 text-[12px] text-center w-full sm:text-[16px] sm:leading-[22px]"
-          >
-            <span>
-              <br aria-hidden="true" />
-              3–20 letters or numbers, no spaces or symbols.
-            </span>
-          </p>
+        <div className="relative flex w-full flex-col items-center gap-[20px] px-[20px] py-0 sm:px-[32px] sm:py-[25px] md:px-[40px]">
+          <p className="relative w-full text-center text-[12px] font-normal leading-[16px] sm:text-[16px] sm:leading-[22px]"><br aria-hidden="true" />3–20 letters or numbers, no spaces or symbols.</p>
         </div>
-
       </div>
     </div>
   );

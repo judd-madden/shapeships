@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { observeAccountSession } from '../../gameSession/accountSessionWiring';
+import { createEntryAccountActions, observeAccountSession } from '../../gameSession/accountSessionWiring';
 import {
   cleanup, deferred, entry, error, harness, json, memoryStorage, resumed, SESSION_TOKEN, TOKEN,
 } from './fixtures';
@@ -44,6 +44,29 @@ afterEach(() => {
 });
 
 describe('game account transport', () => {
+  it.each([
+    ['wrong password then guest', 'INVALID_CREDENTIALS'],
+    ['Use a different name', 'PASSWORD_CHANGE_REQUIRED'],
+    ['editing away from the claimed name', 'INVALID_CREDENTIALS'],
+  ])('starts a fresh named guest session after %s', async (_label, code) => {
+    const actions = createEntryAccountActions({ store: h.store,
+      ensureSession: () => network.ensureSession(), clearSession: () => network.clearSession(),
+      getSessionToken: () => network.getSessionToken(), getGeneration: () => 0,
+      requestedGameId: () => null, onSignedIn: vi.fn(),
+    });
+    h.fetchMock.mockResolvedValueOnce(error(code, 403));
+    await actions.signIn({ name: 'Pilot1', password: 'synthetic-password' });
+    expect(network.getSessionToken()).toBe(SESSION_TOKEN);
+    actions.leaveSignIn();
+    expect(network.getSessionToken()).toBeNull();
+    gameFetch.mockResolvedValueOnce(json({ sessionToken: 'guest-S', sessionId: 'guest-id', displayName: 'EntryGuest' }));
+    await network.ensureSession('EntryGuest');
+    expect(gameFetch).toHaveBeenCalledOnce();
+    expect(String(gameFetch.mock.calls[0][0])).toMatch(/\/session\/start$/);
+    expect(JSON.parse(String(gameFetch.mock.calls[0][1]?.body))).toEqual({ displayName: 'EntryGuest' });
+    expect(h.fetchMock).toHaveBeenCalledOnce();
+  });
+
   it('never sends A for a guest, including a caller-supplied forged header', async () => {
     await network.authenticatedFetch('/create-game', { method: 'POST', headers: new Headers({ 'X-Account-Token': 'forged' }) });
     const headers = new Headers(gameFetch.mock.calls[0][1]?.headers);

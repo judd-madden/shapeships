@@ -21,11 +21,15 @@ export function createNameCheckScheduler({ checkName, invalidate, onResult, time
   let sequence = 0;
   let currentName: string | undefined;
   let disposed = false;
+  let work: Promise<NameCheckResult> | undefined;
+  let run: (() => Promise<NameCheckResult>) | undefined;
 
   function cancel(): void {
     if (timer !== undefined) timers.clearTimeout(timer);
     timer = undefined;
     sequence++;
+    work = undefined;
+    run = undefined;
     invalidate();
   }
 
@@ -36,19 +40,34 @@ export function createNameCheckScheduler({ checkName, invalidate, onResult, time
     const captured = sequence;
     onResult(name, null);
     if (!isValidAccountName(name)) return;
-    const run = async () => {
+    run = () => {
+      if (work) return work;
+      if (timer !== undefined) timers.clearTimeout(timer);
       timer = undefined;
-      let result: NameCheckResult = null;
-      try { result = await checkName(name); } catch { /* Claim remains authoritative on lookup failure. */ }
-      if (!disposed && sequence === captured && currentName === name) onResult(name, result);
+      work = (async () => {
+        let result: NameCheckResult = null;
+        try { result = await checkName(name); } catch { /* Lookup failures never block guests. */ }
+        if (disposed || sequence !== captured || currentName !== name) return null;
+        onResult(name, result);
+        return result;
+      })();
+      return work;
     };
     if (immediate) void run();
-    else timer = timers.setTimeout(() => { void run(); }, 500);
+    else timer = timers.setTimeout(() => { void run?.(); }, 500);
   }
 
   return {
     open: (name: string) => schedule(name, true),
     update: (name: string) => schedule(name, false),
+    flush(name: string): Promise<NameCheckResult> {
+      if (disposed || !isValidAccountName(name)) return Promise.resolve(null);
+      if (currentName !== name || !run) {
+        currentName = undefined;
+        schedule(name, true);
+      }
+      return run?.() ?? Promise.resolve(null);
+    },
     cancel,
     dispose(): void {
       disposed = true;

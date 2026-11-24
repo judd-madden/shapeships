@@ -96,7 +96,8 @@ Blue:           #2555FF
 - **Used on**: Login screens
 - **States**: Default, Hover, Focus, Error
 - **Props**: `value`, `onChange`, `placeholder`, `error`, `disabled`, `className`, `type`, `onKeyDown`
-- **Optional form attributes**: `id`, `name`, `autoComplete`, `autoCapitalize`, `spellCheck`, `aria-describedby`. `aria-invalid` follows `error`.
+- **Optional form attributes**: `id`, `name`, `autoComplete`, `autoCapitalize`, `spellCheck`, `aria-describedby`, `onBlur`, and `inputRef` for focus. `aria-invalid` follows `error`.
+- **Alignment**: `align?: 'left' | 'center'` defaults to the existing left alignment. `center` centres both value and placeholder. With trailing content it reserves equal 60px padding on both sides so the text remains visually centred.
 - **Trailing content**: `trailing?: ReactNode` sits inside the field, centred vertically and 20px from the right. Its presence reserves 60px right padding. Omitting these new props preserves the existing input appearance.
 
 ```tsx
@@ -111,7 +112,7 @@ Blue:           #2555FF
 
 #### PasswordInput
 
-- Composes `InputField`; accepts its props except `type` and `trailing`.
+- Composes `InputField`; accepts and passes through its props (including `align`, `onBlur` and `inputRef`) except `type` and `trailing`.
 - Starts hidden, with a non-submit show/hide button using the existing 24px visibility icons. The button supplies `aria-label` and `aria-pressed`, and follows `disabled`.
 - Pass `autoComplete="new-password"` for claim or `autoComplete="current-password"` for sign-in.
 

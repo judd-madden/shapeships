@@ -2,40 +2,37 @@
  * LOGIN SHELL
  * 
  * Canonical Shell for entry/authentication flows
- * Delegates to AlphaEntryPanel (Alpha v3) or auth panels (Post-Alpha)
+ * Shared chrome for Entry and forced password change.
  */
 
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlphaEntryPanel } from '../panels/AlphaEntryPanel';
-import { LoginPanel } from '../panels/LoginPanel';
-import { CreateAccountPanel } from '../panels/CreateAccountPanel';
-import { ForgotPasswordPanel } from '../panels/ForgotPasswordPanel';
+import { ChangePasswordPanel } from '../panels/ChangePasswordPanel';
+import type { EntryAccountActions, EntryNotice, EntryResult, PasswordChangeContext } from '../../game/client/account/entryForm';
 import { PlayersIcon } from '../ui/primitives/icons/PlayersIcon';
-import { DrawingIcon } from '../ui/primitives/icons/DrawingIcon';
 import { ClockIcon } from '../ui/primitives/icons/ClockIcon';
 import { LogoIcon } from '../ui/primitives/icons/LogoIcon';
 import { Dice } from '../ui/primitives/dice/Dice';
 
 interface LoginShellProps {
-  onNavigate: (shell: string) => void;
-  onNameSubmit: (displayName: string) => void | Promise<void>;
-  onLogin: (userData: any) => void;
-  alphaDisableAuth: boolean;
-  alphaPrimaryCtaLabel?: string;
-  isStartingSession: boolean;
+  actions: EntryAccountActions;
+  notice: EntryNotice | null;
+  rememberedUnavailable: boolean;
+  onNoticeConsumed(): void;
+  onNameSubmit(name: string): Promise<EntryResult>;
+  onEntered(): void;
+  onBusyChange(busy: boolean): void;
+  onAttempt(): void;
+  primaryCtaLabel?: string;
 }
 
-export function LoginShell({
-  onNavigate,
-  onNameSubmit,
-  onLogin,
-  alphaDisableAuth,
-  alphaPrimaryCtaLabel = 'PLAY',
-  isStartingSession,
-}: LoginShellProps) {
-  // Alpha v3: Full-page layout with header + panel + footer
-  if (alphaDisableAuth) {
-    return (
+export function LoginShell({ actions, notice, rememberedUnavailable, onNoticeConsumed, onNameSubmit,
+  onEntered, onBusyChange, onAttempt, primaryCtaLabel = 'PLAY' }: LoginShellProps) {
+  const [passwordChange, setPasswordChange] = useState<PasswordChangeContext | null>(null);
+  const [entry, setEntry] = useState({ notice, captchaRequired: false });
+  useEffect(() => () => actions.leaveSignIn(), [actions]);
+  const entered = () => { setPasswordChange(null); onEntered(); };
+  return (
       <div className="content-stretch relative flex size-full flex-col items-center overflow-y-auto px-6 pb-[120px] pt-[40px] sm:px-10 md:px-16 md:pt-[60px] lg:px-24 xl:px-[160px] 2xl:px-[240px]">
         <div className="content-stretch relative flex w-full max-w-[1440px] shrink-0 flex-col items-center gap-[40px] sm:gap-[56px] md:gap-[80px]">
           
@@ -84,12 +81,25 @@ export function LoginShell({
             </div>
           </div>
 
-          {/* Alpha Entry Panel (Form Body) */}
-          <AlphaEntryPanel
-            onPlay={onNameSubmit}
-            primaryButtonLabel={alphaPrimaryCtaLabel}
-            isStartingSession={isStartingSession}
-          />
+          {passwordChange ? (
+            <ChangePasswordPanel context={passwordChange} actions={actions} onEntered={entered}
+              onBusyChange={onBusyChange} onAttempt={onAttempt}
+              onCancel={() => {
+                actions.leaveSignIn();
+                setPasswordChange(null);
+                setEntry({ notice: null, captchaRequired: false });
+              }}
+              onEntryError={(code, captchaRequired) => {
+                actions.leaveSignIn();
+                setEntry({ notice: { name: passwordChange.name, code }, captchaRequired });
+                setPasswordChange(null);
+              }} />
+          ) : (
+            <AlphaEntryPanel actions={actions} notice={entry.notice} initialCaptchaRequired={entry.captchaRequired}
+              rememberedUnavailable={rememberedUnavailable} onNoticeConsumed={onNoticeConsumed}
+              onPlay={onNameSubmit} onEntered={entered} onPasswordChange={setPasswordChange}
+              onBusyChange={onBusyChange} onAttempt={onAttempt} primaryButtonLabel={primaryCtaLabel} />
+          )}
 
           {/* Footer Links */}
           <div className="content-stretch relative flex w-full flex-wrap items-center justify-center gap-x-[28px] gap-y-[16px] font-normal text-[13.5px] leading-[normal] sm:text-[20px] lg:text-[22px]">
@@ -130,39 +140,4 @@ export function LoginShell({
         </div>
       </div>
     );
-  }
-
-  // Post-Alpha: Full auth flow with panels
-  const [activePanel, setActivePanel] = useState('login');
-
-  const renderPanel = () => {
-    switch (activePanel) {
-      case 'login':
-        return <LoginPanel 
-          onNavigate={setActivePanel} 
-          onLogin={onLogin} 
-        />;
-      case 'createAccount':
-        return <CreateAccountPanel 
-          onNavigate={setActivePanel} 
-          onAccountCreated={() => setActivePanel('login')} 
-        />;
-      case 'forgotPassword':
-        return <ForgotPasswordPanel onNavigate={setActivePanel} />;
-      default:
-        return <LoginPanel 
-          onNavigate={setActivePanel} 
-          onLogin={onLogin} 
-        />;
-    }
-  };
-
-  return (
-    <div className="container mx-auto p-6 max-w-md">
-      <div className="mb-8">
-        <h1 className="drop-shadow-lg">Shapeships</h1>
-      </div>
-      {renderPanel()}
-    </div>
-  );
 }

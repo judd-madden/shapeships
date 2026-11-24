@@ -1,6 +1,7 @@
 import type { AccountOperationError, AccountResult, NameCheckBody } from './types';
 
-export const NAME_HINT = '3–20 letters or numbers, no spaces or symbols. Names are not case sensitive: jon, Jon and JON are the same name.';
+export const NAME_RULE = '3–20 letters or numbers, no spaces or symbols.';
+export const NAME_HINT = `${NAME_RULE} Names are not case sensitive: jon, Jon and JON are the same name.`;
 export const VERIFICATION_UNAVAILABLE = "Verification isn't available right now. Please try again later.";
 export const NAME_MESSAGES = {
   claimed: 'This name has already been claimed. Please choose another.',
@@ -32,7 +33,7 @@ export function passwordCodePointLength(password: string): number {
 }
 
 export function nameFieldError(name: string, outcome?: NameCheckBody['outcome'], serverError?: string): string | undefined {
-  if (/[^A-Za-z0-9]/.test(name) || name.length > 20) return NAME_HINT;
+  if (/[^A-Za-z0-9]/.test(name) || name.length > 20) return NAME_RULE;
   if (serverError) return serverError;
   return outcome && outcome !== 'available' ? NAME_MESSAGES[outcome] : undefined;
 }
@@ -55,7 +56,7 @@ export function mapClaimError(error: AccountOperationError | null): ClaimFeedbac
     case 'NAME_TAKEN': return { name: NAME_MESSAGES.claimed };
     case 'NAME_BANNED': return { name: NAME_MESSAGES.banned };
     case 'NAME_RESERVED': return { name: NAME_MESSAGES.reserved };
-    case 'INVALID_NAME': return { name: NAME_HINT };
+    case 'INVALID_NAME': return { name: NAME_RULE };
     case 'INVALID_PASSWORD': return { password: 'Use 10–128 characters.' };
     case 'CAPTCHA_REQUIRED':
     case 'CAPTCHA_INVALID':

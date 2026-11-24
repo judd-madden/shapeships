@@ -1296,3 +1296,80 @@ These are follow-up checks for the planning assistant and Judd, not checks execu
 - **Changed files:** `turnstileLoader.ts`, `turnstileLoader_test.ts`, `ClaimNamePanel.tsx`, `MenuShell.tsx`, `MenuProfileRail.tsx`, this implementation record and the Account Design addendum. This is a surgical Client/UI correction; no server, account lifecycle, configuration, environment or deployment changes.
 - **Validation:** typecheck PASS; Turnstile suite **18/18 PASS**; full client suite **1,170 passed, 7 skipped** (63 files passed, 1 skipped); npm lint **0 errors / 28 existing warnings**; direct ESLint on the changed component/loader/test files **0 errors / 3 existing MenuShell unused-argument warnings**, plus its React-version configuration notice. Build PASS with the existing >500 kB chunk warning; git diff --check PASS. No commit.
 - **Browser checks:** **Not run — browser/Vite testing handled by user**. Follow-up: confirm Turnstile appears and enables submission after verification, inspect alignment at 768–1279px and the preserved xl layout, and confirm Claim Name's tooltip disappears when the page opens. No layout/browser tests were added.
+
+### 22B.4 — Entry account states and forced password change — 24 November 2026
+
+- **Pass / ownership:** Client/UI with thin existing-store/session wiring. The server remains authoritative for eligibility, credentials and account/session links. Panels collect input and render feedback; requests stay in the existing runtime/App seam. No server, SQL, environment, tooling/config, video, deployment or commit work.
+- **Entry:** name/password values and placeholders are centred. Valid names use 500ms checks; PLAY flushes the current check with a 2,000ms maximum lookup wait. Claimed names require passwords, banned/reserved names disable PLAY, and failed/unavailable/rate-limited/disabled-account checks permit the existing guest flow. Two-line purple messages use the supplied copy and Discord URL. Name edits clear prior lookup/error/password/verification context. Format errors and the existing Entry hint are preserved.
+- **Sign-in / invitations:** unnamed ensureSession followed by store signIn(S), with immediate snapshot capture, request guards, incorrect-password clearing/focus, loading feedback and common Welcome/invite completion. CAPTCHA uses action sign-in only after escalation, persists for the name and resets after unsuccessful attempts. GAME_SESSION_INVALID replaces S once after the operation settles, without replaying credentials or proof. App keeps a one-shot name/code notice before the existing refusal reset; Entry consumes it once without losing the name or invite.
+- **Forced change / R1:** the new plain-heading Claim-style Entry panel asks for New password and Confirm new password, validates NFC code-point length and exact confirmation, and uses the supplied copy plus Judd's unchanged Claim password hint. Success opens Welcome/invite; field/form/terminal errors follow the requested mapping. cancelPasswordChange acts only while passwordChangeRequired: advance generation, set signedOut without a reason, clear lastError and publish. Cancellation and terminal returns use it rather than logout; no revocation or storage operation is performed by this accessor.
+- **Guest-session preservation / R2:** the runtime tracks Entry's unnamed account-attempt session. Editing away from the claimed name, Use a different name, terminal return or abandoned Entry clears that session before guest submission. A pending sign-in/password request defers cleanup until settlement; successful account entry preserves its linked session. Guest PLAY therefore sends its name in a fresh session/start request, as before. Failed remembered retries also discard their unnamed sessions.
+- **Escalation handoff / R3:** PASSWORD_CHANGE_REQUIRED resets the consumed sign-in proof. If sign-in had required Turnstile, the forced-change screen immediately mounts a fresh sign-in widget and requires its fresh token. It also enables verification when changePassword itself returns CAPTCHA_REQUIRED. Temporary/new/confirmation passwords are transient and discarded on success, cancellation or leaving their forms; they are never logged or persisted.
+- **Remembered account:** retained tokens in unavailable/dormant show the account note and deliberate Try again/Trying action. Existing bootstrap supplies unnamed S and resumes the account, preserving pending invites. No automatic retry or remembered identity is displayed. Nonterminal failure retains the note; terminal rejection clearing the token removes it. Guest entry retains the remembered token for the next start.
+- **Shared copy / legacy:** NAME_RULE is the existing format sentence; NAME_HINT retains that sentence and Judd's case sentence exactly. Claim format/INVALID_NAME errors use the rule alone; ClaimNamePanel itself is unchanged. Removed the three legacy panels, post-Alpha shell branch, client auth-disable constant/props and unused fake-user path. MenuShell changes only remove unused props; its existing untimed multiplayer default is preserved.
+
+#### Changed and new files
+
+- `src/App.tsx`
+- `src/components/ScreenManager.tsx`
+- `src/components/shells/LoginShell.tsx`
+- `src/components/shells/MenuShell.tsx`
+- `src/components/panels/AlphaEntryPanel.tsx`
+- `src/components/panels/ChangePasswordPanel.tsx` (new)
+- `src/components/ui/primitives/inputs/InputField.tsx`
+- `src/components/ui/primitives/README.md` (PasswordInput already forwards InputField props)
+- `src/game/client/account/accountStore.ts`
+- `src/game/client/account/claimNameForm.ts`
+- `src/game/client/account/nameCheckScheduler.ts`
+- `src/game/client/account/entryForm.ts` (new)
+- `src/game/client/account/changePasswordForm.ts` (new)
+- `src/game/client/gameSession/accountSessionWiring.ts`
+- `src/game/client/tests/account/accountStore_test.ts`
+- `src/game/client/tests/account/claimNameForm_test.ts`
+- `src/game/client/tests/account/nameCheckScheduler_test.ts`
+- `src/game/client/tests/account/gameAccountNetworking_test.ts`
+- `src/game/client/tests/account/playerIdentity_test.ts`
+- `src/game/client/tests/account/entryForm_test.ts` (new)
+- `src/game/client/tests/account/changePasswordForm_test.ts` (new)
+- `src/game/client/tests/account/entryAccountWiring_test.ts` (new)
+- `src/game/client/tests/account/entryAppCallbacks_test.ts` (new)
+- `src/game/client/tests/account/inputFieldAlignment_test.ts` (new)
+- This §15 record and `Phase 22 Addendum - Account Design.md`.
+
+#### Deleted files
+
+- `src/components/panels/LoginPanel.tsx`
+- `src/components/panels/CreateAccountPanel.tsx`
+- `src/components/panels/ForgotPasswordPanel.tsx`
+
+#### Validation
+
+- `npm run typecheck`: **PASS**.
+- Supplemental in-memory TypeScript compilation explicitly rooting App and ScreenManager: **no new diagnostics**; the same 13 existing diagnostics remain. No config or unrelated diagnostic fixes.
+- `npm run lint`: **0 errors / 28 existing warnings**. Direct ESLint on App, ScreenManager, both shells, Entry, ChangePasswordPanel and InputField: **0 errors / 3 existing warnings**, plus the existing React-version configuration notice.
+- `npm run test:client`: **1,279 passed / 7 skipped; 68 files passed / 1 skipped**. New suites are the five files identified above. Coverage includes all Entry copy/state/eligibility mappings, bounded flush and stale results, password validation/mapping, published cancellation and generation fencing, actual production App/reset/routing/Entry submission callbacks with fakes, sign-in/password/resume requests, single session repair without replay, fresh guest session/start name transport after abandonment, deferred in-flight cleanup, and verification requirement/fresh-proof handoff. No UI/layout/browser tests.
+- `npm run build`: **PASS**, with the existing >500 kB chunk warning.
+- `git diff --check`: **PASS**.
+- Browser checks: **Not run — browser/Vite testing handled by user**. No Vite/dev server, browser, live account/database operation, reset tool, deployment or commit was run.
+
+#### Local follow-up and remaining assumptions
+
+The planning assistant drives Entry on the local stack first, then supplies these checks to Judd. No local-stack behavior or layout is claimed from the fake-backed tests.
+
+1. With accounts on, exercise ordinary/claimed/banned/reserved Entry, immediate Enter before lookup completion, service failure and the two-second lookup fallback. Check centred fields, purple messages, the visibility button and keyboard submission at mobile, md and xl widths. Guest play and invite JOIN GAME must retain their existing behavior.
+2. Sign in with a claimed name using a wrong password, then the right one. Check clearing/focus and canonical casing. After a failed sign-in, edit to an unclaimed name and PLAY; confirm session/start receives the guest name rather than reusing the unnamed session. Repeat with a pending invite.
+3. Exercise escalation and blocked-account feedback. Complete a sign-in check with a temporary password; forced change must show a fresh widget immediately when escalation was required. Failed saves must reset it. Also exercise password-route escalation when sign-in had not needed a widget.
+4. Judd resets a development account with the existing 22C.T tool and applies its SQL through the existing owner procedure. Sign in with the temporary password, check mismatch/length feedback, save a new password, and verify Welcome/invite completion. Repeat cancellation via Use a different name, then guest PLAY. During pending requests, conflicting controls must remain disabled.
+5. With a remembered sign-in, stop the local function and reload Entry to check the account note without remembered-name display. Restart it and select Try again; expect Welcome or the preserved invite. Check a failed retry followed by guest PLAY and a terminal expired/revoked-token retry, which removes the note.
+6. Recheck Claim Name's unchanged wording and left alignment; only red format/server INVALID_NAME errors lose the case sentence. Confirm default-left input uses elsewhere are unchanged.
+
+Retry delays are feedback only (seconds below a minute, rounded-up minutes otherwise), with no automatic retry or added cooldown lock. Confirmation compares exact input spelling; password length uses the shared NFC helper. Existing browser-storage/offline-revocation limitations remain unchanged.
+
+#### 22B.4 implementation review — startup outage and stacked alignment
+
+- **F1:** App now records remembered-account bootstrap failure independently of account status. When startup or Try again ends at Entry with a retained token, the account note remains available even if session/start failed before resume and the store is still signedOut. An injected retry-completion callback updates this App-owned flag; successful sign-in/retry and removal of the remembered token clear it. The existing unavailable/dormant note conditions remain. Store lifecycle is unchanged.
+- **R1:** ChangePasswordPanel now centres the whole block with a maximum width of 520px below xl. Heading alignment remains centred below md and left-aligned from md; xl retains its existing 958px two-column layout.
+- **Changed files for this correction:** `src/App.tsx`, `src/game/client/gameSession/accountSessionWiring.ts`, `src/components/panels/ChangePasswordPanel.tsx`, `src/game/client/tests/account/entryAppCallbacks_test.ts`, this record and the Account Design addendum. Client/UI scope only; no store, server, session-manager, tooling, environment, deployment or commit changes in this correction.
+- **Regression tests:** execute the production App startup completion, Entry action factory, note condition and Welcome-routing callback with injected store/session seams. Cover session-start failure before any resume → signedOut with a remembered token and visible note; another failing Try again → note retained; successful Try again → note cleared and Welcome. Additional cases verify clearing when the token disappears or account becomes signedIn, and retaining the flag while still signedOut with a token.
+- **Validation:** `npm run typecheck` PASS; `npm run test:client` **1,283 passed / 7 skipped** (68 files passed / 1 skipped); `npm run lint` **0 errors / 28 existing warnings**; direct ESLint on App/ChangePasswordPanel **0 errors / 2 existing App warnings** plus the React-version notice; supplemental in-memory App/ScreenManager compile **no new diagnostics** (13 existing); build PASS with the existing >500 kB chunk warning; `git diff --check` PASS.
+- **Browser follow-up:** owner reports the original plan's R1–R3 verified in the browser. This correction's browser checks: **Not run — browser/Vite testing handled by user**. Recheck cold startup with the whole function unreachable, a failed retry, then recovery to Welcome/invite. Inspect the forced-change column at 768–1279px and confirm xl remains unchanged. No UI/layout tests or browser/dev server were run.

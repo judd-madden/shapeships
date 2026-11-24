@@ -4,7 +4,7 @@
  * States: Default, Hover, Focus, Error
  */
 
-import type { InputHTMLAttributes, ReactNode } from 'react';
+import type { InputHTMLAttributes, ReactNode, Ref } from 'react';
 
 export interface InputFieldProps {
   value: string;
@@ -22,6 +22,14 @@ export interface InputFieldProps {
   spellCheck?: boolean;
   'aria-describedby'?: string;
   trailing?: ReactNode;
+  align?: 'left' | 'center';
+  onBlur?: InputHTMLAttributes<HTMLInputElement>['onBlur'];
+  inputRef?: Ref<HTMLInputElement>;
+}
+
+export function inputAlignmentClasses(align: 'left' | 'center' = 'left', trailing = false): string {
+  if (align === 'center') return `${trailing ? 'px-[60px]' : 'px-[20px]'} text-center`;
+  return trailing ? 'pl-[20px] pr-[60px]' : 'px-[20px]';
 }
 
 export function InputField({ 
@@ -40,10 +48,14 @@ export function InputField({
   spellCheck,
   'aria-describedby': describedBy,
   trailing,
+  align = 'left',
+  onBlur,
+  inputRef,
 }: InputFieldProps) {
   return (
     <div className={`relative w-full ${className}`}>
       <input
+        ref={inputRef}
         id={id}
         name={name}
         autoComplete={autoComplete}
@@ -55,12 +67,13 @@ export function InputField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
+        onBlur={onBlur}
         placeholder={placeholder}
         disabled={disabled}
         className={`
           bg-black
           content-stretch flex items-center justify-center 
-          px-[20px] py-[19px] 
+          py-[19px]
           relative rounded-[10px] 
           w-full
           font-normal leading-[normal] text-[24px] text-white
@@ -70,7 +83,7 @@ export function InputField({
           disabled:opacity-50 disabled:cursor-not-allowed
           outline-none
           placeholder:text-white
-          ${trailing ? 'pr-[60px]' : ''}
+          ${inputAlignmentClasses(align, Boolean(trailing))}
           ${error ? '!border-[var(--shapeships-pastel-red)]' : ''}
         `}
       />

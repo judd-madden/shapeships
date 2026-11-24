@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { getPlayerName } from '../../gameSession/playerName';
-import { getEntrySessionErrorMessage, SessionRequestError } from '../../gameSession/accountSessionWiring';
+import { guestEntryFailure, SessionRequestError } from '../../gameSession/accountSessionWiring';
 import { cleanup, harness, SESSION_TOKEN } from './fixtures';
 
 afterEach(cleanup);
@@ -32,18 +32,13 @@ describe('explicit player names', () => {
 });
 
 describe('Entry error messages', () => {
-  it.each([
-    ['INVALID_NAME', 'Use 3–20 letters or numbers, no spaces or symbols.'],
-    ['NAME_RESERVED', 'This name is reserved. Please choose another.'],
-    ['NAME_BANNED', 'This name is on the banned list. Please enter a different name.'],
-    ['CLAIMED_NAME_REQUIRES_ACCOUNT', 'This name has been claimed. Please choose another name.'],
-  ])('maps the typed %s refusal', (code, message) => {
-    expect(getEntrySessionErrorMessage(new SessionRequestError('server text', code, 403))).toBe(message);
+  it.each(['INVALID_NAME', 'NAME_RESERVED', 'NAME_BANNED', 'CLAIMED_NAME_REQUIRES_ACCOUNT'])('retains the typed %s refusal for inline presentation', (code) => {
+    expect(guestEntryFailure(new SessionRequestError('server text', code, 403))).toEqual({ kind: 'error', error: { code } });
   });
 
   it('keeps other failures generic without parsing their messages', () => {
-    expect(getEntrySessionErrorMessage(new Error('NAME_BANNED'))).toBe('Failed to start session. Please try again.');
-    expect(getEntrySessionErrorMessage(new SessionRequestError('unavailable', 'INTERNAL_ERROR', 500)))
-      .toBe('Failed to start session. Please try again.');
+    expect(guestEntryFailure(new Error('NAME_BANNED'))).toEqual({ kind: 'error', error: { code: 'GUEST_SESSION_FAILED' } });
+    expect(guestEntryFailure(new SessionRequestError('unavailable', 'INTERNAL_ERROR', 500)))
+      .toEqual({ kind: 'error', error: { code: 'GUEST_SESSION_FAILED' } });
   });
 });

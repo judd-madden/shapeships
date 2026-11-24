@@ -17,6 +17,36 @@ function setup() {
 }
 
 describe('reusable name-check scheduler', () => {
+  it('flushes a debounce immediately, shares in-flight work and caches settled failures', async () => {
+    const h = setup(), pending = deferred<NameCheckResult>();
+    h.checkName.mockReturnValueOnce(pending.promise);
+    h.scheduler.update('Pilot1');
+    const first = h.scheduler.flush('Pilot1');
+    expect(h.scheduler.flush('Pilot1')).toBe(first);
+    expect(h.checkName).toHaveBeenCalledOnce();
+    const failure = { kind: 'error', code: 'ACCOUNTS_NOT_ENABLED' } as const;
+    pending.resolve(failure);
+    expect(await first).toEqual(failure);
+    expect(await h.scheduler.flush('Pilot1')).toEqual(failure);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(h.checkName).toHaveBeenCalledOnce();
+    h.scheduler.dispose();
+  });
+
+  it('flushes only the current exact spelling and can restart after cancellation', async () => {
+    const h = setup(), old = deferred<NameCheckResult>();
+    h.checkName.mockReturnValueOnce(old.promise);
+    h.scheduler.open('Pilot1');
+    await h.scheduler.flush('pilot1');
+    old.resolve(available('Pilot1'));
+    await Promise.resolve();
+    expect(h.onResult).toHaveBeenLastCalledWith('pilot1', available('pilot1'));
+    h.scheduler.cancel();
+    await h.scheduler.flush('pilot1');
+    expect(h.checkName.mock.calls).toEqual([['Pilot1'], ['pilot1'], ['pilot1']]);
+    h.scheduler.dispose();
+  });
+
   it('checks the opening name immediately and skips unchanged repeats', async () => {
     const h = setup();
     h.scheduler.open('Pilot1');

@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   isClaimEnabled, isValidAccountName, mapClaimError, nameFieldError, passwordCodePointLength,
-  NAME_HINT, NAME_MESSAGES, VERIFICATION_UNAVAILABLE,
+  NAME_HINT, NAME_RULE, NAME_MESSAGES, VERIFICATION_UNAVAILABLE,
   type ClaimFeedback,
 } from '../../account/claimNameForm';
 
 describe('Claim Name field feedback', () => {
+  it('preserves the owner hint while keeping format errors rule-only', () => {
+    expect(NAME_RULE).toBe('3–20 letters or numbers, no spaces or symbols.');
+    expect(NAME_HINT).toBe(`${NAME_RULE} Names are not case sensitive: jon, Jon and JON are the same name.`);
+  });
   it.each(['Pilot1', 'abc', 'A'.repeat(20)])('accepts ASCII name %s', (name) => {
     expect(isValidAccountName(name)).toBe(true);
     expect(nameFieldError(name, 'available')).toBeUndefined();
@@ -16,7 +20,7 @@ describe('Claim Name field feedback', () => {
   });
   it.each(['A'.repeat(21), 'Two words', 'ééé', 'pilot!', 'abc\n'])('immediately flags %s', (name) => {
     expect(isValidAccountName(name)).toBe(false);
-    expect(nameFieldError(name, 'claimed', 'Server error')).toBe(NAME_HINT);
+    expect(nameFieldError(name, 'claimed', 'Server error')).toBe(NAME_RULE);
   });
   it.each(['claimed', 'banned', 'reserved'] as const)('maps %s lookup feedback', (outcome) => {
     expect(nameFieldError('Pilot1', outcome)).toBe(NAME_MESSAGES[outcome]);
@@ -67,7 +71,7 @@ describe('claim error mapping', () => {
     ['NAME_TAKEN', { name: NAME_MESSAGES.claimed }],
     ['NAME_BANNED', { name: NAME_MESSAGES.banned }],
     ['NAME_RESERVED', { name: NAME_MESSAGES.reserved }],
-    ['INVALID_NAME', { name: NAME_HINT }],
+    ['INVALID_NAME', { name: NAME_RULE }],
     ['INVALID_PASSWORD', { password: 'Use 10–128 characters.' }],
     ...['CAPTCHA_REQUIRED', 'CAPTCHA_INVALID', 'CAPTCHA_REPLAY'].map<[string, ClaimFeedback]>((code) => [code, { verification: 'Verification failed. Please complete the check again.' }]),
     ['CAPTCHA_UNAVAILABLE', { verification: VERIFICATION_UNAVAILABLE }],
