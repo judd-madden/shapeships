@@ -547,6 +547,11 @@ These approved decisions override conflicting text elsewhere in this planning ba
 4. 22D.0 owner lock: two tables (account runs; used carry-overs); Q1 carry-over bounded by stored game evidence with no ceiling; Q2 no owner review, and unproven unfinished games carry their count only; Q3 no guest-path changes; Q4 isolated streak outages keep the player signed in and hold streak actions behind retry; Q5 no general account-seat continuation.
 5. §8.4 cross-device continuation is deferred. A signed-in streak game continues only in the session where it started. Elsewhere the count is kept, and starting a computer game retires the unreachable game without a loss. This mirrors the guest rule.
 
+## Approved amendments — 25 November 2026 (Judd)
+
+1. The Entry video is deferred until its assets arrive, possibly after Phases 23 and 24. Phase 22 acceptance does not wait on it.
+2. 22E runs as integration review (22E.1), agreed scoped fix passes (22E.2+), Judd's owner acceptance on the local stack with accounts on (desktop and mobile), then activation steps at the single completed-phase deploy.
+
 ## 15. Implementation record
 
 ### 22A.1 — Shared preferences, icon primitives and Welcome illustrations
@@ -1562,3 +1567,17 @@ Guest and names-only cases retain their original success/game-ID/no-name-check a
 
 - Planning assistant/browser owner runs the app on the local stack against the set-05 replica: guest play unchanged; claim carry-over; higher guest/account selection; Retry/Keep; initial loading and isolated outage; two tabs with original-session Rejoin/count preservation; menu Reset, in-game later Reset, early restart/completed replay and rematch. Then Judd performs the local check and commit.
 - Pure client tests do not prove live set-05 transactions, actual browser storage-event delivery, responsive layout or hosted behavior. Existing historical-count, distinct-anchor and unavailable shared-storage/Web Locks limitations remain. No commit was made.
+
+### 22E.1 — Integration review (report only) — 25 November 2026
+
+- **Pass / layer:** Tooling Pass, review and documentation only. Server authority, client-owned networking and presentation boundaries are unchanged.
+- **Files:** new `Phase 22 Addendum - Integration Review.md`; this main plan's two approved 25 November amendments and this §15 record only. No code, tests, SQL, configuration, environment-file, deployment, live-database action or commit.
+- **Review:** development/test inventory with production packaging and gates; accounts-on guest/account/other-tab path traces; all eleven §14 criteria; names-only activation inventory; 24 numbered local desktop/mobile acceptance checks; proposed small follow-up passes.
+- **Findings:** no confirmed blocker; six should findings (IR1–IR6) and two nits (IR7–IR8). Guest cached-session/name alignment, join/expired-session recovery, multiplayer rematch feedback, prohibited token diagnostics, rollback guidance and set-05 owner runbook consolidation need planning-assistant verification/disposition. Nits cover production diagnostic output and legacy server-auth descriptions. No finding was fixed by this pass.
+- **Proposed passes:** 22E.2 Client/UI (small), guest Entry identity; 22E.3 Client/UI (medium), game failure/rematch feedback; 22E.4 Client/UI (small), credential redaction/diagnostic gates; 22E.5 server-owned operational documentation (small), with its documentation companions explicitly allowed in the later brief. Judd agrees these after browser verification; no authoritative rule or SQL change is currently proposed.
+- **Baseline:** existing offline server suite PASS, **93 files / 899 tests plus 16 steps / zero failures**; `npm run typecheck` PASS; `npm run test:client` PASS, **72 files passed / 1 skipped, 1,380 tests passed / 7 skipped**; `npm run lint` PASS, **zero errors / 28 existing warnings**. Baseline collected during the review's non-mutating planning/exploration; not repeated after documentation-only edits. Server command excluded the opt-in live integration file, used cached/frozen dependencies and restricted environment/read grants, and had no network/run grant.
+- **Packaging check:** `npm run build` PASS, **489 modules**. All three dev-gallery chunks are emitted; dashboard access remains localhost/DEV-gated. The accountPreview branch is removed from the production bundle. Existing large-chunk and static/dynamic sessionManager-import advisories remain; only ignored build artifacts were generated.
+- **Documentation checks:** `git diff --check` and final allowed-file/line-ending checks are recorded in the review. Main-plan pre-existing content and CRLF style are preserved.
+- **Browser/live checks:** **Not run — the planning assistant verifies findings in a browser on the local stack**.
+- **Completion / activation:** final owner acceptance, final set-05 PostgreSQL evidence attachment, private backup/restore rehearsal, cleanup/name review, verified hosted IP posture and hosted protection/resource results remain owner gates; fake tests and owner-reported live SQL application are not substituted for that evidence. Entry video and cross-device continuation remain deferred; Welcome plus claimed rail is claim confirmation. Rollback uses **ACCOUNTS_MODE=off first**, with backup-controlled reverse SQL order **05→01** and populated set-05 refusal respected.
+- **Owner handoff / limits:** planning assistant verifies reported findings on the local stack and recommends fixes; Judd agrees scoped follow-ups; planning assistant briefs 22E.2. After agreed fixes, Judd performs local desktop/mobile acceptance, then activation at the single idle deploy. Original-session-only continuation, historic guest-count/distinct-anchor and storage/Web Locks limits remain; no general seat-recovery feature or guest friction is added.
