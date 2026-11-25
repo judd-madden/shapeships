@@ -302,6 +302,8 @@ Keep account IDs distinct from game participant/session IDs. Link authenticated 
 
 ### 8.4 Concurrency and cross-device continuation
 
+Cross-device rejoin deferred — see 24 November amendment 5.
+
 - One active account streak run; multiple devices/tabs must not independently advance it.
 - Rejoining the selected unfinished game from another signed-in device is supported.
 - Starting fresh resets the current account run under the existing product rules.
@@ -542,6 +544,8 @@ These approved decisions override conflicting text elsewhere in this planning ba
 1. No interim deploys. Phase 22 is built and tested locally with accounts on and deployed once when the phase is complete (likely with 23 and 24). Passes add no partial-deploy states. `ACCOUNTS_MODE=off` remains the emergency rollback.
 2. Don't design around active games. With a low player count, Judd deploys when no games are in progress. This satisfies §8.4's activation compatibility review without mid-match migration or grandfathering.
 3. 22D starts with 22D.0, an audit and design pass recorded in `Phase 22 Addendum - Account Streak Design.md`, which Judd locks before any SQL or server code.
+4. 22D.0 owner lock: two tables (account runs; used carry-overs); Q1 carry-over bounded by stored game evidence with no ceiling; Q2 no owner review, and unproven unfinished games carry their count only; Q3 no guest-path changes; Q4 isolated streak outages keep the player signed in and hold streak actions behind retry; Q5 no general account-seat continuation.
+5. §8.4 cross-device continuation is deferred. A signed-in streak game continues only in the session where it started. Elsewhere the count is kept, and starting a computer game retires the unreachable game without a loss. This mirrors the guest rule.
 
 ## 15. Implementation record
 
@@ -1392,3 +1396,19 @@ Retry delays are feedback only (seconds below a minute, rounded-up minutes other
 - **Open-question count:** **5**, matching addendum §2.10: Q1 legacy trust/ceiling; Q2 missing-credential count treatment and unfinished-seat gap; Q3 anchor/profile consumption versus guest lineage; Q4 isolated streak-outage feedback; Q5 future general account-seat continuation. No owner queue is recommended by default. Q2 includes the continuation subdecision; it is not a sixth question.
 - **Validation:** Not run — documentation-only pass. Local documentation diff, source-link targets, required sections and matching question counts reviewed. No database operation, test suite, build, deployment or commit.
 - **Remaining risks / handoff:** full legacy-run proof is absent; IDs-only evidence cannot authorise another seat; anchor-only import retains bounded distinct-anchor risk; rollback loses consumption evidence unless restored. Judd/planning assistant review the audit, CSV findings and questions, then lock/amend P/O decisions before briefing 22D.1 and SQL set 05. No partial deployment or in-flight-game migration is planned.
+
+### 22D.1 — Owner lock, SQL set 05 and account streak repository — 25 November 2026
+
+- **Pass / files:** Server Pass. Two plan records; set-05 forward/verify/rollback and README; streak repository/preparation and dependency loader; neutral computer-game factory extraction; new account fakes/tests. No routes, client work, configuration, SQL execution, deployment or commit.
+- **Owner lock:** 24 November Q1–Q6 and two-table simplification, plus 25 November R1–R4, are locked in the streak addendum §2.11. Original-session continuation supersedes §8.4.
+- **Persistence:** account runs and globally unique import tombstones; four service RPCs and one owner lookup. Track/status idempotency, direct-proof adoption, count-only weak imports, Q6 reachability, prepared-row checks, internal gameIdTaken and anchor-lock replay ordering. Owner cleanup/deletion recognizes exactly the new FKs and reports cascaded/anonymized counts. Empty-only rollback restores set 04 exactly.
+- **Repository:** strict snapshot/decimal revision parsing, typed faults, prepared value/head/history rows and transaction fakes. Existing guest factory body and defaults are unchanged. No new live call is wired.
+- **Validation:** deno check PASS for all changed/new server modules and index.tsx; 43 offline server files, **309 tests PASS**, including **27 new tests** (streakRepository_test.ts: 4; streakPreparation_test.ts: 2; streakRepositoryContract_test.ts: 21). git diff --check PASS. Static source/ACL inventory, exact CR-normalised restoration, LF/CRLF fingerprint, single-SELECT and factory-parity checks PASS. Existing ignored-compiler-option notices remain; no configuration change. SQL: Not run — the planning assistant mock-tests set 05 on a disposable PostgreSQL before Judd applies it.
+- **Owner steps / limits:** PostgreSQL 17 clean rollback/reapply, populated rollback refusal, both concurrency orders, collision/CRLF/owner-guard checks; then private backup and manual live apply, unused until 22D.2. Historic-client count and distinct-anchor risks are accepted.
+
+#### 22D.1 review correction — F1/F2
+
+- **Files / scope:** the three set-05 SQL scripts, fakeStreakRepository.ts, streakRepositoryContract_test.ts and the two plan records only. Server persistence correction; no route, client, configuration, database, deployment or commit operation.
+- **F1:** correct exactly the tracked-status ANY parentheses in all three CHECK expectations. Judd reports the planning assistant’s F1-only PostgreSQL 17 forward → verify → rollback → 04-verify → reapply passed with LF and CRLF.
+- **F2:** all four RPCs retire unusable unfinished tracked evidence, preserving count/ended snapshot/run identity and advancing revision/updated_at once. Refresh all pinned bodies. Mirror retirement in the fake; add missing/malformed/unclassifiable/unowned recovery contracts and preserve strict anchor/source faults. Explicit Reset still clears the count.
+- **Validation:** deno check PASS for all changed/new server modules and index.tsx; **313 tests PASS across 43 offline files**, including **31 streak tests** (4 repository, 2 preparation, 25 contracts). The four added recovery contracts cover missing, malformed, unclassifiable and unowned tracked games; they verify one-time retirement, preserved count/ended/run identity, untouched canonical rows, fresh creation with the preserved count, and explicit Reset followed by zero-count creation. Missing anchor/source faults still pass. Static exact-CHECK, matching pinned-body, LF/CRLF fingerprint, set-04 restoration, single-SELECT, transaction/WHERE and factory-parity checks PASS. git diff --check PASS. SQL execution by Codex: Not run — the planning assistant mock-tests set 05 on a disposable PostgreSQL before Judd applies it. The reported F1-only run does not validate the later F2 bodies.

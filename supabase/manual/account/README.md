@@ -2,6 +2,13 @@
 
 Set 01 belongs to **22C.1, Server Pass**. These files are for Judd to paste into the Supabase SQL editor as `postgres`. They are deliberately outside `supabase/migrations/`; never move them there or run them through CLI migrations, local-live or an automated live-DB test.
 
+## SQL sets
+
+| Set | Phase / package |
+| --- | --- |
+| 01–04 | Existing account foundations, credentials, protection, preferences and owner operations; applied by Judd. |
+| 05 | 22D.1 account streaks: [forward](05-forward.sql), [single-SELECT verify](05-verify.sql), [empty-only rollback](05-rollback.sql). Disposable PostgreSQL 17 acceptance first, then private backup and owner apply; unused until 22D.2. Populated rollback refuses and requires the backup. |
+
 ## Apply order
 
 1. Send `01-forward.sql`, `01-verify.sql` and `01-rollback.sql` to the planning assistant for a disposable mock test. Test a clean forward/verify/rollback round trip and failing-precondition runs; failures must leave schema, grants and data unchanged. Test populated-table rollback refusal and the explicit destructive override only on the mock.
