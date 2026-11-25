@@ -22,6 +22,7 @@ import type { EntryNotice } from './game/client/account/entryForm';
 import { getPlayerPreferencesStore } from './game/client/preferences/playerPreferences';
 import { bootstrapRememberedAccount, createEntryAccountActions, entryNoticeForRefusal, observeAccountSession, type AccountStartupOutcome } from './game/client/gameSession/accountSessionWiring';
 import { useWinStreakMenu } from './game/client/winStreak/useWinStreakProfile';
+import { accountStreakRequestBody } from './game/client/winStreak/accountWorkflow';
 import { WIN_STREAK_RECONCILIATION_TIMEOUT_MS } from './game/client/winStreak/workflow';
 
 const GraphicsTest = React.lazy(() => import('./components/dev/GraphicsTest'));
@@ -322,6 +323,14 @@ export default function App() {
         variantKey: settings.variantKey,
         winStreakCount,
       }, player.name);
+    },
+    createAccountComputerGameRequest: async (settings, expectedStreakRevision) => {
+      if (renderGeneration !== lifecycleGeneration.current) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
+      if (!player?.name) throw new Error('Player not initialized');
+      return authenticatedFetch('/create-computer-game', { method: 'POST', body: JSON.stringify({
+        playerName: player.name, timed: settings.timed, minutes: settings.minutes,
+        incrementSeconds: settings.incrementSeconds, variantKey: settings.variantKey, ...accountStreakRequestBody(expectedStreakRevision),
+      }) }, WIN_STREAK_RECONCILIATION_TIMEOUT_MS);
     },
     getGameState: async (trackedGameId) => {
       if (renderGeneration !== lifecycleGeneration.current) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');

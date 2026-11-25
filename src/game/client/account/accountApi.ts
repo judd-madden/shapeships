@@ -2,6 +2,7 @@ import { PLAYER_PREFERENCE_DEFAULTS, type PlayerPreferences } from '../preferenc
 import type {
   AccountApi, AccountEntryBody, AccountIdentity, AccountLink, AccountPreferences,
   AccountResult, AccountResumeBody, NameCheckBody, PreferencesBody,
+  AccountStreakApi, AccountStreakSnapshot, AccountStreakBody, AccountStreakImportBody,
 } from './types';
 
 const keys = Object.keys(PLAYER_PREFERENCE_DEFAULTS) as (keyof PlayerPreferences)[];
@@ -67,6 +68,106 @@ function nameBody(value: unknown): NameCheckBody | null {
   return { ok: true, nameKey: value.nameKey as string, displayName: value.displayName, outcome: value.outcome as NameCheckBody['outcome'] };
 }
 
+async function parseAccountResponse<T>(response: Response, parse: (value: unknown) => T | null,
+  successStatus = 200): Promise<AccountResult<T>> {
+  const header = response.headers.get('Retry-After');
+  const headerDelay = header !== null && /^\d+$/.test(header) && isDelay(Number(header)) ? Number(header) : undefined;
+  const unavailable = { kind: 'unavailable' as const, ...(headerDelay === undefined ? {} : { retryAfterSeconds: headerDelay }) };
+  if (response.status === 204 && successStatus === 204) return { kind: 'ok', data: undefined as T };
+  let value: unknown;
+  try { value = await response.json(); } catch { return unavailable; }
+  if (response.ok) {
+    const data = response.status === successStatus ? parse(value) : null;
+    return data === null ? unavailable : { kind: 'ok', data };
+  }
+  if (!isObject(value) || value.ok !== false || !isObject(value.error)) return unavailable;
+  const error = value.error;
+  if (typeof error.code !== 'string' || !/^[A-Z][A-Z0-9_]{0,63}$/.test(error.code)
+    || typeof error.message !== 'string'
+    || (error.field !== undefined && (typeof error.field !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error.field)))) return unavailable;
+  const delay = isDelay(error.retryAfterSeconds) ? error.retryAfterSeconds : headerDelay;
+  const latest = error.code === 'PREFERENCE_CONFLICT' ? preferences(value.preferences) : undefined;
+  const streak = error.code === 'STREAK_CONFLICT' && value.streak !== undefined
+    ? parseAccountStreakSnapshot(value.streak) : undefined;
+  if (latest === null || streak === null) return unavailable;
+  return {
+    kind: 'error', code: error.code,
+    ...(error.field === undefined ? {} : { field: error.field as string }),
+    ...(delay === undefined ? {} : { retryAfterSeconds: delay }),
+    ...(latest ? { preferences: latest } : {}),
+    ...(streak ? { streak } : {}),
+  };
+}
+
+export function parseAccountStreakSnapshot(value: unknown): AccountStreakSnapshot | null {
+  if (!isObject(value) || typeof value.accountId !== 'string' || !uuid.test(value.accountId)
+    || typeof value.runId !== 'string' || !uuid.test(value.runId)
+    || !isDelay(value.currentCount) || typeof value.revision !== 'string'
+    || !/^[1-9][0-9]{0,18}$/.test(value.revision) || BigInt(value.revision) > 9223372036854775807n
+    || typeof value.updatedAt !== 'string'
+    || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/.test(value.updatedAt)
+    || !Number.isFinite(Date.parse(value.updatedAt))) return null;
+  const tracked = value.trackedGame, ended = value.endedStreak;
+  if (tracked !== null && (!isObject(tracked) || typeof tracked.gameId !== 'string' || !tracked.gameId
+    || typeof tracked.humanPlayerId !== 'string' || !tracked.humanPlayerId
+    || !['unfinished', 'settled', 'retired', 'restart_pending'].includes(tracked.status as string))) return null;
+  if (ended !== null && (!isObject(ended) || !isDelay(ended.count) || ended.count === 0
+    || typeof ended.endingGameId !== 'string' || !ended.endingGameId)) return null;
+  return Object.freeze({ accountId: value.accountId, runId: value.runId, currentCount: value.currentCount,
+    revision: value.revision, updatedAt: value.updatedAt,
+    trackedGame: tracked === null ? null : Object.freeze({ gameId: tracked.gameId as string,
+      humanPlayerId: tracked.humanPlayerId as string, status: tracked.status as NonNullable<AccountStreakSnapshot['trackedGame']>['status'] }),
+    endedStreak: ended === null ? null : Object.freeze({ count: ended.count as number, endingGameId: ended.endingGameId as string }) });
+}
+
+function streakBody(value: unknown): AccountStreakBody | null {
+  if (!isObject(value) || value.ok !== true) return null;
+  const streak = parseAccountStreakSnapshot(value.streak);
+  return streak ? { ok: true, streak } : null;
+}
+function streakImportBody(value: unknown): AccountStreakImportBody | null {
+  const parsed = streakBody(value);
+  if (!parsed || !isObject(value) || !isObject(value.import)) return null;
+  const outcome = value.import;
+  if (typeof outcome.anchorGameId !== 'string' || !outcome.anchorGameId
+    || !['guest', 'account', 'declined'].includes(outcome.selection as string) || !isDelay(outcome.acceptedCount)
+    || !['none', 'authorised'].includes(outcome.continuation as string)) return null;
+  return { ...parsed, import: { anchorGameId: outcome.anchorGameId,
+    selection: outcome.selection as AccountStreakImportBody['import']['selection'], acceptedCount: outcome.acceptedCount,
+    continuation: outcome.continuation as AccountStreakImportBody['import']['continuation'] } };
+}
+
+/** The session runtime owns A/S headers and linking; these operations never replay mutations. */
+export function createAccountStreakApi(authenticatedFetch: (
+  endpoint: string, options?: RequestInit, timeoutMs?: number,
+) => Promise<Response>): AccountStreakApi {
+  async function request<T>(path: string, body: object, parse: (value: unknown) => T | null): Promise<AccountResult<T>> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const operation = async (): Promise<AccountResult<T>> => {
+      try {
+        const response = await authenticatedFetch('/accounts/streak/' + path, {
+          method: 'POST', body: JSON.stringify(body), cache: 'no-store', signal: controller.signal,
+        }, 8000);
+        const result = await parseAccountResponse(response, parse);
+        if (response.status >= 500) return { kind: 'unavailable',
+          ...('retryAfterSeconds' in result ? { retryAfterSeconds: result.retryAfterSeconds } : {}) };
+        return result;
+      } catch { return { kind: 'unavailable' }; }
+    };
+    try {
+      return await Promise.race([operation(), new Promise<AccountResult<T>>(resolve => {
+        timer = setTimeout(() => { controller.abort(); resolve({ kind: 'unavailable' }); }, 8000);
+      })]);
+    } finally { if (timer !== undefined) clearTimeout(timer); }
+  }
+  return {
+    state: () => request('state', {}, streakBody),
+    import: (input) => request('import', input, streakImportBody),
+    reset: (expectedRevision) => request('reset', { expectedRevision }, streakBody),
+  };
+}
+
 export function createAccountApi({ baseUrl, anonKey, fetch: fetchRequest, timeoutMs }: {
   baseUrl: string;
   anonKey: string;
@@ -88,30 +189,7 @@ export function createAccountApi({ baseUrl, anonKey, fetch: fetchRequest, timeou
           method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
           signal: controller.signal, cache: 'no-store',
         });
-        const header = response.headers.get('Retry-After');
-        const headerDelay = header !== null && /^\d+$/.test(header) && isDelay(Number(header)) ? Number(header) : undefined;
-        const unavailable = { kind: 'unavailable' as const, ...(headerDelay === undefined ? {} : { retryAfterSeconds: headerDelay }) };
-        if (response.status === 204 && successStatus === 204) return { kind: 'ok', data: undefined as T };
-        let value: unknown;
-        try { value = await response.json(); } catch { return unavailable; }
-        if (response.ok) {
-          const data = response.status === successStatus ? parse(value) : null;
-          return data === null ? unavailable : { kind: 'ok', data };
-        }
-        if (!isObject(value) || value.ok !== false || !isObject(value.error)) return unavailable;
-        const error = value.error;
-        if (typeof error.code !== 'string' || !/^[A-Z][A-Z0-9_]{0,63}$/.test(error.code)
-          || typeof error.message !== 'string'
-          || (error.field !== undefined && (typeof error.field !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error.field)))) return unavailable;
-        const delay = isDelay(error.retryAfterSeconds) ? error.retryAfterSeconds : headerDelay;
-        const latest = error.code === 'PREFERENCE_CONFLICT' ? preferences(value.preferences) : undefined;
-        if (latest === null) return unavailable;
-        return {
-          kind: 'error', code: error.code,
-          ...(error.field === undefined ? {} : { field: error.field as string }),
-          ...(delay === undefined ? {} : { retryAfterSeconds: delay }),
-          ...(latest ? { preferences: latest } : {}),
-        };
+        return await parseAccountResponse(response, parse, successStatus);
       } catch {
         // Never expose request credentials, response text or transport exceptions.
         return { kind: 'unavailable' };

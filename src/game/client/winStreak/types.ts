@@ -1,6 +1,13 @@
+export const ACCOUNT_STREAK_UNAVAILABLE = "Couldn't reach your win streak. Please try again.";
+export const ACCOUNT_STREAK_CONFLICT = 'Your win streak changed. Please try again.';
+export const ACCOUNT_STREAK_ACTION_FAILED = 'Unable to update your win streak. Please try again.';
+
 export type WinStreakState = 'hidden' | 'active' | 'ended';
 
 export interface WinStreakMenuViewModel {
+  accountMode?: boolean;
+  createDisabled?: boolean;
+  carryOver?: { guestCount: number; accountCount: number | null; busy: boolean };
   currentCount: number;
   displayCount: number;
   streakState: WinStreakState;
@@ -36,6 +43,8 @@ export interface WinStreakMenuActions {
   onResetWinStreak: () => Promise<void>;
   onEnterPlayComputer: () => void;
   onRejoinTrackedGame: () => void;
+  onRetryCarryOver?: () => Promise<void>;
+  onKeepAccountStreak?: () => Promise<void>;
 }
 
 export interface WinStreakTrackedGame {

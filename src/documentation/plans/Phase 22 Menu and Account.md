@@ -1503,3 +1503,62 @@ Guest and names-only cases retain their original success/game-ID/no-name-check a
 - **Browser/live testing:** Not run — the planning assistant runs the whole function against a PostgreSQL replica with set 05.
 - **Owner steps:** planning assistant checks all routes, race orders and guest regression against the replica; Judd commits afterward. No deployment until the phase is finished.
 - **Remaining limits:** fake tests do not prove PostgreSQL locks/ACLs or hosted runtime behavior. Existing historic-count/distinct-anchor limits remain. Until 22D.3 supplies `expectedStreakRevision`, local signed-in computer creation/rematch/restart requests missing that field are intentionally refused; guest play and multiplayer retain their existing contracts.
+
+
+### 22D.3 — Account win streak client runtime — 25 November 2026
+
+- **Pass / layer:** Client/UI Pass. Account streak snapshots remain server-authoritative; client runtime owns networking, cache lifecycle, carry-over and action sequencing. Menu/display code only renders view models and invokes callbacks. No server, SQL, tooling, Entry/Claim-screen, deployment or commit changes.
+- **Approved refinements:** small optional disabled/error props in CreatePrivateGamePanel; before the first account snapshot, the pending notice says “Keep account streak” without an invented count. Its action fetches state before decline. Existing guest/multiplayer panel defaults and error placement remain.
+
+#### Changed files
+
+- Account API: src/game/client/account/accountApi.ts and types.ts — strict streak/import parsers, state/import/reset via authenticatedFetch, shared account error envelopes, optional conflict snapshot and bounded single-attempt requests.
+- New src/game/client/winStreak/accountRuntime.ts — account-store subscription, account/lifecycle/revision fencing, in-memory snapshots, account-entry import, menu reset and terminal reconciliation.
+- New src/game/client/winStreak/accountWorkflow.ts — revision request fields, create/rematch and restart handling, ambiguous-create state recovery, original-session Rejoin and account game view-model projection.
+- Existing winStreak/useWinStreakProfile.ts, useWinStreakGame.ts and types.ts — mode selection, optional account transports, carry-over notice/actions, loading/busy/error state, resignation/rematch sequencing and explicit retry.
+- Existing winStreak/profile.ts, workflow.ts and authoritative.ts — account-only consumption under the existing guest lock; lifecycle fences for queued/delayed guest work and consumed-profile storage events. Ordinary guest behavior and persisted v1 shape remain.
+- src/App.tsx and src/game/client/useGameSession.ts — account request bodies, observation routing and existing New Game helper-text feedback. Ordinary turns and game-state polling add no streak request.
+- src/components/shells/MenuShell.tsx and src/components/panels/CreatePrivateGamePanel.tsx — approved notice, disabled states and existing error treatment beneath the account Play Computer button.
+- src/game/display/winStreak/WinStreakContent.tsx — show approved account error copy in the existing reset text; preserve guest fallback copy.
+- New client tests: tests/account/accountStreakApi_test.ts; tests/winStreak/accountRuntime_test.ts, accountWorkflow_test.ts and accountHooks_test.ts; shared tests/winStreak/accountFixtures.ts. Paths are relative to src/game/client/.
+- This main-plan §15 record.
+
+#### Mode, cache and guest isolation
+
+- Only signedIn selects account mode. All other account-store states use the existing guest runtime. The account runtime subscribes once and does not reinitialize for preference publications.
+- Account snapshots are memory-only, scoped to the active account and lifecycle. Wrong-account, obsolete-lifecycle and lower-revision responses are ignored; equal/newer revisions are accepted, including a newer lower count. Bigint revisions stay decimal strings.
+- Account data clears on logout/account switch and is never copied into guest storage. Isolated streak outages preserve sign-in and the last successful count. Account/session authority failures use existing account revalidation/Entry behavior.
+- Refresh occurs at entry, Play Computer entry, terminal observation and deliberate streak actions. Terminal observations are deduplicated; explicit actions can repair a failed refresh. No polling interval or per-turn streak call is added.
+- Account create/rematch/restart omit winStreakCount and send expectedStreakRevision. Guest requests, count settlement, restart recovery and storage keys are unchanged. A production-hook guest regression spy records zero /accounts/streak/* requests across menu entry, create, observation, rematch and restart.
+
+#### Carry-over and UI states
+
+- Capture an eligible tracked guest source and generation under the existing lock. No candidate means state only. Otherwise fetch account state, compare once and refresh/retry a conflict at most once with that same candidate.
+- Confirmed selection, decline or STREAK_IMPORT_CONSUMED retires and clears the offered local source, zeroes count/ended state, removes obsolete reservation/association and advances generation. Every consumption rechecks account authority and guest generation inside the lock. A sibling-settled same anchor can be consumed under a fresh locked fence without another import; a newer independent anchor is preserved.
+- Late guest creation, observation and restart work cannot restore a consumed source. Storage reads/events recognize consumption, including a full retirement ledger, and reject older consumed generations/events. These fences add no persisted field or storage key.
+- Compare keeps unverified/missing-game candidates pending with the notice as its only feedback. Keep retires that local candidate even when decline reports unverified, missing-game or consumed; decline conflicts refresh/retry once. Only outage or account-authority failure prevents local decline resolution. The existing red notice replaces Rejoin and offers Retry / Keep account streak (M); creation and Reset remain blocked until resolution. Successful carry-over has no success message.
+- Initial account loading hides badge/Reset; Play Computer waits for the first snapshot. Outages retain the last count. Conflicts refresh and show “Your win streak changed. Please try again.”; unavailable actions show “Couldn't reach your win streak. Please try again.”
+- Ambiguous creation reconciles once through state and navigates only to a new unfinished tracked game for the captured original session. No automatic create replay. Rejoin also verifies active game/requester/participants for that tab and permits an imported count to differ from the game's fixed bonus.
+- Early Reset uses the dedicated account restart/replay route. Later Reset verifies resignation, reconciles the source to zero and then rematches; explicit recovery never resigns twice. Completed-restart refresh failure waits for explicit retry rather than recurring with game observations. Existing New Game helper text carries rematch errors.
+- Account game counts/ended state come from snapshots and ended state remains scoped to its ending game. Applied bonus, recipient, turn-one hover and battle-log content continue to come from game data.
+
+#### 1125-4 review follow-up
+
+- F1: explicit decline consumes the captured guest source for STREAK_IMPORT_UNVERIFIED, STREAK_GAME_NOT_FOUND and STREAK_IMPORT_CONSUMED, using the same account/generation fence. Conflict refreshes and retries once with the same candidate; a determinate refusal after that bounded attempt still retires the local candidate. Outage/authority errors preserve evidence.
+- R1: proof failures during compare show only the carry-over notice; Retry/Keep clear stale button errors. Network/timeouts/5xx retain outage copy. Other request refusals use neutral retry feedback, and parsed 5xx error envelopes remain outages.
+- Split the imports on the first line of WinStreakContent.tsx.
+- Added 23 review regressions covering decline outcomes and re-sign-in, conflict bounds, generation fencing, outage/authority preservation, notice-only feedback, stale errors and HTTP status classification. No server or guest-profile changes in this follow-up.
+
+#### Tests and validation
+
+- **PASS:** npm run typecheck.
+- **PASS:** npm run test:client — 72 files passed / 1 skipped; 1,380 tests passed / 7 skipped. The 97 new pure-logic tests cover API schema/timeouts, modes/cache ordering, import outcomes/conflict bounds, consumption races/storage events, request fields, ambiguous recovery, Q6 Rejoin, terminal reconciliation, account reset/retry and guest isolation. Pre-22D.3 guest suites/assertions remain unchanged.
+- **PASS:** targeted ESLint on winStreak, changed account API/types and the five new test/fixture files; zero warnings/errors.
+- **PASS:** npm run build. Vite reports its large-chunk advisory and that the lazy sessionManager import shares the module already statically included by App/useGameSession; no tooling changes.
+- **PASS:** git diff --check. Existing LF/CRLF/mixed line-ending styles preserved; no new storage key or guest-profile field.
+- **Browser/Vite acceptance:** Not run — browser/Vite testing handled by user.
+
+#### Owner acceptance and remaining limits
+
+- Planning assistant/browser owner runs the app on the local stack against the set-05 replica: guest play unchanged; claim carry-over; higher guest/account selection; Retry/Keep; initial loading and isolated outage; two tabs with original-session Rejoin/count preservation; menu Reset, in-game later Reset, early restart/completed replay and rematch. Then Judd performs the local check and commit.
+- Pure client tests do not prove live set-05 transactions, actual browser storage-event delivery, responsive layout or hosted behavior. Existing historical-count, distinct-anchor and unavailable shared-storage/Web Locks limitations remain. No commit was made.

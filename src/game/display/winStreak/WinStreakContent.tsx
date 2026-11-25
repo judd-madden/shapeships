@@ -1,4 +1,5 @@
 import type { WinStreakGameViewModel, WinStreakMenuViewModel } from '../../client/winStreak/types';
+import { ACCOUNT_STREAK_ACTION_FAILED, ACCOUNT_STREAK_CONFLICT, ACCOUNT_STREAK_UNAVAILABLE } from '../../client/winStreak/types';
 import { GameMenuButton } from '../../../components/ui/primitives/buttons/GameMenuButton';
 import {
   WIN_STREAK_DISCORD_URL,
@@ -61,7 +62,8 @@ export function WinStreakPanelContent({
           </GameMenuButton>
           {vm.reset.error ? (
             <p className="mt-[10px] text-[14px] text-center leading-[18px] text-[var(--shapeships-pastel-red)]">
-              The previous reset needs recovery before another action can be submitted.
+              {[ACCOUNT_STREAK_ACTION_FAILED, ACCOUNT_STREAK_CONFLICT, ACCOUNT_STREAK_UNAVAILABLE].includes(vm.reset.error)
+                ? vm.reset.error : 'The previous reset needs recovery before another action can be submitted.'}
             </p>
           ) : null}
           {vm.reset.retryAvailable && onRetryRecovery ? (

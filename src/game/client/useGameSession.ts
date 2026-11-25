@@ -44,6 +44,8 @@ import { generateNonce, makeCommitHash } from './hashUtils';
 import { isValidPhaseKey } from '../../engine/phase/PhaseTable';
 import { getPlayerName } from './gameSession/playerName';
 import { getWinStreakProfileStore } from './winStreak/profile';
+import { getAccountWinStreakRuntime } from './winStreak/accountRuntime';
+import { accountStreakRequestBody } from './winStreak/accountWorkflow';
 import {
   observeAuthoritativeWinStreakGame,
   projectAuthoritativeWinStreakGame,
@@ -905,6 +907,7 @@ export function useGameSession(
     return sessionEnsure(displayName);
   }, [assertGameSession]);
   const winStreakStore = getWinStreakProfileStore();
+  const accountWinStreak = getAccountWinStreakRuntime();
 
   // Stop /game-state polling once an authoritative finished payload has been stored.
   const POSTGAME_POLL_MS = 0;
@@ -958,6 +961,7 @@ export function useGameSession(
   const resignSubmissionRef = useRef(false);
   const [isResignSubmitting, setIsResignSubmitting] = useState(false);
   const winStreakSettlementQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const accountStreakGameRef = useRef<string | null>(null);
   const [minimizeMissionsThisSession, setMinimizeMissionsThisSession] =
     useState(readMinimizeMissionsThisSession);
   const minimizeMissionsThisSessionRef = useRef(minimizeMissionsThisSession);
@@ -1114,14 +1118,26 @@ export function useGameSession(
   }
 
   function enqueueWinStreakObservation(nextState: any, allowDiscovery: boolean): Promise<unknown> {
-    const tracked = winStreakStore.getSnapshot().trackedGame;
+    const account = accountWinStreak.getSnapshot();
+    const guestWork = winStreakStore.captureGuestWork();
+    if (account.mode === 'account') accountStreakGameRef.current = nextState?.gameId ?? null;
+    else if (accountStreakGameRef.current && accountStreakGameRef.current === nextState?.gameId) {
+      return winStreakSettlementQueueRef.current;
+    }
+    const tracked = account.mode === 'account' ? account.streak?.trackedGame : winStreakStore.getSnapshot().trackedGame;
     const expectedHumanPlayerId = tracked && tracked.gameId === nextState?.gameId
       ? tracked.humanPlayerId
       : null;
     const projected = projectAuthoritativeWinStreakGame(nextState, expectedHumanPlayerId);
     if (!projected) return winStreakSettlementQueueRef.current;
+    if (account.mode === 'account') {
+      const queued = projected.status === 'finished'
+        ? accountWinStreak.observeTerminal(projected.gameId) : Promise.resolve();
+      winStreakSettlementQueueRef.current = queued.catch(() => undefined);
+      return winStreakSettlementQueueRef.current;
+    }
     const queued = winStreakSettlementQueueRef.current.then(() =>
-      observeAuthoritativeWinStreakGame(winStreakStore, projected, { allowDiscovery })
+      observeAuthoritativeWinStreakGame(winStreakStore, projected, { allowDiscovery, isCurrent: guestWork })
     );
     winStreakSettlementQueueRef.current = queued.catch(() => undefined);
     return queued;
@@ -6699,6 +6715,11 @@ useEffect(() => {
       `/game-state/${trackedGameId}`,
       WIN_STREAK_RECONCILIATION_TIMEOUT_MS,
     ),
+    accountRuntime: accountWinStreak,
+    createAccountBotRematch: (sourceGameId, expectedStreakRevision) =>
+      authenticatedPost('/new-game-from/' + sourceGameId, accountStreakRequestBody(expectedStreakRevision), WIN_STREAK_RECONCILIATION_TIMEOUT_MS),
+    resetAccountWinStreak: (sourceGameId, expectedStreakRevision) =>
+      authenticatedPost('/reset-win-streak/' + sourceGameId, accountStreakRequestBody(expectedStreakRevision), WIN_STREAK_RECONCILIATION_TIMEOUT_MS),
     createBotRematch: (sourceGameId, winStreakCount) =>
       authenticatedPost(`/new-game-from/${sourceGameId}`, { winStreakCount }),
     resetWinStreak: (sourceGameId) =>
@@ -6885,6 +6906,9 @@ useEffect(() => {
     ancientCatalogueEnergy,
     ancientAutocastEnabled,
   });
+  if (accountWinStreak.getSnapshot().mode === 'account' && winStreakGame.viewModel.reset.error && vm.actionPanel.endOfGame) {
+    vm.actionPanel.endOfGame.rematchHelperText = winStreakGame.viewModel.reset.error;
+  }
   const turnPhasePresentation = useTurnPhasePresentation({
     gameId: effectiveGameId,
     vm: vm.turnPhases,

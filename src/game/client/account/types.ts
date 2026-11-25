@@ -54,6 +54,7 @@ export interface AccountOperationError {
 export interface AccountError extends AccountOperationError {
   readonly kind: 'error';
   readonly preferences?: AccountPreferences;
+  readonly streak?: AccountStreakSnapshot;
 }
 
 export interface AccountUnavailable {
@@ -90,6 +91,42 @@ export interface AccountApi {
   logout(accountToken?: string): Promise<AccountResult<void>>;
   getPreferences(accountToken: string): Promise<AccountResult<PreferencesBody>>;
   putPreferences(accountToken: string, patch: PreferencePatch, expectedRevision: string): Promise<AccountResult<PreferencesBody>>;
+}
+
+export interface AccountStreakSnapshot {
+  readonly accountId: string;
+  readonly runId: string;
+  readonly currentCount: number;
+  readonly revision: string;
+  readonly trackedGame: null | {
+    readonly gameId: string;
+    readonly humanPlayerId: string;
+    readonly status: 'unfinished' | 'settled' | 'retired' | 'restart_pending';
+  };
+  readonly endedStreak: null | { readonly count: number; readonly endingGameId: string };
+  readonly updatedAt: string;
+}
+
+export interface GuestStreakCandidate {
+  readonly currentCount: number;
+  readonly anchorGameId: string;
+  readonly humanPlayerId: string;
+  readonly resultPending: boolean;
+}
+
+export interface AccountStreakBody { readonly ok: true; readonly streak: AccountStreakSnapshot }
+export interface AccountStreakImportBody extends AccountStreakBody {
+  readonly import: {
+    readonly anchorGameId: string;
+    readonly selection: 'guest' | 'account' | 'declined';
+    readonly acceptedCount: number;
+    readonly continuation: 'none' | 'authorised';
+  };
+}
+export interface AccountStreakApi {
+  state(): Promise<AccountResult<AccountStreakBody>>;
+  import(request: { expectedRevision: string; decision: 'compare' | 'decline'; guest: GuestStreakCandidate }): Promise<AccountResult<AccountStreakImportBody>>;
+  reset(expectedRevision: string): Promise<AccountResult<AccountStreakBody>>;
 }
 
 export interface AccountClock {

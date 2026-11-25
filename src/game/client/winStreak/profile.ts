@@ -155,6 +155,8 @@ function createDefaultExclusiveRunner(): ExclusiveRunner {
 export class WinStreakProfileStore {
   private snapshot: WinStreakProfile;
   private storageAvailable: boolean;
+  private workEpoch = 0;
+  private consumedGeneration = -1;
   private readonly listeners = new Set<() => void>();
 
   constructor(
@@ -170,7 +172,11 @@ export class WinStreakProfileStore {
       return this.snapshot ?? createEmptyWinStreakProfile();
     }
     try {
-      return parseWinStreakProfile(this.storage.getItem(WIN_STREAK_STORAGE_KEY));
+      const profile = parseWinStreakProfile(this.storage.getItem(WIN_STREAK_STORAGE_KEY));
+      this.observeConsumption(profile);
+      return profile.generation < this.consumedGeneration || (this.consumedGeneration >= 0
+        && (profile.generation < this.snapshot.generation || profile.revision < this.snapshot.revision))
+        ? this.snapshot : profile;
     } catch {
       this.storageAvailable = false;
       return this.snapshot ?? createEmptyWinStreakProfile();
@@ -189,8 +195,49 @@ export class WinStreakProfileStore {
     return () => this.listeners.delete(listener);
   };
 
+  // Account handoff fencing is in memory; the persisted v1 shape and lock stay unchanged.
+  captureGuestWork(): () => boolean {
+    const captured = this.workEpoch;
+    return () => captured === this.workEpoch;
+  }
+
+  fenceGuestWork(): void { this.workEpoch++; }
+
+  async consumeForAccount(candidate: { generation: number; anchorGameId: string; humanPlayerId: string },
+    isCurrent: () => boolean = () => true): Promise<boolean> {
+    return this.mutate((profile) => {
+      if (!isCurrent() || profile.generation !== candidate.generation || profile.trackedGame?.gameId !== candidate.anchorGameId
+        || profile.trackedGame.humanPlayerId !== candidate.humanPlayerId) return false;
+      retireGameId(profile, candidate.anchorGameId);
+      if (profile.creationReservation?.recoveryGameId) retireGameId(profile, profile.creationReservation.recoveryGameId);
+      profile.currentCount = 0;
+      profile.endedStreak = null;
+      profile.trackedGame = null;
+      profile.creationReservation = null;
+      profile.generation++;
+      this.consumedGeneration = profile.generation;
+      this.fenceGuestWork();
+      return true;
+    });
+  }
+
+  private observeConsumption(incoming: WinStreakProfile): void {
+    const tracked = this.snapshot?.trackedGame;
+    if (tracked && incoming.trackedGame === null && incoming.currentCount === 0
+      && incoming.endedStreak === null && incoming.creationReservation === null
+      && incoming.generation > this.snapshot.generation
+      && (incoming.retiredGameIds.includes(tracked.gameId) || incoming.automaticEnrollmentSealed)) {
+      this.consumedGeneration = incoming.generation;
+      this.fenceGuestWork();
+    }
+  }
+
   acceptExternalValue(raw: string | null): void {
-    this.publish(parseWinStreakProfile(raw));
+    const incoming = parseWinStreakProfile(raw);
+    if (incoming.generation < this.consumedGeneration || (this.consumedGeneration >= 0
+      && (incoming.generation < this.snapshot.generation || incoming.revision < this.snapshot.revision))) return;
+    this.observeConsumption(incoming);
+    this.publish(incoming);
   }
 
   async inspect<T>(reader: (profile: WinStreakProfile) => T): Promise<T> {

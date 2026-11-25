@@ -25,6 +25,9 @@ interface CreatePrivateGamePanelProps {
   primaryActionStyle?: 'private' | 'emphasisWhite';
   headingAccessory?: ReactNode;
   primaryActionNotice?: ReactNode;
+  primaryActionDisabled?: boolean;
+  externalError?: string | null;
+  errorAfterPrimaryAction?: boolean;
   secondaryAction?: ReactNode;
   initialTimed?: boolean;
   initialPresetKey?: TimerPresetKey;
@@ -150,6 +153,9 @@ export function CreatePrivateGamePanel({
   primaryActionStyle = 'private',
   headingAccessory,
   primaryActionNotice,
+  primaryActionDisabled = false,
+  externalError,
+  errorAfterPrimaryAction = false,
   secondaryAction,
   initialTimed = true,
   initialPresetKey = '15_10',
@@ -161,6 +167,7 @@ export function CreatePrivateGamePanel({
   const [variantKey] = useState<'1v1_standard'>('1v1_standard');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
+  const displayedError = externalError === undefined ? error : externalError;
 
   const handleTimingChange = (timed: boolean) => {
     setIsTimed(timed);
@@ -173,6 +180,7 @@ export function CreatePrivateGamePanel({
   };
 
   const handleCreateGame = async () => {
+    if (primaryActionDisabled || isCreating) return;
     const preset = TIMER_PRESET_BY_KEY[selectedPresetKey];
 
     setIsCreating(true);
@@ -285,19 +293,25 @@ export function CreatePrivateGamePanel({
           </div>
         )}
 
-        {error && (
+        {!errorAfterPrimaryAction && displayedError && (
           <div className="w-full rounded-lg border border-red-500/50 bg-red-500/20 p-4">
-            {error}
+            {displayedError}
           </div>
         )}
 
         <MenuButton
           {...primaryActionButtonProps}
           onClick={handleCreateGame}
-          disabled={isCreating}
+          disabled={isCreating || primaryActionDisabled}
         >
           {isCreating ? 'CREATING...' : primaryActionLabel}
         </MenuButton>
+
+        {errorAfterPrimaryAction && displayedError && (
+          <div className="w-full rounded-lg border border-red-500/50 bg-red-500/20 p-4">
+            {displayedError}
+          </div>
+        )}
 
         {secondaryAction && (
           <div className="mt-[8px] max-w-full xl:hidden">

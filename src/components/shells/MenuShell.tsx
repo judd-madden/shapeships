@@ -184,6 +184,9 @@ export function MenuShell({
                 heading="Play Computer"
                 subheading="Start a game against a computer opponent."
                 primaryActionLabel="PLAY COMPUTER"
+                primaryActionDisabled={winStreakViewModel.createDisabled}
+                externalError={winStreakViewModel.accountMode ? winStreakViewModel.reset.error : undefined}
+                errorAfterPrimaryAction={winStreakViewModel.accountMode}
                 primaryActionStyle="emphasisWhite"
                 footer={<SinglePlayerFeatures />}
                 headingAccessory={shouldShowWinStreakContent(winStreakViewModel) ? (
@@ -192,7 +195,7 @@ export function MenuShell({
                     {winStreakViewModel.streakState === 'active' ? (
                       <GameMenuButton
                         size="compact"
-                        disabled={winStreakViewModel.reset.busy}
+                        disabled={winStreakViewModel.reset.busy || Boolean(winStreakViewModel.carryOver)}
                         requiresConfirm
                         confirmLabel="Reset Win Streak (Confirm)"
                         pendingLabel="RESETTING..."
@@ -203,7 +206,20 @@ export function MenuShell({
                     ) : null}
                   </div>
                 ) : undefined}
-                primaryActionNotice={winStreakViewModel.rejoinCandidate ? (
+                primaryActionNotice={winStreakViewModel.carryOver ? (
+                  <p className="max-w-full text-[15px] font-medium text-[var(--shapeships-pastel-red)] sm:text-[20px]">
+                    We couldn't carry over your guest win streak of {winStreakViewModel.carryOver.guestCount}.{' '}
+                    <button type="button" className="underline hover:opacity-80"
+                      disabled={winStreakViewModel.carryOver.busy}
+                      onClick={() => { void winStreakActions.onRetryCarryOver?.(); }}>Retry</button>
+                    {' · '}
+                    <button type="button" className="underline hover:opacity-80"
+                      disabled={winStreakViewModel.carryOver.busy}
+                      onClick={() => { void winStreakActions.onKeepAccountStreak?.(); }}>
+                      Keep account streak{winStreakViewModel.carryOver.accountCount === null ? '' : ' (' + winStreakViewModel.carryOver.accountCount + ')'}
+                    </button>
+                  </p>
+                ) : winStreakViewModel.rejoinCandidate ? (
                   <p className="max-w-full text-[15px] font-medium text-[var(--shapeships-pastel-red)] sm:text-[20px]">
                     <button
                       type="button"

@@ -214,6 +214,7 @@ export interface ObserveAuthoritativeOptions {
   allowDiscovery: boolean;
   expectedGeneration?: number;
   requireNoCreationReservation?: boolean;
+  isCurrent?: () => boolean;
 }
 
 export function settleTrackedGameDraft(
@@ -255,7 +256,9 @@ export async function observeAuthoritativeWinStreakGame(
   game: AuthoritativeWinStreakGame,
   options: ObserveAuthoritativeOptions,
 ): Promise<'enrolled' | 'settled' | 'ignored' | 'stale'> {
+  const guestWork = store.captureGuestWork();
   return store.mutate((profile) => {
+    if (!guestWork() || options.isCurrent?.() === false) return 'stale';
     if (
       (options.expectedGeneration !== undefined &&
         profile.generation !== options.expectedGeneration) ||
@@ -285,7 +288,7 @@ export async function observeAuthoritativeWinStreakGame(
 }
 
 export function deriveWinStreakGameViewModel(args: {
-  profile: WinStreakProfile;
+  profile: { currentCount: number; trackedGame: { gameId: string } | null; endedStreak: WinStreakProfile['endedStreak'] };
   game: AuthoritativeWinStreakGame | null;
   resetBusy: boolean;
   resetError: string | null;

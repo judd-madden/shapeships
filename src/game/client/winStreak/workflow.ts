@@ -93,6 +93,7 @@ export async function reconcileTrackedWinStreakGame(
     requireFinishedLoss?: boolean;
   } = {},
 ): Promise<ReconcileResult> {
+  const guestWork = store.captureGuestWork();
   const captured = await store.inspect((profile) => ({
     preflight: creationPreflight(profile),
     trackedGame: profile.trackedGame ? { ...profile.trackedGame } : null,
@@ -169,7 +170,7 @@ export async function reconcileTrackedWinStreakGame(
     matchesPreflight(profile, captured.preflight) &&
     (profile.creationReservation?.token ?? null) === (captured.reservation?.token ?? null)
   );
-  if (!associationStillCurrent) return { kind: 'stale' };
+  if (!guestWork() || !associationStillCurrent) return { kind: 'stale' };
   if (options.requireFinishedLoss && (
     game.status !== 'finished' || game.outcome !== 'loss' || game.restartLifecycle != null
   )) {
@@ -187,6 +188,7 @@ export async function reconcileTrackedWinStreakGame(
     const observed = await observeAuthoritativeWinStreakGame(store, game, {
       allowDiscovery: false,
       expectedGeneration: captured.preflight.generation,
+      isCurrent: guestWork,
     });
     if (observed === 'stale') return { kind: 'stale' };
     const settledPreflight = await store.inspect((profile) => creationPreflight(profile));
@@ -246,9 +248,10 @@ export async function reserveBotGameCreation(
   kind: 'create' | 'rematch',
   sourceGameId: string | null,
   preflight: WinStreakCreationPreflight,
+  isCurrent = store.captureGuestWork(),
 ): Promise<CreationReservationResult> {
   return store.mutate((profile) => {
-    if (!matchesPreflight(profile, preflight)) return { kind: 'stale' };
+    if (!isCurrent() || !matchesPreflight(profile, preflight)) return { kind: 'stale' };
     if (profile.creationReservation) return { kind: 'blocked' };
     const reservation = makeCreationReservation(profile, kind, sourceGameId);
     profile.creationReservation = reservation;
@@ -263,10 +266,11 @@ async function retireAndReserveBotGameCreation(
   trackedGameId: string,
   preflight: WinStreakCreationPreflight,
   resetCount: boolean,
+  isCurrent = store.captureGuestWork(),
 ): Promise<CreationReservationResult> {
   return store.mutate((profile) => {
     if (
-      !matchesPreflight(profile, preflight) ||
+      !isCurrent() || !matchesPreflight(profile, preflight) ||
       profile.trackedGame?.gameId !== trackedGameId
     ) {
       return { kind: 'stale' };
@@ -285,9 +289,11 @@ async function resolvePersistedCreationReservation(
   transport: ReconcileTransport,
   activeReservationToken: string | null,
 ): Promise<{ kind: 'clear' } | { kind: 'blocked'; error: string }> {
+  const guestWork = store.captureGuestWork();
   const reservation = await store.inspect((profile) =>
     profile.creationReservation ? { ...profile.creationReservation } : null
   );
+  if (!guestWork()) return { kind: 'blocked', error: 'Session changed.' };
   if (!reservation) return { kind: 'clear' };
   if (reservation.token === activeReservationToken) {
     return { kind: 'blocked', error: 'A bot-game creation request is already in progress.' };
@@ -310,7 +316,7 @@ async function resolvePersistedCreationReservation(
 
   // This is a new deliberate attempt. Never replay the earlier non-idempotent request.
   await store.mutate((profile) => {
-    if (profile.creationReservation?.token === reservation.token) {
+    if (guestWork() && profile.creationReservation?.token === reservation.token) {
       profile.creationReservation = null;
     }
   });
@@ -330,6 +336,7 @@ export async function prepareBotGameCreation(args: {
   activeReservationToken?: string | null;
   requiredSettledSource?: { gameId: string; humanPlayerId: string };
 }): Promise<PrepareBotGameCreationResult> {
+  const guestWork = args.store.captureGuestWork();
   // Reset must not release or replay an earlier non-idempotent creation request.
   if (!args.requiredSettledSource) {
     const existing = await resolvePersistedCreationReservation(
@@ -341,11 +348,13 @@ export async function prepareBotGameCreation(args: {
   }
 
   for (let attempt = 0; attempt < (args.requiredSettledSource ? 1 : 2); attempt += 1) {
+    if (!guestWork()) return { kind: 'error', error: 'Session changed.' };
     const reconciled = await reconcileTrackedWinStreakGame(args.store, args.transport, {
       expectedTrackedGameId: args.requiredSettledSource?.gameId,
       expectedHumanPlayerId: args.requiredSettledSource?.humanPlayerId,
       requireFinishedLoss: args.requiredSettledSource != null,
     });
+    if (!guestWork()) return { kind: 'error', error: 'Session changed.' };
     if (reconciled.kind === 'stale') continue;
 
     if (reconciled.kind === 'clear') {
@@ -369,6 +378,7 @@ export async function prepareBotGameCreation(args: {
         args.kind,
         args.sourceGameId,
         reconciled.preflight,
+        guestWork,
       );
       if (reserved.kind === 'reserved') return reserved;
       if (reserved.kind === 'stale') continue;
@@ -395,6 +405,7 @@ export async function prepareBotGameCreation(args: {
       trackedGameId,
       reconciled.preflight,
       resetCount,
+      guestWork,
     );
     if (reserved.kind === 'reserved') return reserved;
     if (reserved.kind === 'stale') continue;
@@ -408,6 +419,7 @@ export async function verifyTrackedGameForRejoin(
   store: WinStreakProfileStore,
   transport: ReconcileTransport,
 ): Promise<{ gameId: string } | null> {
+  const guestWork = store.captureGuestWork();
   const captured = await store.inspect((profile) => ({
     generation: profile.generation,
     currentCount: profile.currentCount,
@@ -446,12 +458,13 @@ export async function verifyTrackedGameForRejoin(
     profile.trackedGame.resultEligible &&
     profile.creationReservation == null
   );
-  if (!stillCurrent) return null;
+  if (!guestWork() || !stillCurrent) return null;
 
   if (game.status === 'finished') {
     await observeAuthoritativeWinStreakGame(store, game, {
       allowDiscovery: false,
       expectedGeneration: captured.generation,
+      isCurrent: guestWork,
       requireNoCreationReservation: true,
     });
     return null;
@@ -499,7 +512,9 @@ export async function completeBotGameCreation(
   gameId: string,
   humanPlayerId: string,
 ): Promise<'registered' | 'stale'> {
+  const guestWork = store.captureGuestWork();
   return store.mutate((profile) => {
+    if (!guestWork()) return 'stale';
     const current = profile.creationReservation;
     if (!current) {
       profile.creationReservation = {
@@ -537,7 +552,9 @@ export async function executeReservedBotGameCreation(args: {
   invalidResponseMessage: string;
   canStart?: () => boolean;
 }): Promise<CreationExecutionResult> {
-  if (!(await markBotGameCreationStarted(args.store, args.reservation)) || args.canStart?.() === false) {
+  const guestWork = args.store.captureGuestWork();
+  const isCurrent = () => guestWork() && args.canStart?.() !== false;
+  if (!(await markBotGameCreationStarted(args.store, args.reservation)) || !isCurrent()) {
     await failBotGameCreation(args.store, args.reservation, {
       ambiguous: false,
       error: 'The win-streak profile changed before game creation started.',
@@ -552,11 +569,13 @@ export async function executeReservedBotGameCreation(args: {
   try {
     response = await args.request(args.reservation.requestedCount);
   } catch (error) {
+    if (!isCurrent()) return { kind: 'stale_preflight', error: 'Session changed.' };
     const message = error instanceof Error ? error.message : 'Game creation may not have completed.';
     await failBotGameCreation(args.store, args.reservation, { ambiguous: true, error: message });
     return { kind: 'ambiguous', error: message };
   }
 
+  if (!isCurrent()) return { kind: 'stale_preflight', error: 'Session changed.' };
   if (!response.ok) {
     const message = await response.text().catch(() => 'Game creation failed.');
     const ambiguous = response.status < 400 || response.status >= 500;
@@ -568,6 +587,7 @@ export async function executeReservedBotGameCreation(args: {
 
   const body = await response.json().catch(() => null);
   const gameId = typeof body?.gameId === 'string' ? body.gameId : null;
+  if (!isCurrent()) return { kind: 'stale_preflight', error: 'Session changed.' };
   if (!gameId) {
     await failBotGameCreation(args.store, args.reservation, {
       ambiguous: true,
@@ -580,6 +600,7 @@ export async function executeReservedBotGameCreation(args: {
   try {
     humanPlayerId = await args.getHumanPlayerId();
   } catch (error) {
+    if (!isCurrent()) return { kind: 'stale_preflight', error: 'Session changed.' };
     const message = error instanceof Error
       ? error.message
       : 'The created game identity could not be recovered.';
@@ -587,6 +608,7 @@ export async function executeReservedBotGameCreation(args: {
     return { kind: 'stale_success', error: message };
   }
 
+  if (!isCurrent()) return { kind: 'stale_preflight', error: 'Session changed.' };
   const completed = await completeBotGameCreation(
     args.store,
     args.reservation,
@@ -607,6 +629,7 @@ export async function recoverCreatedBotGame(
   store: WinStreakProfileStore,
   transport: ReconcileTransport,
 ): Promise<CreationRecoveryResult> {
+  const guestWork = store.captureGuestWork();
   const captured = await store.inspect((profile) => {
     const reservation = profile.creationReservation;
     if (
@@ -652,6 +675,7 @@ export async function recoverCreatedBotGame(
   }
 
   return store.mutate((profile) => {
+    if (!guestWork()) return { kind: 'conflict', error: 'Session changed.' };
     const current = profile.creationReservation;
     if (!current) {
       const tracked = profile.trackedGame;
@@ -730,7 +754,9 @@ export async function recordCreatedGameForRecovery(
   gameId: string,
   error: string,
 ): Promise<void> {
+  const guestWork = store.captureGuestWork();
   await store.mutate((profile) => {
+    if (!guestWork()) return;
     const current = profile.creationReservation;
     if (!current) {
       profile.creationReservation = {
@@ -755,7 +781,9 @@ export async function releaseCreationReservation(store: WinStreakProfileStore): 
 }
 
 export async function resetWinStreakFromMenu(store: WinStreakProfileStore): Promise<void> {
+  const guestWork = store.captureGuestWork();
   await store.mutate((profile) => {
+    if (!guestWork()) return;
     profile.currentCount = 0;
     profile.endedStreak = null;
     if (profile.trackedGame?.status === 'unfinished' || profile.trackedGame?.status === 'restart_pending') {
@@ -773,7 +801,9 @@ export async function completeWinStreakRestart(
   humanPlayerId: string,
   expectedGeneration?: number,
 ): Promise<'registered' | 'stale'> {
+  const guestWork = store.captureGuestWork();
   return store.mutate((profile) => {
+    if (!guestWork()) return 'stale';
     if (profile.trackedGame?.gameId === replacementGameId) {
       return profile.trackedGame.humanPlayerId === humanPlayerId ? 'registered' : 'stale';
     }
