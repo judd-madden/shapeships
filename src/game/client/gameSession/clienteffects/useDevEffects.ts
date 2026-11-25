@@ -157,18 +157,22 @@ export function useRoleCheckLoggingEffect(args: {
     lastLoggedRef.current = signature;
 
     // Log role check (only when changed)
-    console.log(`[useGameSession] role-check: meRole=${resolvedRole} numPlayers=${numPlayers} sessionId=${mySessionId}`);
+    if (import.meta.env.DEV) {
+      console.log(`[useGameSession] role-check: meRole=${resolvedRole} numPlayers=${numPlayers} sessionId=${mySessionId}`);
 
-    // 1) Players Debug: Show which two sessions occupy player slots
-    if (playerSlots.length > 0) {
-      console.log(`[useGameSession] player-slots: #1=${slot1Str} | #2=${slot2Str}`);
+      // 1) Players Debug: Show which two sessions occupy player slots
+      if (playerSlots.length > 0) {
+        console.log(`[useGameSession] player-slots: #1=${slot1Str} | #2=${slot2Str}`);
+      }
+
+      console.log(`[useGameSession] me=${shortMyId} ${myName} role=${resolvedRole}`);
     }
-
-    console.log(`[useGameSession] me=${shortMyId} ${myName} role=${resolvedRole}`);
 
     // Explain spectator status
     if (resolvedRole === 'spectator' && numPlayers >= 2) {
-      console.log(`[useGameSession] spectator because player slots full (${numPlayers}/2 players)`);
+      if (import.meta.env.DEV) {
+        console.log(`[useGameSession] spectator because player slots full (${numPlayers}/2 players)`);
+      }
     } else if (resolvedRole === 'spectator' && numPlayers < 2) {
       console.warn(`[useGameSession] spectator unexpectedly — join bug (only ${numPlayers}/2 players)`);
     }
@@ -195,16 +199,18 @@ export function usePlayersFullSnapshotEffect(args: { rawState: any }) {
     if (lastSnapshotRef.current === snapshot) return;
     lastSnapshotRef.current = snapshot;
 
-    console.log(
-      '[useGameSession] PLAYERS_FULL',
-      rawState.players.map((p: any) => ({
-        id: p.id,
-        role: p.role,
-        name: p.name,
-        isActive: p.isActive,
-        joinedAt: p.joinedAt,
-      }))
-    );
+    if (import.meta.env.DEV) {
+      console.log(
+        '[useGameSession] PLAYERS_FULL',
+        rawState.players.map((p: any) => ({
+          id: p.id,
+          role: p.role,
+          name: p.name,
+          isActive: p.isActive,
+          joinedAt: p.joinedAt,
+        }))
+      );
+    }
   }, [rawState]);
 }
 
@@ -226,10 +232,12 @@ export function useSpectatorCountDebugEffect(args: { rawState: any; effectiveGam
     if (lastCountsRef.current === sig) return;
     lastCountsRef.current = sig;
 
-    console.log('[useGameSession] spectator-count:', {
-      gameId: effectiveGameId,
-      totalPlayers: players.length,
-      spectatorCount,
-    });
+    if (import.meta.env.DEV) {
+      console.log('[useGameSession] spectator-count:', {
+        gameId: effectiveGameId,
+        totalPlayers: players.length,
+        spectatorCount,
+      });
+    }
   }, [rawState, effectiveGameId]);
 }

@@ -125,8 +125,6 @@ function guardAgainstSessionTokenMisuse(headers: HeadersInit) {
         const errorMsg =
             '🚨 SECURITY ERROR: Authorization header must be exactly Supabase anon key bearer token (never session token).';
         console.error(errorMsg);
-        console.error('Expected:', `${expected.substring(0, 30)}...`);
-        console.error('Got:', authHeader);
 
         if (isDev) {
             throw new Error(errorMsg);
@@ -305,6 +303,11 @@ export function getSessionToken(): string | null {
   return storage.getItem(SESSION_TOKEN_KEY);
 }
 
+/** The stored session-bound name, without a caller-provided fallback. */
+export function getSessionDisplayName(): string | null {
+  return storage.getItem(DISPLAY_NAME_KEY);
+}
+
 /** Lets a mounted game fence deferred work after its tab identity has been cleared. */
 export function getSessionGeneration(): number {
   return sessionGeneration;
@@ -386,10 +389,9 @@ export async function authenticatedFetch(
   // Guard against misuse of session token in Authorization header
   guardAgainstSessionTokenMisuse(headers);
 
-  // Part B: Debug log to confirm which token/session is used
+  // Part B: Debug log to confirm which session is used
   if (isDev) {
-    const tokenPrefix = sessionData.sessionToken.substring(0, 6);
-    console.debug(`[sessionManager] request to ${endpoint} using sessionId=${sessionData.sessionId} token=${tokenPrefix}...`);
+    console.debug(`[sessionManager] request to ${endpoint} using sessionId=${sessionData.sessionId}`);
   }
 
   // Timed authenticated requests are single-attempt. Callers own any retry policy.

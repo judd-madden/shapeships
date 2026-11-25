@@ -551,6 +551,9 @@ These approved decisions override conflicting text elsewhere in this planning ba
 
 1. The Entry video is deferred until its assets arrive, possibly after Phases 23 and 24. Phase 22 acceptance does not wait on it.
 2. 22E runs as integration review (22E.1), agreed scoped fix passes (22E.2+), Judd's owner acceptance on the local stack with accounts on (desktop and mobile), then activation steps at the single completed-phase deploy.
+3. A guest who enters a different name at Entry gets a fresh game session, as Change Name does; the same name keeps the session. The guest win streak count is kept either way; only REJOIN for a game left unfinished in that tab is lost.
+4. Emergency disable is `ACCOUNTS_MODE=names-only` first, which keeps claimed names protected; `off` is used only before an SQL rollback. This replaces the `off` wording in 24 November amendment 1. 22E.4 updates the design and operational documents to match.
+5. IR2 and IR3 (stuck loading on a failed join, missing game or expired session, and silent multiplayer New Game failures) are fixed in Phase 22 (22E.3), although they predate it.
 
 ## 15. Implementation record
 
@@ -1581,3 +1584,30 @@ Guest and names-only cases retain their original success/game-ID/no-name-check a
 - **Browser/live checks:** **Not run — the planning assistant verifies findings in a browser on the local stack**.
 - **Completion / activation:** final owner acceptance, final set-05 PostgreSQL evidence attachment, private backup/restore rehearsal, cleanup/name review, verified hosted IP posture and hosted protection/resource results remain owner gates; fake tests and owner-reported live SQL application are not substituted for that evidence. Entry video and cross-device continuation remain deferred; Welcome plus claimed rail is claim confirmation. Rollback uses **ACCOUNTS_MODE=off first**, with backup-controlled reverse SQL order **05→01** and populated set-05 refusal respected.
 - **Owner handoff / limits:** planning assistant verifies reported findings on the local stack and recommends fixes; Judd agrees scoped follow-ups; planning assistant briefs 22E.2. After agreed fixes, Judd performs local desktop/mobile acceptance, then activation at the single idle deploy. Original-session-only continuation, historic guest-count/distinct-anchor and storage/Web Locks limits remain; no general seat-recovery feature or guest friction is added.
+
+### 22E.2 — Guest Entry name, credential logs and diagnostic gating (IR1, IR4, IR7) — 25 November 2026
+
+- **Pass / layer:** Small Client/UI Pass; guest identity orchestration and networking stay in the existing client runtime. Server authority and presentation ownership are preserved.
+- **Changed files:** `src/App.tsx`, `src/utils/sessionManager.ts`, `src/game/client/useGameSession.ts`, `src/game/client/gameSession/clienteffects/useDevEffects.ts`, `src/game/client/tests/account/entryAppCallbacks_test.ts`; this main plan's approved amendments 3–5 for 25 November and this §15 record only.
+- **IR1:** `startPlayerSession` trims the guest Entry submission and compares it exactly, including case, with stored `ss_displayName` through a read-only session accessor. Matching names reuse S. Different or missing names clear S and the local player identity before starting a fresh named S. Only success publishes the new player name. Failure uses the existing Entry error, leaves a clean identity for retry, and fences cleanup against newer session/lifecycle generations; ordinary failure does not reset the Entry form or pending invite.
+- **Preservation:** `ensureSession` remains unchanged for every other caller. Entry sign-in, forced password change, menu claim, Change Name/logout, remembered-account bootstrap and direct `?game=` reload/rejoin retain their existing paths. The guest streak profile and workflow are untouched.
+- **IR4:** Removed the misuse guard's Authorization value and expected-key prefix, retaining its security error and DEV throw. DEV request diagnostics keep endpoint/session ID and omit the session-token prefix. Gateway Authorization/apikey and session/account headers retain their existing separation.
+- **IR7:** DEV-gated the effective-player-name, role/player-slot/me, full-slot spectator explanation, full-player snapshot and spectator-count console output. All role/ref updates and event-tape work still run in production; the unexpected-spectator warning, networking auto-join logs and real failure logging remain.
+- **Approved amendments:** Guest Entry name replacement preserves the browser-profile count; emergency disable uses `ACCOUNTS_MODE=names-only` first and `off` only before SQL rollback, superseding 24 November amendment 1; IR2/IR3 are assigned to 22E.3. Further design/operational documentation corrections remain in 22E.4.
+- **Tests:** Added 14 pure callback/transport and synthetic-log regressions: exact/trimmed reuse without session-start requests; different/case-only/missing/empty stored names; failed fresh start and retry; session/lifecycle-fenced late failure; current-S sign-in and forced change; token-free request diagnostics; misuse-guard redaction and preserved DEV throw. Existing callback and transport checks pass.
+
+#### Validation
+
+- **PASS:** `npm run typecheck`.
+- **PASS:** `npm run test:client` — **72 files passed / 1 skipped; 1,394 tests passed / 7 skipped** (14 added).
+- **PASS:** `npm run lint` — **zero errors / 28 existing warnings; no new warnings**.
+- **PASS:** `npm run build` — **489 modules**. Existing large-chunk and static/dynamic sessionManager-import advisories remain; no tooling changes.
+- **PASS:** Production bundle marker inspection: all seven specified diagnostic markers are absent; the unexpected-spectator warning remains.
+- **PASS:** `git diff --check`; only the six allowed files changed. Existing LF/CRLF/mixed styles are retained outside the local edits; the main plan remains CRLF.
+- **Browser checks:** Not run — browser/Vite testing handled by user.
+
+#### Guest impact and owner handoff
+
+- Same-name Entry adds no session-start request or guest friction. A different name keeps the win streak count in `shapeships.winStreakProfile.v1`; only REJOIN for an unfinished game under the old S is lost. Existing unreachable-game retirement remains without a loss.
+- Judd zips the repository; the planning assistant re-runs Back and root-reload name changes, same-tab invite naming, streak preservation and unchanged sign-in on the local stack, then reviews logs and build output.
+- Pure tests and bundle inspection do not replace those browser checks. No server, SQL, configuration, environment, Entry/Claim UI/copy, streak-workflow, IR2/IR3 behaviour, deployment or other-documentation change. No commit was made.

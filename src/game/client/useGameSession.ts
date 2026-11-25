@@ -1410,7 +1410,9 @@ export function useGameSession(
   
   // Log effectivePlayerName only when it changes
   useEffect(() => {
-    console.log('[useGameSession] effectivePlayerName resolved:', effectivePlayerName, '(props:', propsPlayerName, ')');
+    if (import.meta.env.DEV) {
+      console.log('[useGameSession] effectivePlayerName resolved:', effectivePlayerName, '(props:', propsPlayerName, ')');
+    }
   }, [effectivePlayerName, propsPlayerName]);
   
   // Log effectiveGameId only when it changes

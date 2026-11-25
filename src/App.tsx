@@ -10,7 +10,7 @@ import { Input } from './components/ui/input';
 import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
 import { gameFunctionBaseUrl } from './utils/supabase/runtimeConfig';
-import { ensureSession, authenticatedFetch, authenticatedGet, authenticatedPostWithSessionRecovery, getSessionToken, clearSession, subscribeSessionEntryRequired, SessionRequestError } from './utils/sessionManager';
+import { ensureSession, authenticatedFetch, authenticatedGet, authenticatedPostWithSessionRecovery, getSessionToken, getSessionDisplayName, getSessionGeneration, clearSession, subscribeSessionEntryRequired, SessionRequestError } from './utils/sessionManager';
 import ScreenManager from './components/ScreenManager';
 import type { CreatePrivateGameSettings } from './components/panels/CreatePrivateGamePanel';
 import GameScreen from './game/display/GameScreen';
@@ -345,16 +345,32 @@ export default function App() {
   });
 
   const startPlayerSession = async (displayName: string) => {
+    const name = displayName.trim();
     const generation = renderGeneration;
     if (generation !== lifecycleGeneration.current) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
-    submittedEntryName.current = displayName;
+    // Explicit guest Entry may replace S; other session callers keep their existing identity.
+    const replacingSession = getSessionDisplayName() !== name;
+    if (replacingSession) {
+      clearSession();
+      clearPlayer();
+      setHasUsablePlayerIdentity(false);
+    }
+    const sessionGeneration = getSessionGeneration();
+    submittedEntryName.current = name;
     try {
-      await ensureSession(displayName);
+      await ensureSession(name);
+    } catch (error) {
+      if (replacingSession && generation === lifecycleGeneration.current && sessionGeneration === getSessionGeneration()) {
+        clearSession();
+        clearPlayer();
+        setHasUsablePlayerIdentity(false);
+      }
+      throw error;
     } finally {
-      if (submittedEntryName.current === displayName) submittedEntryName.current = null;
+      if (submittedEntryName.current === name) submittedEntryName.current = null;
     }
     if (generation !== lifecycleGeneration.current) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
-    updatePlayerName(displayName);
+    updatePlayerName(name);
     setHasUsablePlayerIdentity(true);
   };
 
