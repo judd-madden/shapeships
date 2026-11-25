@@ -43,6 +43,8 @@ import {
   secureRandomBytes,
   tokenDigest,
 } from "./tokens.ts";
+import { type AccountStreakDependencies, handleAccountStreak, streakCall } from "./streakService.ts";
+import type { AccountStreakSnapshot, StreakAuth } from "./streakRepository.ts";
 
 export interface GameSession {
   sessionId: string;
@@ -70,6 +72,7 @@ export interface AccountServiceDependencies {
   rateLimit?: AccountRateLimit;
   random?: RandomBytes;
   log?: AccountLog;
+  streak?: AccountStreakDependencies;
 }
 export interface AccountService {
   handle(c: Context): Promise<Response>;
@@ -88,6 +91,9 @@ const routes: readonly string[] = [
   "resume",
   "logout",
   "preferences",
+  "streak/state",
+  "streak/import",
+  "streak/reset",
 ];
 export function createAccountService(
   deps: AccountServiceDependencies,
@@ -149,10 +155,11 @@ export function createAccountService(
         log(route, "METHOD_NOT_ALLOWED");
         return accountError(c, "METHOD_NOT_ALLOWED");
       }
-      const category = route as AccountCategory;
+      const isStreak = route.startsWith("streak/");
+      const category: AccountCategory = isStreak ? "preferences" : route as AccountCategory;
       const started = performance.now(), requestId = crypto.randomUUID();
       const report = (code: string) =>
-        log(category, code, {
+        log(route, code, {
           requestId,
           durationMs: Math.round(performance.now() - started),
         });
@@ -169,6 +176,7 @@ export function createAccountService(
         category,
         headers: admissionHeaders,
       };
+      let streakAuth: StreakAuth | undefined;
       try {
         // 22C.3 RATE: IP/global entry admission, including format failures.
         await rate.entry(context);
@@ -193,6 +201,17 @@ export function createAccountService(
             tokenFault = new AccountFault("ACCOUNT_TOKEN_REQUIRED");
           }
           await rate.token(context, tokenHash);
+        }
+        if (isStreak) {
+          const gameSession = await session(c, true);
+          const body = await readAccountJson(c.req.raw);
+          if (tokenFault) throw tokenFault;
+          streakAuth = { tokenHash: tokenHash!, sessionId: gameSession!.sessionId };
+          const result = await handleAccountStreak(deps.streak ?? {
+            loadGame: () => Promise.reject(new AccountFault("ACCOUNT_SERVICE_UNAVAILABLE")),
+          }, route, body, streakAuth);
+          report("OK");
+          return accountSuccess(c, result);
         }
         if (category === "preferences") {
           // Preferences never validate S, renew A or touch a session binding.
@@ -378,13 +397,19 @@ export function createAccountService(
         const fault = error instanceof AccountFault
           ? error
           : new AccountFault("INTERNAL_ERROR");
+        let streak: AccountStreakSnapshot | undefined;
+        if (fault.code === "STREAK_CONFLICT" && streakAuth) {
+          try {
+            streak = await streakCall(deps.streak ?? {}, (r) => r.reconcile(streakAuth!));
+          } catch { /* Preserve the conflict if its optional refresh fails. */ }
+        }
         report(fault.code);
         return accountError(c, fault.code, {
           ...(fault.field ? { field: fault.field } : {}),
           ...(fault.retryAfterSeconds !== undefined
             ? { retryAfterSeconds: fault.retryAfterSeconds }
             : {}),
-        });
+        }, undefined, streak);
       }
     },
   };
@@ -394,6 +419,7 @@ export function createProductionAccountService(
   client: AccountRpcClient,
   validateSession: SessionValidator,
   log: AccountLog,
+  streak?: AccountStreakDependencies,
 ): AccountService {
   const repository = createAccountRepository(client);
   const protection = createAccountProtectionRepository(client);
@@ -419,5 +445,6 @@ export function createProductionAccountService(
     rateLimit,
     validateSession,
     log,
+    streak,
   });
 }

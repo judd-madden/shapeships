@@ -67,8 +67,11 @@ export function gameIdentityFixture(
   options: Record<string, unknown> = { mode: "off" },
   renewSession?:
     import("../../accounts/gameRequestIdentity.ts").GameSessionRenewer,
+  streakOptions: import("../../accounts/streakService.ts").StreakRouteOptions = {},
+  store?: Map<string, any>,
 ) {
   const app = new Hono(), persistence = new IdentityMemoryPersistence();
+  if (store) persistence.store = store;
   let currentSession = "p1", nextGame = 0;
   const sessions = new Map<string, any>();
   for (const id of ["p1", "p2", "p3", "p4"]) {
@@ -109,6 +112,7 @@ export function gameIdentityFixture(
     persistence,
     undefined,
     options,
+    streakOptions,
   ]);
   Reflect.apply(registerIntentRoutes, undefined, [
     app,
@@ -118,6 +122,7 @@ export function gameIdentityFixture(
     persistence,
     options,
     renewSession,
+    streakOptions,
   ]);
   async function request(
     path: string,

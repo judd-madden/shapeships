@@ -230,11 +230,19 @@ app.use(
 
 const logAccountOutcome: AccountLog = (category, code, details) =>
   console.info({ category, code, ...details });
+const streakOptions = {
+  getRepository: accountServiceLoader(() =>
+    import("./accounts/streakRepository.ts").then(({ createStreakRepository }) =>
+      createStreakRepository(supabase)
+    )),
+  log: logAccountOutcome,
+};
 const getAccountService = accountServiceLoader(() =>
   import("./accounts/accountService.ts").then(
     ({ createProductionAccountService }) =>
       createProductionAccountService(
         supabase, validateSessionToken, logAccountOutcome,
+        { ...streakOptions, loadGame: (gameId) => kvGet(`game_${gameId}`) },
       ),
   ));
 registerAccountRoutes(app, {
@@ -275,6 +283,7 @@ registerGameRoutes(
   intentPersistence,
   undefined,
   gameIdentityOptions,
+  streakOptions,
 );
 registerIntentRoutes(
   app,
@@ -284,6 +293,7 @@ registerIntentRoutes(
   intentPersistence,
   gameIdentityOptions,
   createGameSessionRenewer(supabase),
+  streakOptions,
 );
 
 // ============================================================================

@@ -1,5 +1,6 @@
 import type { Context } from "npm:hono";
 import type { AccountPreferences } from "./accountRepository.ts";
+import type { AccountStreakSnapshot } from "./streakRepository.ts";
 
 // Locked contract: Phase 22 Account Design §2.5 and §2.13.
 export const ACCOUNT_ERRORS = {
@@ -34,6 +35,11 @@ export const ACCOUNT_ERRORS = {
   PASSWORD_UNCHANGED: [400, "Choose a different new password."],
   SESSION_LINK_CONFLICT: [409, "This session is linked to another account."],
   PREFERENCE_CONFLICT: [409, "Account preferences have changed."],
+  STREAK_CONFLICT: [409, "Account streak has changed."],
+  STREAK_IMPORT_UNVERIFIED: [422, "Guest streak could not be verified."],
+  STREAK_IMPORT_CONSUMED: [409, "Guest streak has already been consumed."],
+  STREAK_SEAT_FORBIDDEN: [403, "This game seat is not authorised."],
+  STREAK_GAME_NOT_FOUND: [404, "Streak game was not found."],
   METHOD_NOT_ALLOWED: [405, "Account request method is not supported."],
   NOT_FOUND: [404, "Account route not found."],
 } as const;
@@ -49,6 +55,7 @@ export interface AccountErrorEnvelope {
   ok: false;
   error: { code: AccountErrorCode; message: string } & AccountErrorOptions;
   preferences?: AccountPreferences;
+  streak?: AccountStreakSnapshot;
 }
 
 export function setAccountResponseHeaders(
@@ -70,6 +77,7 @@ export function accountError(
   code: AccountErrorCode,
   options: AccountErrorOptions = {},
   preferences?: AccountPreferences,
+  streak?: AccountStreakSnapshot,
 ): Response {
   const [status, message] = ACCOUNT_ERRORS[code];
   setAccountResponseHeaders(c, options.retryAfterSeconds);
@@ -77,6 +85,7 @@ export function accountError(
     ok: false,
     error: { code, message, ...options },
     ...(preferences ? { preferences } : {}),
+    ...(streak ? { streak } : {}),
   };
   return c.json(body, status);
 }

@@ -9,6 +9,8 @@
 
 import type { Hono } from "npm:hono";
 import { accountsMode } from '../accounts/accountsMode.ts';
+import { AccountFault } from '../accounts/accountRepository.ts';
+import { commitAccountComputerGame, settleAccountComputerGame, streakRequestAuth, streakRevision, type StreakRouteOptions } from '../accounts/streakService.ts';
 import { gameIdentityError, gameIdentityRequest, type GameIdentityRouteOptions } from '../accounts/gameRequestIdentity.ts';
 import { advancePhaseCore } from '../engine/phase/advancePhase.ts';
 import { onEnterPhase } from '../engine/phase/onEnterPhase.ts';
@@ -156,11 +158,13 @@ type CreateGameRequestBody = {
 };
 
 type CreateComputerGameRequestBody = CreateGameRequestBody & {
+  expectedStreakRevision?: unknown;
   planId?: unknown;
   winStreakCount?: unknown;
 };
 
 type NewGameFromRequestBody = {
+  expectedStreakRevision?: unknown;
   winStreakCount?: unknown;
 };
 
@@ -1109,6 +1113,7 @@ export function registerGameRoutes(
   persistence: GameRoutePersistence,
   currentTurnTimingObserver?: CurrentTurnRouteTimingObserver,
   identityOptions: GameIdentityRouteOptions = {},
+  streakOptions: StreakRouteOptions = {},
 ) {
   const mode = identityOptions.mode ?? accountsMode;
   registerCurrentTurnProjectionRoutes({
@@ -1117,6 +1122,34 @@ export function registerGameRoutes(
     persistence,
     timingObserver: currentTurnTimingObserver,
   });
+
+  async function restartAccountComputerGame(c: any, session: any, sourceState: any, displayName: string, expectedRevision?: string) {
+    const lifecycle = sourceState.winStreakRestart;
+    if (expectedRevision === undefined) {
+      const body = await c.req.json().catch(() => ({}));
+      expectedRevision = streakRevision(body?.expectedStreakRevision, 'expectedStreakRevision');
+    }
+    if (lifecycle?.kind === 'source' && (typeof lifecycle.replacementGameId !== 'string' || !lifecycle.replacementGameId)) {
+      throw new AccountFault('STREAK_CONFLICT');
+    }
+    const result = await commitAccountComputerGame(streakOptions, {
+      auth: await streakRequestAuth(c, session.sessionId), expectedRevision,
+      action: 'restart', displayName,
+      timeControl: sourceState?.gameData?.clock?.timeControl ?? null,
+      generateGameId, sourceState,
+      ...(lifecycle?.kind === 'source' ? {
+        fixedGameId: lifecycle.replacementGameId,
+        completedReplay: lifecycle.status === 'completed',
+      } : {}),
+    });
+    if (result.status === 'exhausted') {
+      return c.json({ error: 'Could not allocate a replacement game ID' }, 503);
+    }
+    if (sourceState.status !== 'finished') {
+      await settleAccountComputerGame(streakOptions, c, { ...sourceState, status: 'finished' }, session.sessionId);
+    }
+    return c.json({ gameId: result.gameId, sourceGameId: sourceState.gameId, resetStatus: 'completed' });
+  }
 
   async function prepareGameStateRead(
     gameId: string,
@@ -1341,10 +1374,20 @@ export function registerGameRoutes(
       let winStreakCount: number;
       try {
         timeControl = resolveCreateGameTimeControl(requestBody);
-        winStreakCount = resolveWinStreakCount(requestBody);
+        winStreakCount = mode === 'on' && accountId ? 0 : resolveWinStreakCount(requestBody);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Invalid create-computer-game settings';
         return c.json({ error: message }, 400);
+      }
+
+      if (mode === 'on' && accountId) {
+        const expectedRevision = streakRevision(requestBody?.expectedStreakRevision, 'expectedStreakRevision');
+        const result = await commitAccountComputerGame(streakOptions, {
+          auth: await streakRequestAuth(c, playerId), expectedRevision,
+          action: 'create', displayName: playerName, timeControl, generateGameId,
+        });
+        if (result.status === 'exhausted') return c.json({ error: 'Internal server error' }, 500);
+        return c.json({ gameId: result.gameId, message: 'Computer game created successfully', chosenBotPlanId: null });
       }
 
       const allocation = await allocateGameId({
@@ -1409,6 +1452,7 @@ export function registerGameRoutes(
       const requestingPlayerId = session.sessionId;
       const identity = mode !== 'off' ? gameIdentityRequest(identityOptions, c, session) : undefined;
       let maintenanceNowMs: number | null = null;
+      let accountRestartRevision: string | undefined;
 
       for (
         let attempt = 0;
@@ -1452,6 +1496,9 @@ export function registerGameRoutes(
           existingLifecycle.status === 'completed'
         ) {
           if (identity) await identity.seat(humanPlayer);
+          if (mode === 'on' && humanPlayer.accountId) {
+            return await restartAccountComputerGame(c, session, sourceState, humanPlayer.name, accountRestartRevision);
+          }
           return c.json({
             gameId: existingLifecycle.replacementGameId,
             sourceGameId,
@@ -1462,6 +1509,10 @@ export function registerGameRoutes(
           return c.json({ error: 'Replacement games cannot be restarted as sources' }, 409);
         }
         const resolved = identity ? (await identity.resolve({ source: humanPlayer }))! : undefined;
+        if (mode === 'on' && resolved?.accountId && accountRestartRevision === undefined) {
+          const body = await c.req.json().catch(() => ({}));
+          accountRestartRevision = streakRevision(body?.expectedStreakRevision, 'expectedStreakRevision');
+        }
         if (!existingLifecycle) {
           maintenanceNowMs ??= Date.now();
           const previousStatus = sourceState?.status;
@@ -1499,6 +1550,9 @@ export function registerGameRoutes(
               'win-streak-restart-timeout',
               ancientNormalization.compatibilityRisks,
             );
+            if (mode === 'on') {
+              await settleAccountComputerGame(streakOptions, c, maintainedSource, requestingPlayerId);
+            }
             sourceRevisionToken = getPersistedStateRevisionToken(maintainedSource);
           }
 
@@ -1513,6 +1567,9 @@ export function registerGameRoutes(
           : '');
         if (!playerName) {
           return c.json({ error: 'Player name is required' }, 400);
+        }
+        if (mode === 'on' && resolved?.accountId) {
+          return await restartAccountComputerGame(c, session, sourceState, playerName, accountRestartRevision);
         }
         const inheritedTimeControl = sourceState?.gameData?.clock?.timeControl ?? null;
         const createReplacementState = (replacementGameId: string) => {
@@ -1754,10 +1811,21 @@ export function registerGameRoutes(
       const requestBody = await c.req.json().catch(() => ({})) as NewGameFromRequestBody;
       let winStreakCount: number;
       try {
-        winStreakCount = resolveWinStreakCount(requestBody);
+        winStreakCount = mode === 'on' && accountId && isBotRematch ? 0 : resolveWinStreakCount(requestBody);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Invalid rematch settings';
         return c.json({ error: message }, 400);
+      }
+
+      if (mode === 'on' && accountId && isBotRematch) {
+        const expectedRevision = streakRevision(requestBody?.expectedStreakRevision, 'expectedStreakRevision');
+        const result = await commitAccountComputerGame(streakOptions, {
+          auth: await streakRequestAuth(c, playerId), expectedRevision,
+          action: 'rematch', displayName: playerName, timeControl: inheritedTimeControl,
+          generateGameId, sourceState: sourceGame,
+        });
+        if (result.status === 'exhausted') return c.json({ error: 'Internal server error' }, 500);
+        return c.json({ gameId: result.gameId });
       }
 
       const allocation = await allocateGameId({

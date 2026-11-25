@@ -26,8 +26,16 @@ async function computerSeat(mode: "on" | "names-only", accountOwned: boolean) {
   const f = enabledGameFixture(mode);
   const account = accountOwned ? await f.claim() : undefined;
   const headers = account?.headers ?? { "X-Account-Token": "irrelevant" };
+  let expectedStreakRevision: string | undefined;
+  if (mode === "on" && account) {
+    const run = await f.streaks.reconcile({ tokenHash: account.hash, sessionId: "p1" });
+    run.currentCount = 3;
+    f.streaks.runs.set(account.entry.account.id, run);
+    expectedStreakRevision = run.revision;
+  }
   const created = await f.request("/create-computer-game", {
     playerName: accountOwned && mode === "names-only" ? "Guest1" : "Pilot1",
+    ...(expectedStreakRevision ? { expectedStreakRevision } : {}),
     timed: false,
     winStreakCount: 3,
   }, mode === "on" && accountOwned ? headers : {});
@@ -259,12 +267,12 @@ for (const mode of ["names-only", "on"] as const) {
     }
   });
 
-  Deno.test(`${mode}: completed streak-reset replay does not assign or check the banned name again`, async () => {
+  Deno.test(`${mode}: completed streak-reset replay skips assignment; account RPC retains moderation`, async () => {
     for (const accountOwned of [false, true]) {
       const { f, id, headers } = await computerSeat(mode, accountOwned);
       const first = await f.request(
         `/reset-win-streak/${id}`,
-        {},
+        mode === "on" && accountOwned ? { expectedStreakRevision: [...f.streaks.runs.values()][0].revision } : {},
         accountOwned ? headers : {},
       );
       assert.equal(first.status, 200);
@@ -273,7 +281,14 @@ for (const mode of ["names-only", "on"] as const) {
       f.repository.now += 15_000;
       f.repository.failAt = "nameStatus";
       f.resetCalls();
-      const replay = await f.request(`/reset-win-streak/${id}`, {}, headers);
+      const replay = await f.request(`/reset-win-streak/${id}`,
+        mode === "on" && accountOwned ? { expectedStreakRevision: "1" } : {}, headers);
+      if (mode === "on" && accountOwned) {
+        await failure(replay, "NAME_BANNED", 403);
+        assert.deepEqual(f.calls.names, []);
+        assert.equal(f.calls.rules, 1);
+        continue;
+      }
       assert.equal(replay.status, 200);
       assert.equal((await replay.json()).gameId, result.gameId);
       noNameChecks(f);
@@ -392,6 +407,7 @@ Deno.test("on: account-owned operations never fall back to guest and outages fai
       playerName: "Pilot1",
       timed: false,
       winStreakCount: 3,
+      expectedStreakRevision: "1",
     }, a.headers);
     const id = (await created.json()).gameId;
     if (action === "rematch") f.state(id).status = "finished";

@@ -40,6 +40,7 @@ export function accountFixture(options: {
   requestLogger?: MiddlewareHandler;
   useDefaultHuman?: boolean;
   admission?: HashAdmission;
+  streak?: import("../../accounts/streakService.ts").AccountStreakDependencies;
 } = {}) {
   const repository = new FakeAccountRepository(), fakeHasher = new FakeHasher();
   const logs: Array<{ category: string; code: string }> = [],
@@ -91,6 +92,7 @@ export function accountFixture(options: {
     }
     return service ??= createAccountService({
       repository,
+      streak: options.streak,
       hasher: options.hasher ?? fakeHasher,
       admission: options.admission ?? new HashAdmission(),
       validateSession,

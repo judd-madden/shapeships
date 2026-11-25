@@ -62,6 +62,25 @@ export function prepareFreshAccountComputerGame(input: {
     },
   };
 }
+
+export function prepareRestartSource(
+  state: Record<string, any>,
+  replacementGameId: string,
+): StreakSource {
+  const token = getPersistedStateRevisionToken(state);
+  if (token.kind === "invalid") throw new StreakFault("STREAK_CONFLICT");
+  const value = structuredClone(state);
+  value.status = "finished";
+  delete value.result;
+  delete value.winnerPlayerId;
+  value.resultReason = "restart";
+  value.winStreakRestart = { kind: "source", status: "completed", replacementGameId };
+  return {
+    gameId: state.gameId,
+    expectedRevision: token.kind === "valid" ? token.revision : null,
+    update: prepareStreakGameRow(withStateRevisionFromBase(value, getStateRevisionBase(token))),
+  };
+}
 /** Preparation is not proof: the RPC independently checks the validated session. */
 export function prepareParticipantAdoption(
   state: Record<string, any>,

@@ -13,6 +13,7 @@
 import type { Hono } from "npm:hono";
 import { accountsMode } from '../accounts/accountsMode.ts';
 import { gameIdentityError, gameIdentityRequest, type GameIdentityRouteOptions } from '../accounts/gameRequestIdentity.ts';
+import { settleAccountComputerGame, type StreakRouteOptions } from '../accounts/streakService.ts';
 import type { GameSessionRenewer } from '../accounts/gameRequestIdentity.ts';
 import type { GameSession } from '../accounts/accountService.ts';
 import { applyIntent, type IntentRequest } from '../engine/intent/IntentReducer.ts';
@@ -415,6 +416,7 @@ async function handleIntentRequest(args: {
   requireSession: (c: any) => Promise<any>;
   persistence: IntentPersistence;
   identityOptions: GameIdentityRouteOptions;
+  streakOptions: StreakRouteOptions;
 }) {
   const { c, kvGet, kvSet, requireSession, persistence } = args;
   let committedFallbackResponse: ReturnType<typeof responseBody> | null = null;
@@ -719,6 +721,9 @@ async function handleIntentRequest(args: {
         }, 500);
       }
       committedFallbackResponse = committedResponse;
+      if (mode === 'on' && terminalOccurred) {
+        await settleAccountComputerGame(args.streakOptions, c, candidateState, sessionPlayerId);
+      }
 
       // The game mutation is committed. Every operation below is isolated so it
       // can never convert this accepted request into an HTTP failure.
@@ -814,6 +819,7 @@ export function registerIntentRoutes(
   persistence: IntentPersistence,
   identityOptions: GameIdentityRouteOptions = {},
   renewSession?: GameSessionRenewer,
+  streakOptions: StreakRouteOptions = {},
 ) {
   app.post("/make-server-825e19ab/intent", async (c) => {
     let validatedSession: GameSession | undefined;
@@ -828,6 +834,7 @@ export function registerIntentRoutes(
       },
       persistence,
       identityOptions,
+      streakOptions,
     });
     // Every existing 200 path is an accepted intent, including duplicate/fallback.
     if (response.status === 200 && validatedSession && renewSession) {

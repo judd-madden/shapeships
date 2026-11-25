@@ -1412,3 +1412,94 @@ Retry delays are feedback only (seconds below a minute, rounded-up minutes other
 - **F1:** correct exactly the tracked-status ANY parentheses in all three CHECK expectations. Judd reports the planning assistant’s F1-only PostgreSQL 17 forward → verify → rollback → 04-verify → reapply passed with LF and CRLF.
 - **F2:** all four RPCs retire unusable unfinished tracked evidence, preserving count/ended snapshot/run identity and advancing revision/updated_at once. Refresh all pinned bodies. Mirror retirement in the fake; add missing/malformed/unclassifiable/unowned recovery contracts and preserve strict anchor/source faults. Explicit Reset still clears the count.
 - **Validation:** deno check PASS for all changed/new server modules and index.tsx; **313 tests PASS across 43 offline files**, including **31 streak tests** (4 repository, 2 preparation, 25 contracts). The four added recovery contracts cover missing, malformed, unclassifiable and unowned tracked games; they verify one-time retirement, preserved count/ended/run identity, untouched canonical rows, fresh creation with the preserved count, and explicit Reset followed by zero-count creation. Missing anchor/source faults still pass. Static exact-CHECK, matching pinned-body, LF/CRLF fingerprint, set-04 restoration, single-SELECT, transaction/WHERE and factory-parity checks PASS. git diff --check PASS. SQL execution by Codex: Not run — the planning assistant mock-tests set 05 on a disposable PostgreSQL before Judd applies it. The reported F1-only run does not validate the later F2 bodies.
+
+### 22D.2 — Account streak routes, lifecycle and settlement — 25 November 2026
+
+- **Pass / layer:** Server Pass. Set-05 RPCs remain authoritative for streak state and atomic game writes; TypeScript prepares canonical game/head/history rows and preserves session ownership. Approved restart refinement R1 is included. No SQL, client, configuration, environment-file, deployment or commit changes.
+
+#### Changed files
+
+All server paths below are relative to `src/supabase/functions/server/`:
+
+- `accounts/accountService.ts`: route table, required S/A, preferences admission category, optional conflict snapshot and production dependency seam.
+- `accounts/accountResponses.ts`: five public streak codes and optional streak error-envelope field.
+- New `accounts/streakService.ts`: revision/import validation, adoption preparation, repository fault isolation, account game commits and best-effort settlement.
+- `accounts/streakPreparation.ts`: pure neutral restart-source preparation, with persisted revision token and matching head.
+- `routes/game_routes.ts`: account-only create/rematch/restart branches, lifecycle-first restart recovery, cached revision parsing across maintenance CAS retries and terminal timeout settlement.
+- `routes/intent_routes.ts`: one best-effort settlement attempt after a newly terminal account computer-game CAS.
+- `index.tsx`: lazily load the production repository from the existing service-role client; pass dependencies to account/game/intent routes.
+- `tests/accounts/accountTestFixture.ts`: optional streak dependencies.
+- `tests/accounts/gameIdentityFixture.ts`: shared fake authority/canonical rows, repository spies and safe outcome logs.
+- New `tests/accounts/streakTestStore.ts`: shared rows for the memory-CAS adapter and transaction fake.
+- `tests/routes/game_identity_fixture.ts`: optional streak seam and shared store.
+- `tests/routes/game_name_identity_routes_test.ts`: account-only fixture/request updates and the assertion changes enumerated below.
+- New `tests/routes/account_streak_routes_test.ts`, `tests/routes/account_streak_game_routes_test.ts` and `tests/routes/account_streak_settlement_test.ts`: 25 focused route/lifecycle/settlement tests.
+- This main-plan §15 record only. The locked streak addendum, repository adapter and SQL set 05 are unchanged.
+
+#### Route and error contracts
+
+- POST `/accounts/streak/state` takes `{}` and returns `{ok:true,streak}` from reconcile. POST `/accounts/streak/reset` takes `{expectedRevision}` and returns the reset snapshot. POST `/accounts/streak/import` takes the locked expected-revision/decision/guest candidate and returns `{ok:true,streak,import}`.
+- All three reuse the existing gateway boundary, required validated S, A digest, preferences entry/token protection, JSON 8 KiB byte cap, no-store and safe account envelopes. The RPC checks the live A/S link. Revisions are canonical positive bigint decimal strings; guest counts remain nonnegative safe numbers. No body account ID or result is trusted.
+- Adoption is prepared only for a directly proven matching active guest human seat/controller; account identity comes from authenticated reconcile. Other candidates pass null adoption. Selection, bounded evidence, consumption and replay remain RPC decisions.
+- `STREAK_CONFLICT`: 409, with fresh `streak` in the account envelope when reconcile succeeds; `STREAK_IMPORT_UNVERIFIED`: 422; `STREAK_IMPORT_CONSUMED`: 409; `STREAK_SEAT_FORBIDDEN`: 403; `STREAK_GAME_NOT_FOUND`: 404. Existing account errors are retained. Service failures are 503 `ACCOUNT_SERVICE_UNAVAILABLE` with Retry-After 5. P2256 is internal only.
+- Account computer create/rematch/restart require `expectedStreakRevision` and ignore `winStreakCount`, including malformed values. Reconcile supplies the fixed bonus using Q6 reachability; commits retain the client's expected revision. Source checks, naming and inherited clocks remain. Success envelopes are unchanged; streak failures use `{error:CODE,message}`.
+- R1 restart order: completed source replays through the RPC; pending source recovers only its recorded replacement ID, absent or reciprocal-present, with gameIdTaken becoming 409 conflict; replacement-kind retains the existing 409; only a source without lifecycle runs maintenance/timeout CAS, then eligibility, then fresh bounded allocation. Fresh create/rematch/restart retry ID collisions at most five times. Failed commits leave no partial source/game/head/history/run write. No automatic revision-conflict retry.
+
+#### Settlement and guest guarantee
+
+- Newly terminal account-authorised computer-game mutations attempt one post-commit reconcile: intents (including resignation and committed timeouts), fresh neutral account restart and restart-maintenance timeout. Failure, revocation/link detachment or logger failure cannot change the committed game action/response. Later explicit account streak seams repair unsettled results.
+- Read/head/history/chat polling gains no account requirement or streak calls. Read-induced timeout remains canonical and awaits explicit account reconciliation. Ordinary turns gain no streak call.
+- Guest bodies, envelopes, count parsing and multi-step restart remain; a spy covers create, intents, reads, rematch, restart and replay with zero streak calls/acquisitions. Off/names-only provenance paths also acquire no streak repository. Existing guest assertions were not changed.
+
+#### Every changed existing assertion expectation
+
+All changes are confined to the **on-mode account-owned case** of `game_name_identity_routes_test.ts`'s renamed test `completed streak-reset replay skips assignment; account RPC retains moderation`:
+
+| Existing check | Previous account expectation | New account expectation / reason |
+| --- | --- | --- |
+| Replay HTTP status | 200 | 403: replay now crosses set-05 transaction-time account-name moderation after the account name is banned. |
+| Replay response body | Success gameId equals the stored replacement | Fixed `NAME_BANNED` error code; no success gameId is asserted on an authorised-service refusal. |
+| No-name-check helper's rule-read check | 0 | 1 RPC authorisation moderation read; fresh nameStatus calls remain zero. |
+
+Guest and names-only cases retain their original success/game-ID/no-name-check assertions. Other existing assertion expectations are unchanged. Account-only setup now seeds the fake authoritative count instead of relying on client count, and account create/restart requests supply the required revision; these are fixture/body changes, not expectation changes.
+
+#### New tests
+
+- **account_streak_routes_test.ts (9):**
+  - account streak routes: state, import and bigint reset preserve exact envelopes
+  - account streak routes: schema and positive-bigint revision validation
+  - account streak routes: methods, JSON media and real 8 KiB byte cap
+  - account streak routes: required session/token and transaction-time link authority
+  - account streak routes: every P225x mapping is private and unavailable retries after five
+  - account streak routes: conflict refresh carries current snapshot and may fail safely
+  - account streak routes: preferences admission, credential redaction and dormant loaders
+  - account streak import: adoption prepared only for a directly proven active guest human
+  - account streak import: direct adoption and decline are committed through the route
+- **account_streak_game_routes_test.ts (10):**
+  - account computer create: authoritative bonus, ignored malformed counts and exact envelope
+  - account computer create/rematch: Q6 reachable resets; other original session preserves count
+  - account computer routes: missing/malformed revision fails before any streak call
+  - account computer rematch: reconciles win, inherits timing and preserves source
+  - account fresh allocation: ID collisions retry five times with no partial metadata
+  - account restart: atomic neutral source/replacement, completed RPC replay preserves a newer run
+  - account restart: pending recovery uses recorded ID with absent or reciprocal present replacement
+  - account restart: pending collision conflicts without retry; replacement-kind is the existing 409
+  - account restart: fresh eligibility is retained and failed commits leave no partial game
+  - account computer errors: fixed mappings, no conflict retry or raw database detail
+- **account_streak_settlement_test.ts (6):**
+  - account settlement: terminal surrender commits then reconciles once; ordinary turns and reads do not
+  - account settlement: failed repository or logger never changes committed intent success
+  - account settlement: request-committed intent timeout settles; polling timeout needs later repair
+  - account settlement: restart maintenance timeout keeps its 409 response and settles once
+  - guest streak regression: enabled guest create, intents, reads, rematch and restart make zero streak calls
+  - streak dormancy: off and names-only account provenance never acquires the repository
+
+#### Validation and owner handoff
+
+- **PASS:** `deno check --frozen` for all seven changed/new production server modules, including `index.tsx`. All changed/new tests and fixtures were also type-checked by the full test run. Existing ignored compiler-option notices (allowImportingTsExtensions/allowJs) remain; no configuration change.
+- **PASS:** full offline suite, **93 files, 899 tests plus 16 steps, zero failures**. Includes 25 new tests (9 account routes, 10 account game lifecycle, 6 settlement/guest/dormancy). Existing guest streak and route suites pass with their assertions unchanged.
+- The test command used `--cached-only --frozen --no-prompt`, only `--allow-env=ACCOUNTS_MODE,ENABLE_SERVER_DEBUG_LOGS` and `--allow-read=supabase/manual/account,src/supabase/functions/server/engine/bot/botRunner.ts,src/game/data/ShipDefinitions.json.ts`. Selected all server `*test.ts` files except `intent_persistence_live_integration_test.ts`. The live-integration environment flag was verified absent; no network/run grant.
+- **PASS:** `git diff --check`; original line-ending styles preserved, including mixed endings in `index.tsx` and CRLF in this record/game routes.
+- **Browser/live testing:** Not run — the planning assistant runs the whole function against a PostgreSQL replica with set 05.
+- **Owner steps:** planning assistant checks all routes, race orders and guest regression against the replica; Judd commits afterward. No deployment until the phase is finished.
+- **Remaining limits:** fake tests do not prove PostgreSQL locks/ACLs or hosted runtime behavior. Existing historic-count/distinct-anchor limits remain. Until 22D.3 supplies `expectedStreakRevision`, local signed-in computer creation/rematch/restart requests missing that field are intentionally refused; guest play and multiplayer retain their existing contracts.

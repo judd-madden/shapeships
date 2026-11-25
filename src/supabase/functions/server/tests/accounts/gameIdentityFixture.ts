@@ -4,6 +4,9 @@ import { nameKeys } from "../../accounts/nameKeys.ts";
 import { issueToken } from "../../accounts/tokens.ts";
 import { FakeAccountRepository, FakeHasher } from "./fakeAccountRepository.ts";
 import { gameIdentityFixture } from "../routes/game_identity_fixture.ts";
+import { FakeStreakRepository } from "./fakeStreakRepository.ts";
+import { StreakTestStore } from "./streakTestStore.ts";
+import type { StreakRepository } from "../../accounts/streakRepository.ts";
 
 export function enabledGameFixture(
   mode: AccountsMode = "on",
@@ -59,7 +62,19 @@ export function enabledGameFixture(
       return stored.displayName.trim();
     },
   });
-  const f = gameIdentityFixture({ mode, getResolver: () => resolver });
+  const streaks = new FakeStreakRepository(repository);
+  const streakCalls: string[] = [], streakLogs: string[] = [];
+  let streakLoads = 0;
+  const streakRepository: StreakRepository = {
+    reconcile: (input) => { streakCalls.push('reconcile'); return streaks.reconcile(input); },
+    reset: (input) => { streakCalls.push('reset'); return streaks.reset(input); },
+    importGuest: (input) => { streakCalls.push('importGuest'); return streaks.importGuest(input); },
+    commitGame: (input) => { streakCalls.push('commitGame'); return streaks.commitGame(input); },
+  };
+  const f = gameIdentityFixture({ mode, getResolver: () => resolver }, undefined, {
+    getRepository: () => { streakLoads++; return Promise.resolve(streakRepository); },
+    log: (category, code) => { streakLogs.push(category + ':' + code); },
+  }, new StreakTestStore(streaks));
   const preferences = {
     soundEnabled: true,
     healthFlashEnabled: true,
@@ -91,6 +106,11 @@ export function enabledGameFixture(
   return {
     ...f,
     repository,
+    streaks,
+    streakCalls,
+    streakLogs,
+    streakRepository,
+    get streakLoads() { return streakLoads; },
     resolver,
     calls,
     claim,
