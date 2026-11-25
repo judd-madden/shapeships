@@ -23,6 +23,7 @@ import { type GameSessionViewModel, useGameSession } from '../client/useGameSess
 import { LeftRail } from './layout/LeftRail';
 import { MainStage } from './layout/MainStage';
 import { StarsBackground } from './graphics/StarsBackground';
+import { GameMenuButton } from '../../components/ui/primitives/buttons/GameMenuButton';
 import { MobileGameLayout } from './mobile/MobileGameLayout';
 import { useMobileGameLayout } from './mobile/useMobileGameLayout';
 import { useMatchupIntroPresentation } from './matchup/useMatchupIntroPresentation';
@@ -38,6 +39,7 @@ interface GameScreenProps {
   gameId: string;
   playerName: string;
   onBack: () => void;
+  onReturnAfterSessionExpired?: () => void;
   onNavigateToGame?: (gameId: string) => void;
 }
 
@@ -182,13 +184,13 @@ function react185DiagnosticsEnabled(): boolean {
 const GameScreen = react185DiagnosticsEnabled() ? DiagnosticGameScreen : GameScreenContent;
 export default GameScreen;
 
-function GameScreenContent({ gameId, playerName, onBack, onNavigateToGame, onReactDiagnostic }:
+function GameScreenContent({ gameId, playerName, onBack, onReturnAfterSessionExpired, onNavigateToGame, onReactDiagnostic }:
   GameScreenProps & { onReactDiagnostic?: ReactUpdateDiagnostic }) {
   const soundEnabled = usePlayerPreference('soundEnabled');
   const boardFlashEnabled = usePlayerPreference('healthFlashEnabled');
   const isMobileGameLayout = useMobileGameLayout();
   const [healthBarCompletion, setHealthBarCompletion] = useState<ResolvedHealthCompletionIdentity | null>(null);
-  const { vm, actions } = useGameSession(gameId, playerName, {
+  const { vm, actions, loadFailure, retryInitialLoad } = useGameSession(gameId, playerName, {
     onReactDiagnostic,
     boardFlashEnabled,
     onNavigateToGame,
@@ -235,7 +237,7 @@ function GameScreenContent({ gameId, playerName, onBack, onNavigateToGame, onRea
 
   useGameSound({
     enabled: soundEnabled,
-    active: !vm.isBootstrapping,
+    active: !vm.isBootstrapping && !loadFailure,
     diceAnimateKey: vm.leftRail.diceAnimateKey,
     voidShipInstanceIds,
     shipEffects: vm.board.mode === 'board' ? vm.board.shipEffectAudio : undefined,
@@ -278,6 +280,33 @@ function GameScreenContent({ gameId, playerName, onBack, onNavigateToGame, onRea
   // CHUNK 9.1: BOOT GATING — Show loading screen until valid server state
   // ============================================================================
   
+  if (loadFailure) {
+    const message = loadFailure === 'notFound'
+      ? "This game couldn't be found."
+      : loadFailure === 'sessionExpired'
+        ? 'Your session has expired.'
+        : "Couldn't load the game. Please try again.";
+    const buttonClassName = 'max-[768px]:h-[54px] max-[768px]:w-[260px] max-[768px]:max-w-full';
+    return (
+      <div className="w-full h-full min-h-0 overflow-hidden flex flex-col items-center justify-center bg-black px-6 text-center">
+        <p className="text-[18px] leading-7 text-white">{message}</p>
+        <div className="mt-[24px] flex max-w-full flex-col items-center gap-[16px] min-[768px]:flex-row">
+          {loadFailure === 'loadFailed' ? (
+            <GameMenuButton className={buttonClassName} onClick={retryInitialLoad} pendingLabel="LOADING...">
+              Try Again
+            </GameMenuButton>
+          ) : null}
+          <GameMenuButton
+            className={buttonClassName}
+            onClick={loadFailure === 'sessionExpired' ? onReturnAfterSessionExpired : onBack}
+          >
+            Return to Main Menu
+          </GameMenuButton>
+        </div>
+      </div>
+    );
+  }
+
   if (vm.isBootstrapping) {
     return (
       <div className="w-full h-full min-h-0 overflow-hidden flex items-center justify-center bg-black">

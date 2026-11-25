@@ -19,6 +19,32 @@ const SAFETY_FULL_REFRESH_MS = 15000;
 const POLL_JITTER_MAX_MS = 250;
 const FAILURE_BACKOFF_MS = [2500, 5000, 10000, 20000, 30000] as const;
 
+export type GameLoadFailure = 'notFound' | 'sessionExpired' | 'loadFailed';
+
+export function isGameEntryError(code: unknown): boolean {
+  return typeof code === 'string' && (isNameAssignmentRefusal(code) || (
+    isAccountAuthorityError(code) || code.startsWith('ACCOUNT_TOKEN_') || code === 'GAME_SESSION_INVALID'
+  ));
+}
+
+/** Inspect clones so callers can still read the original failure response. */
+export async function classifyGameLoadFailure(response?: Response): Promise<GameLoadFailure | null> {
+  if (!response) return 'loadFailed';
+  if (isGameEntryError(await readGameErrorCode(response))) return null;
+  if (response.status === 401) {
+    const { isExpiredSessionResponse } = await import('../../../../utils/sessionManager');
+    if (await isExpiredSessionResponse(response)) return 'sessionExpired';
+    const body = await response.clone().json().catch(() => null);
+    if (body?.message === 'Missing X-Session-Token header. Session token required for this endpoint.') {
+      return 'sessionExpired';
+    }
+  }
+  if (response.status === 404 && (await response.clone().text()).toLowerCase().includes('game not found')) {
+    return 'notFound';
+  }
+  return 'loadFailed';
+}
+
 function addPollJitter(delayMs: number | null): number | null {
   if (delayMs == null || delayMs === 0) {
     return delayMs;
@@ -116,180 +142,102 @@ function headDiffersFromAcceptedFull(
 export function useAutoJoinEffect(args: {
   effectiveGameId: string | null;
   effectivePlayerName: string;
-
   attemptedJoinForGameRef: React.MutableRefObject<Set<string>>;
-
   ensureSession: (playerName: string) => Promise<{ sessionId: string }>;
-  authenticatedPost: (path: string, body: any) => Promise<Response>;
-  authenticatedGet: (path: string) => Promise<Response>;
-
+  authenticatedPost: (path: string, body: any, timeoutMs?: number) => Promise<Response>;
+  authenticatedGet: (path: string, timeoutMs?: number) => Promise<Response>;
   setMySessionId: (id: string) => void;
   setHasJoinedCurrentGame: (v: boolean) => void;
+  loadAttempt?: number;
+  canAttemptLoad?: () => boolean;
+  onLoadFailure?: (failure: GameLoadFailure) => void;
 }) {
   const {
-    effectiveGameId,
-    effectivePlayerName,
-    attemptedJoinForGameRef,
-    ensureSession,
-    authenticatedPost,
-    authenticatedGet,
-    setMySessionId,
-    setHasJoinedCurrentGame,
+    effectiveGameId, effectivePlayerName, attemptedJoinForGameRef,
+    ensureSession, authenticatedPost, authenticatedGet, setMySessionId,
+    setHasJoinedCurrentGame, loadAttempt = 0, canAttemptLoad, onLoadFailure,
   } = args;
 
   useEffect(() => {
     setHasJoinedCurrentGame(false);
-  }, [effectiveGameId, setHasJoinedCurrentGame]);
+  }, [effectiveGameId, loadAttempt, setHasJoinedCurrentGame]);
 
   useEffect(() => {
-    if (effectiveGameId && attemptedJoinForGameRef.current.has(effectiveGameId)) return;
-    if (!effectiveGameId || !effectivePlayerName) return;
-
+    if (!effectiveGameId || !effectivePlayerName || canAttemptLoad?.() === false) return;
+    if (attemptedJoinForGameRef.current.has(effectiveGameId)) return;
     attemptedJoinForGameRef.current.add(effectiveGameId);
     let cancelled = false;
+    const isCurrent = () => !cancelled && canAttemptLoad?.() !== false;
+    const fail = (failure: GameLoadFailure) => { if (isCurrent()) onLoadFailure?.(failure); };
 
     const attemptJoin = async () => {
       try {
-        console.log(`[useGameSession] Auto-join attempt for gameId=${effectiveGameId}, playerName=${effectivePlayerName}`);
-
+        if (import.meta.env.DEV) console.log(`[useGameSession] Auto-join attempt for gameId=${effectiveGameId}, playerName=${effectivePlayerName}`);
         const sessionData = await ensureSession(effectivePlayerName);
-        if (cancelled) return;
-        console.log(`[useGameSession] Session ensured before join (sessionId: ${sessionData.sessionId})`);
+        if (!isCurrent()) return;
+        if (import.meta.env.DEV) console.log(`[useGameSession] Session ensured before join (sessionId: ${sessionData.sessionId})`);
         setMySessionId(sessionData.sessionId);
 
-        const confirmAuthorized = async (): Promise<boolean> => {
-          if (cancelled) return false;
-          try {
-            const confirmResponse = await authenticatedGet(`/game-state/${effectiveGameId}`);
-            if (cancelled) return false;
-            if (confirmResponse.ok) {
-              return true;
-            }
-
-            const errorText = await confirmResponse.text();
-            console.warn(`[useGameSession] Auth confirm failed: ${confirmResponse.status} ${errorText}`);
-            return false;
-          } catch (err: any) {
-            console.warn(`[useGameSession] Auth confirm error:`, err.message);
-            return false;
+        const response = await authenticatedPost(`/join-game/${effectiveGameId}`, {
+          playerName: effectivePlayerName, role: 'player',
+        }, LIVE_GAME_STATE_REQUEST_TIMEOUT_MS);
+        if (!isCurrent()) return;
+        if (!response.ok) {
+          if (isGameEntryError(await readGameErrorCode(response))) return;
+          const errorText = await response.clone().text();
+          if (!isCurrent()) return;
+          const alreadyJoined = response.status === 409 && (
+            errorText.toLowerCase().includes('already joined') ||
+            errorText.toLowerCase().includes('already in game')
+          );
+          if (!alreadyJoined) {
+            console.warn(`[useGameSession] Auto-join failed for gameId=${effectiveGameId}: ${response.status} ${errorText}`);
+            const failure = await classifyGameLoadFailure(response);
+            if (failure) fail(failure);
+            return;
           }
-        };
+        }
+        if (import.meta.env.DEV) console.log('[useGameSession] Auto-join request ok (confirming via game-state)...');
 
+        // Confirmation retries are reads only. Never replay the join mutation here.
         const MAX_ATTEMPTS = 3;
         for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-          if (cancelled) return;
-          console.log(`[useGameSession] Attempting join as player (attempt ${attempt}/${MAX_ATTEMPTS})...`);
-
-          let response = await authenticatedPost(`/join-game/${effectiveGameId}`, {
-            playerName: effectivePlayerName,
-            role: 'player',
-          });
-          if (cancelled) return;
-
-          if (!response.ok) {
-            const code = await readGameErrorCode(response);
-            if (cancelled) return;
-            if (isNameAssignmentRefusal(code) || (code && isAccountAuthorityError(code))) return;
-            const errorText = await response.text();
-            if (cancelled) return;
-            const isBenignError =
-              errorText.toLowerCase().includes('already joined') ||
-              errorText.toLowerCase().includes('already in game') ||
-              response.status === 409;
-
-            if (isBenignError) {
-              console.log(`[useGameSession] Already joined gameId=${effectiveGameId} (benign) - confirming via game-state...`);
-
-              const authorized = await confirmAuthorized();
-              if (authorized) {
-                console.log(`[useGameSession] Poll unlocked for gameId=${effectiveGameId}`);
-                setHasJoinedCurrentGame(true);
-                return;
-              }
-
-              console.warn(`⚠️ [useGameSession] Auth confirm failed after benign join (attempt ${attempt}/${MAX_ATTEMPTS})`);
-              if (attempt < MAX_ATTEMPTS) {
-                await new Promise((resolve) => setTimeout(resolve, 500));
-                continue;
-              }
-
-              console.error(`[useGameSession] Auth confirm failed after ${MAX_ATTEMPTS} attempts - giving up`);
+          if (!isCurrent()) return;
+          try {
+            const confirm = await authenticatedGet(`/game-state/${effectiveGameId}`, LIVE_GAME_STATE_REQUEST_TIMEOUT_MS);
+            if (!isCurrent()) return;
+            if (confirm.ok) {
+              if (import.meta.env.DEV) console.log(`[useGameSession] Poll unlocked for gameId=${effectiveGameId}`);
+              setHasJoinedCurrentGame(true);
               return;
             }
-
-            const isGameFull =
-              errorText.toLowerCase().includes('game full') ||
-              errorText.toLowerCase().includes('no slots') ||
-              errorText.toLowerCase().includes('full') ||
-              response.status === 403;
-
-            if (isGameFull) {
-              console.log(`⚠️ [useGameSession] Game full - falling back to spectator join...`);
-
-              response = await authenticatedPost(`/join-game/${effectiveGameId}`, {
-                playerName: effectivePlayerName,
-                role: 'spectator',
-              });
-              if (cancelled) return;
-
-              if (response.ok) {
-                console.log(`[useGameSession] Auto-join request ok (confirming via game-state)...`);
-
-                const authorized = await confirmAuthorized();
-                if (authorized) {
-                  console.log(`[useGameSession] Poll unlocked for gameId=${effectiveGameId}`);
-                  setHasJoinedCurrentGame(true);
-                  return;
-                }
-
-                console.warn(`⚠️ [useGameSession] Auth confirm failed after spectator join (attempt ${attempt}/${MAX_ATTEMPTS})`);
-                if (attempt < MAX_ATTEMPTS) {
-                  await new Promise((resolve) => setTimeout(resolve, 500));
-                  continue;
-                }
-
-                console.error(`[useGameSession] Auth confirm failed after ${MAX_ATTEMPTS} attempts - giving up`);
-                return;
-              }
-
-              const spectatorErrorText = await response.text();
-              console.error(`[useGameSession] Spectator join failed: ${response.status} ${spectatorErrorText}`);
+            const failure = await classifyGameLoadFailure(confirm);
+            if (!isCurrent() || !failure) return;
+            console.warn(`[useGameSession] Auth confirm failed: ${confirm.status} ${await confirm.text()}`);
+            if (failure !== 'loadFailed' || confirm.status < 500) {
+              fail(failure);
               return;
             }
-
-            console.warn(`⚠️ [useGameSession] Auto-join failed for gameId=${effectiveGameId}: ${response.status} ${errorText}`);
-            return;
+          } catch (error: any) {
+            if (!isCurrent() || error?.code === 'SESSION_CHANGED' || isGameEntryError(error?.code)) return;
+            console.warn('[useGameSession] Auth confirm error:', error?.message ?? error);
           }
-
-          console.log(`[useGameSession] Auto-join request ok (confirming via game-state)...`);
-
-          const authorized = await confirmAuthorized();
-          if (authorized) {
-            console.log(`[useGameSession] Poll unlocked for gameId=${effectiveGameId}`);
-            setHasJoinedCurrentGame(true);
-            return;
-          }
-
-          console.warn(`⚠️ [useGameSession] Auth confirm failed after join (attempt ${attempt}/${MAX_ATTEMPTS})`);
-          if (attempt < MAX_ATTEMPTS) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
-            continue;
-          }
-
-          console.error(`[useGameSession] Auth confirm failed after ${MAX_ATTEMPTS} attempts - giving up`);
-          return;
+          if (attempt < MAX_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, 500));
         }
-      } catch (err: any) {
-        console.error(`[useGameSession] Auto-join error for gameId=${effectiveGameId}:`, err.message);
+        console.error(`[useGameSession] Auth confirm failed after ${MAX_ATTEMPTS} attempts - giving up`);
+        fail('loadFailed');
+      } catch (error: any) {
+        if (!isCurrent() || error?.code === 'SESSION_CHANGED' || isGameEntryError(error?.code)) return;
+        console.error(`[useGameSession] Auto-join error for gameId=${effectiveGameId}:`, error?.message ?? error);
+        fail('loadFailed');
       }
     };
-
     void attemptJoin();
     return () => {
       cancelled = true;
       attemptedJoinForGameRef.current.delete(effectiveGameId);
     };
-  }, [effectiveGameId, effectivePlayerName]);
+  }, [effectiveGameId, effectivePlayerName, loadAttempt]);
 }
 
 export function usePollingEffect(args: {
@@ -318,6 +266,11 @@ export function usePollingEffect(args: {
   foregroundResumeToken: number;
   postGamePollMs?: number;
   observeShipEffectSync?: (event: ShipEffectSyncObservation) => void;
+  loadAttempt?: number;
+  canPoll?: () => boolean;
+  onLoadFailure?: (failure: GameLoadFailure) => void;
+  onInitialLoadSuccess?: () => void;
+  isValidInitialState?: (payload: unknown) => boolean;
 }) {
   const shipEffectObserverRef = useRef(args.observeShipEffectSync);
   shipEffectObserverRef.current = args.observeShipEffectSync;
@@ -343,23 +296,29 @@ export function usePollingEffect(args: {
     untimedPollingMode,
     foregroundResumeToken,
     postGamePollMs,
+    loadAttempt,
+    canPoll,
+    onLoadFailure,
+    onInitialLoadSuccess,
+    isValidInitialState,
   } = args;
 
   const lastGatedGameIdRef = useRef<string | null>(null);
   const terminalStopGameIdRef = useRef<string | null>(null);
-  const terminalStopReasonRef = useRef<'finished' | '403' | '404' | null>(null);
+  const terminalStopReasonRef = useRef<'finished' | '403' | '404' | 'load_failure' | null>(null);
   const lastHandledForegroundResumeTokenRef = useRef<number | null>(null);
 
   useEffect(() => {
     terminalStopGameIdRef.current = effectiveGameId;
     terminalStopReasonRef.current = null;
-  }, [effectiveGameId, foregroundResumeToken]);
+  }, [effectiveGameId, foregroundResumeToken, loadAttempt]);
 
   useEffect(() => {
     lastHandledForegroundResumeTokenRef.current = foregroundResumeToken;
   }, [effectiveGameId]);
 
   useEffect(() => {
+    if (canPoll?.() === false) return;
     if (!effectiveGameId) {
       setLoading(false);
       setError('No gameId provided');
@@ -368,7 +327,7 @@ export function usePollingEffect(args: {
 
     if (!hasJoinedCurrentGame) {
       if (lastGatedGameIdRef.current !== effectiveGameId) {
-        console.log(`[useGameSession] Polling gated for gameId=${effectiveGameId} (waiting for join to succeed)`);
+        if (import.meta.env.DEV) console.log(`[useGameSession] Polling gated for gameId=${effectiveGameId} (waiting for join to succeed)`);
         lastGatedGameIdRef.current = effectiveGameId;
       }
       setLoading(true);
@@ -436,7 +395,7 @@ export function usePollingEffect(args: {
       }
     };
 
-    const stopPolling = (reason: 'finished' | '403' | '404') => {
+    const stopPolling = (reason: 'finished' | '403' | '404' | 'load_failure') => {
       terminalStopGameIdRef.current = effectiveGameId;
       terminalStopReasonRef.current = reason;
       shouldStopPolling = true;
@@ -446,7 +405,7 @@ export function usePollingEffect(args: {
     const scheduleNextPoll = (delayMs: number | null): number | null => {
       clearPollTimer();
 
-      if (!mounted || shouldStopPolling || delayMs == null) {
+      if (!mounted || shouldStopPolling || canPoll?.() === false || delayMs == null) {
         return null;
       }
 
@@ -467,6 +426,18 @@ export function usePollingEffect(args: {
     const handleErrorResponse = async (
       response: Response,
     ): Promise<PollRequestFailure | { kind: 'stopped' }> => {
+      if (!mounted || canPoll?.() === false) return { kind: 'stopped' };
+      if (onLoadFailure) {
+        const failure = await classifyGameLoadFailure(response);
+        if (!mounted || canPoll?.() === false) return { kind: 'stopped' };
+        if (!hasAcceptedFullGameState() || failure === 'sessionExpired') {
+          stopPolling('load_failure');
+          if (failure) onLoadFailure(failure);
+          setLoading(false);
+          console.warn(`[useGameSession] Game load stopped: ${response.status}`);
+          return { kind: 'stopped' };
+        }
+      }
       const retryAfterMs = response.status === 429
         ? parseRetryAfterMs(response.headers.get('Retry-After'))
         : null;
@@ -518,6 +489,7 @@ export function usePollingEffect(args: {
           `/game-state/${effectiveGameId}`,
           LIVE_GAME_STATE_REQUEST_TIMEOUT_MS,
         );
+        if (!mounted || canPoll?.() === false) return { kind: 'stopped' };
         observeHttpResponse();
 
         if (!response.ok) {
@@ -537,6 +509,11 @@ export function usePollingEffect(args: {
         }
 
         const data = await response.json();
+        if (!mounted || canPoll?.() === false) return { kind: 'stopped' };
+        const initialLoad = !hasAcceptedFullGameState();
+        if (initialLoad && isValidInitialState && !isValidInitialState(data)) {
+          throw new Error('Invalid initial game state');
+        }
         maybeUnlockResumeSyncFromGameStateSuccess(data, requestMeta);
         const fetchedIsFinished =
           data?.status === 'finished' ||
@@ -548,13 +525,14 @@ export function usePollingEffect(args: {
         });
 
         if (!accepted) {
-          console.log(
+          if (import.meta.env.DEV) console.log(
             `[useGameSession] Poll ignored stale /game-state response requestSeq=${requestMeta.requestSeq}`
           );
           return { kind: 'success', nextPollDelayMs };
         }
 
         observePresentation('accepted_full');
+        if (initialLoad) onInitialLoadSuccess?.();
         nextPollDelayMs = getRecurringDelayMs(fetchedIsFinished);
         if (mounted) {
           setLoading(false);
@@ -562,6 +540,7 @@ export function usePollingEffect(args: {
         }
         return { kind: 'success', nextPollDelayMs };
       } catch (err: any) {
+        if (!mounted || canPoll?.() === false) return { kind: 'stopped' };
         console.error(
           `[useGameSession] Poll full-sync error gameId=${effectiveGameId}${options?.reason ? ` (${options.reason})` : ''}:`,
           err,
@@ -569,6 +548,11 @@ export function usePollingEffect(args: {
         if (mounted) {
           setError(err.message);
           setLoading(false);
+        }
+        if (!hasAcceptedFullGameState() && onLoadFailure) {
+          stopPolling('load_failure');
+          if (!isGameEntryError(err?.code) && err?.code !== 'SESSION_CHANGED') onLoadFailure('loadFailed');
+          return { kind: 'stopped' };
         }
         return {
           kind: 'failure',
@@ -596,6 +580,7 @@ export function usePollingEffect(args: {
           `/game-state-head/${effectiveGameId}`,
           LIVE_GAME_STATE_REQUEST_TIMEOUT_MS,
         );
+        if (!mounted || canPoll?.() === false) return { kind: 'stopped' };
         observeHttpResponse();
 
         if (!response.ok) {
@@ -672,7 +657,7 @@ export function usePollingEffect(args: {
     let consecutivePollFailures = 0;
 
     const poll = async () => {
-      if (shouldStopPolling || isPolling) {
+      if (!mounted || shouldStopPolling || canPoll?.() === false || isPolling) {
         return;
       }
 
@@ -841,5 +826,7 @@ export function usePollingEffect(args: {
     getLastAcceptedFullFingerprint,
     getLastAcceptedFullSyncAtMs,
     isGameStateRequestInFlight,
+    loadAttempt,
+    canPoll,
   ]);
 }

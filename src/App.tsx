@@ -504,6 +504,14 @@ export default function App() {
     switchToPlayerMode('menu');
   };
 
+  const returnAfterSessionExpired = () => {
+    lifecycleGeneration.current++;
+    pendingInviteRef.current = null;
+    clearSession();
+    clearPlayer();
+    window.location.replace('/');
+  };
+
   const openGameBoardFullscreen = () => {
     if (gameId) {
       launchGame(gameId);
@@ -542,6 +550,7 @@ export default function App() {
           gameId={gameId}
           playerName={player!.name}
           onBack={exitGame}
+          onReturnAfterSessionExpired={returnAfterSessionExpired}
           onNavigateToGame={launchGame}
         />
       </div>

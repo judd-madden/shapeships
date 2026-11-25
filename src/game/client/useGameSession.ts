@@ -24,7 +24,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } fr
 import { attemptMobileGameFullscreen } from '../../utils/mobileFullscreen';
 import {
   authenticatedGet as sessionGet, authenticatedPost as sessionPost, ensureSession as sessionEnsure,
-  getSessionGeneration, SessionRequestError,
+  getSessionGeneration, getSessionToken, SessionRequestError,
 } from '../../utils/sessionManager';
 import {
   normalizeActionPanelId,
@@ -207,6 +207,8 @@ import {
 import { useChatPolling } from './gameSession/clienteffects/useChatPolling';
 import {
   LIVE_GAME_STATE_REQUEST_TIMEOUT_MS,
+  classifyGameLoadFailure,
+  type GameLoadFailure,
   useAutoJoinEffect,
   usePollingEffect,
 } from './gameSession/clienteffects/useNetworkingEffects';
@@ -890,22 +892,6 @@ export function useGameSession(
 ) {
   const boardFlashEnabled = options.boardFlashEnabled ?? true;
   const sessionGeneration = useRef(getSessionGeneration());
-  // Deferred game work must never bootstrap a guest session after Logout or an Entry reset.
-  const assertGameSession = useCallback(() => {
-    if (sessionGeneration.current !== getSessionGeneration()) throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
-  }, []);
-  const authenticatedGet = useCallback(async (endpoint: string, timeoutMs?: number) => {
-    assertGameSession();
-    return sessionGet(endpoint, timeoutMs);
-  }, [assertGameSession]);
-  const authenticatedPost = useCallback(async (endpoint: string, body: any, timeoutMs?: number) => {
-    assertGameSession();
-    return sessionPost(endpoint, body, timeoutMs);
-  }, [assertGameSession]);
-  const ensureSession = useCallback(async (displayName?: string) => {
-    assertGameSession();
-    return sessionEnsure(displayName);
-  }, [assertGameSession]);
   const winStreakStore = getWinStreakProfileStore();
   const accountWinStreak = getAccountWinStreakRuntime();
 
@@ -946,6 +932,100 @@ export function useGameSession(
     // No gameId available
     return null;
   })();
+
+  const [loadFailureState, setLoadFailureState] = useState<{
+    gameId: string | null; failure: GameLoadFailure | null;
+  }>({ gameId: effectiveGameId, failure: null });
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const loadScopeRef = useRef<{
+    gameId: string | null; active: boolean; attempt: number;
+    failure: GameLoadFailure | null; retrying: boolean;
+    retryPromise: Promise<void> | null; finishRetry: (() => void) | null;
+  }>({ gameId: effectiveGameId, active: true, attempt: 0, failure: null,
+    retrying: false, retryPromise: null, finishRetry: null });
+  if (loadScopeRef.current.gameId !== effectiveGameId) {
+    loadScopeRef.current.active = false;
+    loadScopeRef.current.finishRetry?.();
+    loadScopeRef.current = { gameId: effectiveGameId, active: true, attempt: 0,
+      failure: null, retrying: false, retryPromise: null, finishRetry: null };
+  }
+  const loadScope = loadScopeRef.current;
+  const loadFailure = loadFailureState.gameId === effectiveGameId ? loadFailureState.failure : null;
+  const [multiplayerRematchError, setMultiplayerRematchError] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    loadScope.active = true;
+    setLoadFailureState({ gameId: effectiveGameId, failure: null });
+    setMultiplayerRematchError(null);
+    return () => {
+      loadScope.active = false;
+      loadScope.finishRetry?.();
+    };
+  }, [loadScope, effectiveGameId]);
+
+  const isCurrentLoadScope = useCallback(() => loadScope.active && loadScopeRef.current === loadScope
+    && sessionGeneration.current === getSessionGeneration(), [loadScope]);
+  const reportLoadFailure = useCallback((failure: GameLoadFailure) => {
+    if (!isCurrentLoadScope() || loadScope.failure === 'sessionExpired') return;
+    if (failure === 'sessionExpired') console.warn('[useGameSession] Game session expired; stopping game requests');
+    loadScope.failure = failure;
+    loadScope.retrying = false;
+    loadScope.finishRetry?.();
+    loadScope.finishRetry = null;
+    loadScope.retryPromise = null;
+    setLoadFailureState({ gameId: loadScope.gameId, failure });
+    setLoading(false);
+  }, [isCurrentLoadScope, loadScope]);
+  const canAttemptLoad = useCallback(() => isCurrentLoadScope()
+    && (loadScope.failure === null || loadScope.retrying), [isCurrentLoadScope, loadScope]);
+  const completeInitialLoad = useCallback(() => {
+    if (!canAttemptLoad() || (!loadScope.retrying && loadScope.failure === null)) return;
+    loadScope.failure = null;
+    loadScope.retrying = false;
+    loadScope.finishRetry?.();
+    loadScope.finishRetry = null;
+    loadScope.retryPromise = null;
+    setLoadFailureState({ gameId: loadScope.gameId, failure: null });
+  }, [canAttemptLoad, loadScope]);
+
+  // Fence both sides of each request; expiry never opts into session recovery.
+  const assertGameSession = useCallback((attempt = loadScope.attempt) => {
+    if (!isCurrentLoadScope() || attempt !== loadScope.attempt) {
+      throw new SessionRequestError('Session changed.', 'SESSION_CHANGED');
+    }
+    // ensureSession can replace S when cached metadata is absent. A mounted game
+    // must leave that recovery to the explicit return/startup path instead.
+    if (loadScope.failure === 'sessionExpired' || !getSessionToken() || !sessionStorage.getItem('ss_sessionId')) {
+      reportLoadFailure('sessionExpired');
+      throw new SessionRequestError('Your session has expired.', 'GAME_LOAD_SESSION_EXPIRED');
+    }
+  }, [isCurrentLoadScope, loadScope, reportLoadFailure]);
+  const inspectGameResponse = useCallback(async (response: Response, attempt: number) => {
+    assertGameSession(attempt);
+    if (response.status === 401) {
+      const failure = await classifyGameLoadFailure(response);
+      assertGameSession(attempt);
+      if (failure === 'sessionExpired') reportLoadFailure(failure);
+    }
+    return response;
+  }, [assertGameSession, reportLoadFailure]);
+  const authenticatedGet = useCallback(async (endpoint: string, timeoutMs?: number) => {
+    const attempt = loadScope.attempt;
+    assertGameSession(attempt);
+    return inspectGameResponse(await sessionGet(endpoint, timeoutMs), attempt);
+  }, [assertGameSession, inspectGameResponse, loadScope]);
+  const authenticatedPost = useCallback(async (endpoint: string, body: any, timeoutMs?: number) => {
+    const attempt = loadScope.attempt;
+    assertGameSession(attempt);
+    return inspectGameResponse(await sessionPost(endpoint, body, timeoutMs), attempt);
+  }, [assertGameSession, inspectGameResponse, loadScope]);
+  const ensureSession = useCallback(async (displayName?: string) => {
+    const attempt = loadScope.attempt;
+    assertGameSession(attempt);
+    const session = await sessionEnsure(displayName);
+    assertGameSession(attempt);
+    return session;
+  }, [assertGameSession, loadScope]);
   
   // ============================================================================
   // CHUNK 9.1: NULL GAMEID GUARD (DEMO_GAME BOOTSTRAP SAFETY)
@@ -1403,6 +1483,20 @@ export function useGameSession(
   
   // Track auto-join attempts by gameId (allows new attempt when gameId changes)
   const attemptedJoinForGameRef = useRef<Set<string>>(new Set());
+
+  const retryInitialLoad = useCallback((): Promise<void> => {
+    if (!isCurrentLoadScope() || loadScope.failure !== 'loadFailed') return Promise.resolve();
+    if (loadScope.retryPromise) return loadScope.retryPromise;
+    loadScope.retrying = true;
+    loadScope.attempt++;
+    loadScope.retryPromise = new Promise<void>((resolve) => { loadScope.finishRetry = resolve; });
+    if (loadScope.gameId) attemptedJoinForGameRef.current.delete(loadScope.gameId);
+    setHasJoinedCurrentGame(false);
+    setLoading(true);
+    setError(null);
+    setLoadAttempt((current) => current + 1);
+    return loadScope.retryPromise;
+  }, [isCurrentLoadScope, loadScope]);
   
   // ============================================================================
   // DEV LOGGING: LOG EFFECTIVE NAMES/IDS ON CHANGE ONLY
@@ -1433,6 +1527,9 @@ export function useGameSession(
     authenticatedGet,
     setMySessionId,
     setHasJoinedCurrentGame,
+    loadAttempt,
+    canAttemptLoad,
+    onLoadFailure: reportLoadFailure,
   });
   
   // ============================================================================
@@ -1517,7 +1614,7 @@ export function useGameSession(
   
   usePollingEffect({
     effectiveGameId,
-    hasJoinedCurrentGame,
+    hasJoinedCurrentGame: hasJoinedCurrentGame && canAttemptLoad(),
     authenticatedGet,
     beginGameStateRequest,
     finishGameStateRequest,
@@ -1538,11 +1635,17 @@ export function useGameSession(
     foregroundResumeToken,
     postGamePollMs: POSTGAME_POLL_MS,
     observeShipEffectSync: observeShipEffectPolling,
+    loadAttempt,
+    canPoll: canAttemptLoad,
+    onLoadFailure: reportLoadFailure,
+    onInitialLoadSuccess: completeInitialLoad,
+    isValidInitialState: (data) => isPlausibleGameStatePayload(data, effectiveGameId)
+      && isValidPhaseKey(getPhaseKey(data)),
   });
 
   const { extendChatBurstWindow, getNextChatPollDelayMs, fetchChatOnce } = useChatPolling({
     effectiveGameId,
-    hasJoinedCurrentGame,
+    hasJoinedCurrentGame: hasJoinedCurrentGame && canAttemptLoad(),
     authenticatedGet,
     setChatEntries,
     currentChatGameIdRef,
@@ -6911,6 +7014,9 @@ useEffect(() => {
   if (accountWinStreak.getSnapshot().mode === 'account' && winStreakGame.viewModel.reset.error && vm.actionPanel.endOfGame) {
     vm.actionPanel.endOfGame.rematchHelperText = winStreakGame.viewModel.reset.error;
   }
+  if (!isComputerGame && multiplayerRematchError && vm.actionPanel.endOfGame) {
+    vm.actionPanel.endOfGame.rematchHelperText = multiplayerRematchError;
+  }
   const turnPhasePresentation = useTurnPhasePresentation({
     gameId: effectiveGameId,
     vm: vm.turnPhases,
@@ -6956,26 +7062,40 @@ useEffect(() => {
       return;
     }
 
+    const sourceScope = loadScope;
+    const sourceAttempt = sourceScope.attempt;
+    const isCurrent = () => isCurrentLoadScope() && sourceScope === loadScopeRef.current
+      && sourceAttempt === sourceScope.attempt && sourceScope.failure !== 'sessionExpired';
+    if (!isCurrent()) return;
+    setMultiplayerRematchError(null);
+    const fail = () => {
+      if (isCurrent()) setMultiplayerRematchError("Couldn't create a new game. Please try again.");
+    };
     try {
       const response = await authenticatedPost(`/new-game-from/${effectiveGameId}`, {});
+      if (!isCurrent()) return;
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[useGameSession] New game request failed:', response.status, errorText);
+        fail();
         return;
       }
 
       const result = await response.json();
-      const newGameId = typeof result?.gameId === 'string' ? result.gameId : null;
+      if (!isCurrent()) return;
+      const newGameId = typeof result?.gameId === 'string' && result.gameId.trim() ? result.gameId : null;
 
       if (!newGameId) {
         console.error('[useGameSession] New game request returned invalid payload:', result);
+        fail();
         return;
       }
 
       navigateToGameId(newGameId);
     } catch (err: any) {
       console.error('[useGameSession] New game request error:', err?.message ?? err);
+      fail();
     }
   }
 
@@ -8623,6 +8743,8 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       actions: bootstrapActions,
       loading: false,
       error: 'No gameId provided',
+      loadFailure,
+      retryInitialLoad,
     };
   }
   
@@ -8660,5 +8782,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     actions,
     loading,
     error,
+    loadFailure,
+    retryInitialLoad,
   };
 }

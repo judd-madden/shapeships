@@ -444,7 +444,7 @@ const EXPIRED_SESSION_MESSAGE = 'Invalid or expired session token';
 const SESSION_RECOVERY_FAILED_MESSAGE =
   'Your session expired and could not be refreshed. Select Change Name to start a new session.';
 
-async function isExpiredSessionResponse(response: Response): Promise<boolean> {
+export async function isExpiredSessionResponse(response: Response): Promise<boolean> {
   if (response.status !== 401) {
     return false;
   }
