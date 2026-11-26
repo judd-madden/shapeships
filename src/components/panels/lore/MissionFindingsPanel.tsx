@@ -43,7 +43,7 @@ export function MissionFindingCard({ finding, unlocked }: { finding: MissionFind
     className="relative min-w-0 rounded-[12px] border-2 border-shapeships-grey-70 bg-shapeships-black/95 p-[12px] text-shapeships-grey-20 [--finding-line:20px] @min-[340px]/findings:p-[16px] @min-[640px]/findings:[--finding-line:24px] @min-[720px]/findings:rounded-[8px] @min-[720px]/findings:p-[12px] @min-[720px]/findings:[--finding-line:16px]">
     <div className={(crossSystem ? '' : '@min-[720px]/findings:hidden ') + 'mb-[4px]'}>
       <div className="flex items-start justify-between gap-[8px]">
-        <div className={'flex min-w-0 flex-wrap items-baseline gap-x-[16px] ' + (crossSystem && !unlocked ? '@min-[720px]/findings:invisible' : '')}>
+        <div className={'flex min-w-0 flex-wrap items-baseline gap-x-[8px] ' + (crossSystem && !unlocked ? '@min-[720px]/findings:invisible' : '')}>
           <h3 className={'text-[16px] leading-[20px] font-bold text-shapeships-white @min-[340px]/findings:text-[17px] @min-[640px]/findings:text-[18px] @min-[640px]/findings:leading-[24px] ' + (crossSystem ? '@min-[720px]/findings:text-[18px] @min-[720px]/findings:leading-[20px] @min-[720px]/findings:font-black' : '')}>{finding.topic}</h3>
           {finding.distanceLabel && <span className="text-[12px] leading-[16px] font-medium @min-[340px]/findings:text-[13px]">{finding.distanceLabel}</span>}
         </div>
@@ -61,7 +61,7 @@ export function MissionFindingCard({ finding, unlocked }: { finding: MissionFind
       <FindingText unlocked={unlocked} short><Matchups finding={finding} /></FindingText>
       <FindingText unlocked={unlocked}><div className="text-[14px] leading-[20px] font-normal [&_p]:[font-size:inherit] [&_p]:[line-height:inherit] @min-[340px]/findings:text-[15px] @min-[640px]/findings:text-[16px] @min-[640px]/findings:leading-[24px] @min-[720px]/findings:text-[14px] @min-[720px]/findings:leading-[16px]">{finding.content}</div></FindingText>
     </div>
-    {!unlocked && <span className="absolute right-[12px] top-[12px] inline-flex items-center gap-[4px] rounded-[4px] border border-shapeships-grey-70 bg-shapeships-grey-90 px-[6px] py-[2px] text-[9px] leading-[12px] font-bold text-shapeships-grey-20 @min-[340px]/findings:right-[16px] @min-[340px]/findings:top-[16px] @min-[640px]/findings:text-[10px] @min-[720px]/findings:right-[10px] @min-[720px]/findings:top-[10px] @min-[720px]/findings:text-[9px]">
+    {!unlocked && <span className="absolute right-[12px] top-[12px] inline-flex items-center gap-[4px] rounded-[4px] border border-shapeships-grey-70 bg-shapeships-grey-90 px-[6px] py-[2px] text-[10px] leading-[12px] font-bold text-shapeships-grey-20 @min-[340px]/findings:right-[16px] @min-[340px]/findings:top-[16px] @min-[640px]/findings:text-[11px] @min-[720px]/findings:right-[10px] @min-[720px]/findings:top-[10px] @min-[720px]/findings:text-[10px]">
       <LockKeyhole aria-hidden="true" className="h-[10px] w-[10px]" />LOCKED
     </span>}
   </article>;

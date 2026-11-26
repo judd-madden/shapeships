@@ -102,11 +102,11 @@ export function MissionFindingsMap({ completedFindingIds, loreWidth, renderCard,
           </g>
         </svg>
         <div className="absolute left-[10px] right-[10px] top-[12px] flex flex-col gap-[4px] @min-[640px]/findings:left-[14px] @min-[640px]/findings:right-[14px] @min-[720px]/findings:top-[20px] @min-[1040px]/findings:flex-row @min-[1040px]/findings:items-center @min-[1040px]/findings:justify-between">
-          <h3 className="text-[11px] leading-[16px] font-bold tracking-[0.8px] text-shapeships-grey-20 @min-[640px]/findings:text-[12px] @min-[720px]/findings:text-[14px] @min-[720px]/findings:leading-[20px]">MILKY WAY / ORION ARM / 2814</h3>
-          <p className="text-[11px] leading-[16px] text-shapeships-grey-20 @min-[640px]/findings:text-[12px] @min-[720px]/findings:text-right">
-            <span className="@min-[720px]/findings:hidden">Light-years from Sol (ly) · compressed scale</span>
-            <span className="hidden items-center gap-[16px] @min-[720px]/findings:inline-flex">
-              <span>Distances from Sol in light-years (ly)</span><span className="text-shapeships-grey-50">|</span><span>Compressed distance scale</span>
+          <h3 className="text-[14px] leading-[16px] font-bold  text-shapeships-white @min-[640px]/findings:text-[16px] @min-[720px]/findings:text-[18px] @min-[720px]/findings:leading-[20px]">MILKY WAY <span className='text-shapeships-grey-70'>/</span> ORION ARM <span className='text-shapeships-grey-70'>/</span> 2814</h3>
+          <p className="text-[11px] leading-[16px] text-shapeships-grey-50 @min-[640px]/findings:text-[13px] @min-[720px]/findings:text-right">
+            <span className="@min-[720px]/findings:hidden">Light-years from Sol (ly) / compressed scale</span>
+            <span className="hidden items-center gap-[8px] @min-[720px]/findings:inline-flex">
+              <span>Light-years from Sol (ly)</span><span className="text-shapeships-grey-70">/</span><span>Compressed scale</span>
             </span>
           </p>
         </div>
@@ -118,8 +118,8 @@ export function MissionFindingsMap({ completedFindingIds, loreWidth, renderCard,
           </div>;
         })}
         <p className="absolute text-[12px] leading-[16px] font-bold text-shapeships-white @min-[640px]/findings:text-[13px] @min-[720px]/findings:text-[14px]" style={{ left: layout.unknown.x + (layout.desktop ? 44 : 28), top: layout.unknown.y + layout.unknown.height / 2 - 8 }}>Unknown</p>
-        <div className="absolute bottom-[14px] right-[12px] flex items-center gap-[6px] text-[10px] leading-[12px] font-bold text-shapeships-grey-20 @min-[640px]/findings:gap-[12px] @min-[640px]/findings:text-[12px] @min-[640px]/findings:leading-[16px] @min-[720px]/findings:text-[14px] @min-[720px]/findings:leading-[20px]">
-          <span>TOWARD GALACTIC CENTRE</span><ChevronRight aria-hidden="true" className="h-[16px] w-[16px] @min-[720px]/findings:h-[24px] @min-[720px]/findings:w-[24px]" />
+        <div className="absolute bottom-[14px] right-[12px] flex items-center gap-[4px] text-[10px] leading-[12px] font-regular text-shapeships-grey-50 @min-[640px]/findings:gap-[6px] @min-[640px]/findings:text-[12px] @min-[640px]/findings:leading-[16px] @min-[720px]/findings:text-[14px] @min-[720px]/findings:leading-[20px]">
+          <span>Toward Galactic Center</span><ChevronRight aria-hidden="true" className="h-[16px] w-[16px] @min-[720px]/findings:h-[24px] @min-[720px]/findings:w-[24px]" />
         </div>
       </div>
       <div ref={cardsRef} className="mt-[16px] flex flex-col gap-[12px] @min-[640px]/findings:mt-[20px] @min-[640px]/findings:gap-[16px] @min-[720px]/findings:absolute @min-[720px]/findings:inset-0 @min-[720px]/findings:mt-0 @min-[720px]/findings:block">
