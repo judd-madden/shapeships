@@ -3,9 +3,46 @@
 - **Pass:** 22E.1 — integration review, report only.
 - **Date / owner:** 25 November 2026 / Judd Madden.
 - **Type / primary layer:** Tooling Pass / historical planning documentation.
-- **Status:** Static review and offline baseline complete; browser verification, agreed fixes, owner acceptance and activation remain outstanding.
-- **Files allowed:** this addendum and the amendments / §15 of `Phase 22 Menu and Account.md`.
-- **Changes excluded:** code, tests, SQL, configuration, environment files, deployment, live-database actions and commits.
+- **Status:** 22E.2–22E.4 fixes complete; planning-assistant browser/SQL evidence supplied below. Judd's desktop/mobile owner acceptance and activation gates remain pending.
+- **22E.1 files allowed:** this addendum and the amendments / §15 of `Phase 22 Menu and Account.md`.
+- **22E.1 changes excluded:** code, tests, SQL, configuration, environment files, deployment, live-database actions and commits. 22E.4 separately permits the bounded legacy server comment/dead-declaration cleanup recorded below.
+
+## Status after 22E.2–22E.4
+
+**Reconciled 26 November 2026.** The latest owner brief reports 22E.2 and 22E.3 complete and browser-verified by the planning assistant. 22E.4 reconciles IR5, IR6 and IR8; it does not repeat browser, PostgreSQL or live checks. Sections 1–11 retain the original 22E.1 audit and baseline context, with current operational guidance explicitly corrected. The main plan's 25 November amendments 3–5 govern; amendment 4 supersedes the older off-first emergency recommendation.
+
+| Finding | Current disposition | Main-plan implementation record |
+| --- | --- | --- |
+| IR1 | Fixed in 22E.2; planning-assistant browser verification reported. | [Main plan §15 — 22E.2](Phase%2022%20Menu%20and%20Account.md), guest Entry name. |
+| IR4 | Fixed in 22E.2; planning-assistant verification reported. | [Main plan §15 — 22E.2](Phase%2022%20Menu%20and%20Account.md), credential logs. |
+| IR7 | Fixed in 22E.2; planning-assistant verification reported. | [Main plan §15 — 22E.2](Phase%2022%20Menu%20and%20Account.md), diagnostic gating. |
+| IR2 | Fixed in 22E.3; planning-assistant browser verification reported. | [Main plan §15 — 22E.3](Phase%2022%20Menu%20and%20Account.md), load failures and session expiry. |
+| IR3 | Fixed in 22E.3; planning-assistant browser verification reported. | [Main plan §15 — 22E.3](Phase%2022%20Menu%20and%20Account.md), multiplayer New Game feedback. |
+| IR5 | Fixed in 22E.4: names-only emergency disable and guarded 05→01 schema rollback. | [Main plan §15 — 22E.4](Phase%2022%20Menu%20and%20Account.md). |
+| IR6 | Fixed in 22E.4: current owner lookup/maintenance/deletion guide and exact set-05 results. | [Main plan §15 — 22E.4](Phase%2022%20Menu%20and%20Account.md). |
+| IR8 | Fixed in 22E.4: legacy signup labels, obsolete TODO and unused entrypoint declaration. | [Main plan §15 — 22E.4](Phase%2022%20Menu%20and%20Account.md). |
+
+**Main-plan §14 status:** criterion 4 is met, pending Judd's owner acceptance; criterion 9 is met for SQL evidence, while backup/restore rehearsal and hosted checks remain activation gates; criterion 11 is met for documentation, while production values/settings and hosted evidence remain owner gates. Criteria 1 and 7 still require owner acceptance. These distinctions are reflected in §6 below; Phase 22 is not yet signed off for activation.
+
+**Criterion 9 evidence — supplied by the planning assistant, PostgreSQL 17.6:** set-05 SQL files are byte-identical from 1125-2 through 1126. This is attributed acceptance evidence, not SQL execution or archive comparison performed by 22E.4.
+
+- Fresh database with sets 01–04: forward → verify PASS → second forward refused → rollback → 04-verify PASS.
+- CRLF forward → CRLF verify PASS → CRLF rollback → 04-verify PASS → reapply → verify PASS. CRLF verification also passed against LF-applied functions.
+- Real repository through PostgREST: **51/51**, including the four unusable-tracked-game cases (missing, malformed, unclassifiable and unowned).
+- Lock-held races passed in both orders; same-account resets serialise.
+- Owner lookup is postgres-only, including the streak lookup. Development-account deletion anonymises import ownership and keeps consumed anchors.
+- Rollback with populated data refuses.
+- Whole function against a set-05 replica (22D.2): **43/43 with accounts on; 6/6 off**.
+- Streak client browser run (22D.3): **36/36**.
+- **Separately owner-reported:** Judd applied set 05 live on 25 November after a private backup; verification PASS. 22E.4 has not independently inspected the live database.
+
+**Emergency-mode browser evidence — supplied by the planning assistant:** in `off`, any guest can play as a claimed name. `names-only` refuses that name and shows remembered owners the "couldn't reach your account" note. Accordingly, first use `ACCOUNTS_MODE=names-only`; reserve `off` for the step before SQL rollback. Existing games keep session authority, and remembered owners may play under another name.
+
+**Owner handoff:** Judd zips the repository; the planning assistant reviews these documents against the code and SQL, then supplies the shorter hands-on acceptance checklist and exact activation runbook separately. Activation follows owner acceptance at the single completed-phase idle deploy: production Turnstile registration/keys, secrets, IP-header verification, backup/restore rehearsal, development-account cleanup and reserved-name review remain owner operations. No interim deployment is introduced.
+
+**22E.4 validation:** offline server suite PASS — **93 files, 899 tests plus 16 steps, zero failures**; `deno check --frozen` PASS for `index.tsx` and `routes/auth_routes.ts`; exact result-field checks PASS (9 cleanup fields, 11 development-deletion fields); executable-output comparisons PASS (unchanged signup response/behavior, entrypoint change limited to the unused declaration); `git diff --check` and allowed-file/SQL scope checks PASS. The installed `deno check` does not accept `--cached-only`; the successful check used `--frozen`. Existing ignored-compiler-option notices remain. The test run used the restricted offline command in §10, with the live-integration opt-in flag absent and its module excluded; no network/run permission was granted. The §10 baseline otherwise retains its original 22E.1 context.
+
+**Browser/live checks by 22E.4: Not run — documentation pass.**
 
 ## 1. Authority, method and interpretation
 
@@ -21,22 +58,22 @@ Standing decisions applied throughout:
 
 - Guest play remains the primary experience. Do not add account requirements, CAPTCHA or streak requests to ordinary guest play.
 - One completed-phase deploy, likely with Phases 23 and 24; no interim deployment posture or active-game migration design. Judd deploys when idle.
-- `ACCOUNTS_MODE=off` is the emergency rollback, as required by the 24 November amendment and this brief. `names-only` remains a technical mode, not the recommended first rollback step.
+- **Superseded historical 22E.1 decision:** "`ACCOUNTS_MODE=off` is the emergency rollback" and "`names-only` remains a technical mode, not the recommended first rollback step" reflected 24 November amendment 1. **25 November amendment 4 supersedes this:** emergency disable uses `ACCOUNTS_MODE=names-only` first, retaining claimed-name protection; `off` is used only before SQL rollback.
 - Welcome plus the claimed rail is claim confirmation (22B.3 default); no extra success screen/message is required.
 - Cross-device continuation is deferred by 24 November amendment 5 / streak Q6. Original-session continuation and account count persistence remain in scope.
 - Entry video is deferred pending assets, possibly until after Phases 23 and 24; Phase 22 acceptance does not wait for it. Music playback belongs to Phase 23. Stats, ratings, history and account Lore progression remain deferred.
 
 ## 2. Findings summary
 
-No confirmed blocker was found in this static pass. Six should findings and two nits follow. This is not an activation sign-off: the owner and hosted-evidence gates in §7 are still open. Severity can be revised after browser verification.
+Historical 22E.1 result: no confirmed blocker, six should findings and two nits. All eight findings are now resolved by 22E.2–22E.4 as recorded above; the table/details preserve the original audit and proposed pass numbering. This is not an activation sign-off: owner acceptance and hosted-evidence gates in §7 remain open.
 
-| ID | Severity | Finding | Proposed follow-up |
+| ID | Original severity | Historical finding | Original proposed follow-up (current disposition above) |
 | --- | --- | --- | --- |
 | IR1 | should | Returning to guest Entry with a cached named session can display the new name while the server continues using the old one. | 22E.2 Client/UI |
 | IR2 | should | Failed joins and expired game sessions have incomplete visible recovery; bootstrap can remain on LOADING GAME. | 22E.3 Client/UI |
 | IR3 | should | Multiplayer New Game failures are console-only, unlike the computer-rematch error path. | 22E.3 Client/UI |
 | IR4 | should | Session networking still logs token prefixes and retains a raw Authorization diagnostic prohibited by the account contract. | 22E.4 Client/UI |
-| IR5 | should | Historical emergency-disable / rollback instructions conflict with the latest off-first decision and omit set 05 from the reverse sequence. | 22E.5 Server-owned documentation |
+| IR5 | should | Historical emergency-disable / rollback instructions conflicted with the then-current off-first decision and omitted set 05. That decision is superseded by 25 November amendment 4. | 22E.5 Server-owned documentation (completed as 22E.4) |
 | IR6 | should | The operational owner guide lacks consolidated set-05 cleanup/lookup semantics and updated output fields. | 22E.5 Server-owned documentation |
 | IR7 | nit | Several development-labelled client diagnostics and the event tape run in production. | Batch in 22E.4 |
 | IR8 | nit | Legacy server auth labels/TODOs still describe all authentication as disabled/session-only. | Batch in 22E.5 |
@@ -81,10 +118,10 @@ No confirmed blocker was found in this static pass. Six should findings and two 
 ### IR5 — Rollback instructions conflict with the current owner decision
 
 - **Severity:** should; correct the guidance before activation.
-- **Evidence:** account-design §2.9 L17/L19 (`Phase 22 Addendum - Account Design.md:321`) recommends `names-only` first and lists reverse sets 04→01. Main-plan 24 November amendment 1 and this pass brief require `ACCOUNTS_MODE=off` first. Streak-design §2.7 P13–P15 adds set 05 and populated-data refusal. `supabase/manual/account/05-rollback.sql:1586` refuses rollback that would destroy streak data.
-- **Expected / source:** latest owner instructions: disable with off first; backup before owner-controlled SQL rollback; reverse 05→04→03→02→01 only when appropriate. Populated set 05 requires backup restoration rather than bypassing its guard. A mode switch is not a schema rollback or a data backup.
-- **Proposed fix:** consolidate current guidance and mark historical names-only-first / 04-first directions superseded. Describe restoring data and code/schema compatibility, not just dropping objects. Do not add an interim deployment or active-game migration plan.
-- **Follow-up:** 22E.5, small server-owned operational documentation correction. This pass records the discrepancy and correct order here; it does not edit the historical addendum, SQL or configuration.
+- **Historical 22E.1 evidence:** account-design §2.9 L17/L19 recommended `names-only` first but listed reverse sets 04→01. The review followed the then-current off-first 24 November amendment 1; that emergency recommendation is **superseded by 25 November amendment 4**. Streak-design §2.7 P13–P15 adds set 05 and populated-data refusal; `05-rollback.sql` refuses rollback that would destroy streak data.
+- **Current expected / source:** 25 November amendment 4 requires `names-only` first for emergencies, retaining claimed-name protection and game-session authority; remembered owners see the outage note and can use another name. Fix forward where possible. Only for Judd's chosen full SQL rollback: private backup → `off` → compatible deployed code → **05→04→03→02→01**, respecting all guards. Populated set 05 requires backup restoration; never bypass it or use set 01's destructive override as an activation recipe. A mode switch is not a schema rollback or backup; reversal cannot reconstruct accounts, credentials, counts or consumed anchors.
+- **Disposition — 22E.4:** reconciled the account/streak designs, manual guide and this review to the current names-only-first decision and 05→01 sequence. Historical off-first wording is explicitly superseded; the original 04-first sequence is historical. No SQL/configuration or deployment change.
+- **Follow-up history:** proposed as 22E.5 in this review; completed in 22E.4, main plan §15.
 
 ### IR6 — Set-05 owner operations need a current consolidated runbook
 
@@ -170,17 +207,17 @@ S means the tab's original game session; A means the account credential. These r
 
 | §14 criterion, in original order | Status | Evidence / controlling amendment |
 | --- | --- | --- |
-| 1. Revised Entry, Welcome, Single Player, Multiplayer and Claim Name owner-reviewed on desktop/mobile | gap | Implementations and §15 22A/22B records exist; full final owner acceptance is outstanding, especially after 22D.3. The new 25 November amendment defers video; its absence is not this gap. |
+| 1. Revised Entry, Welcome, Single Player, Multiplayer and Claim Name owner-reviewed on desktop/mobile | pending owner acceptance | Implementation and planning-assistant browser verification are reported complete through 22E.3. Judd's desktop/mobile acceptance remains; Entry video is deferred by 25 November amendment 1. |
 | 2. Guest/claimed rail and persistent mobile Home/navigation consistent | met | `MenuShell.tsx:139`, `shells/menu/MenuProfileRail.tsx:93`, `MenuBottomNav.tsx`; §15 22A.2 / 22B.3. 18 November amendment 1 fixes mobile at ≤767px; 19 November amendment 4 fixes label weight. Final responsive check remains in owner acceptance. |
 | 3. Single Player untimed default, collapsed grid, actual 5+3 minimum | met | `MenuShell.tsx:181`, `CreatePrivateGamePanel.tsx:48`, line 238; server `timeControlPresets_test.ts`. 19 November amendment 7 preserves the last deliberate timing selection on this device, so an already-used device can legitimately reopen Timed. |
-| 4. Launch, invite, rejoin, rematch, reset, Rules/Lore retained except approved changes | gap | Static normal paths / account and guest suites support the core flows; IR1–IR3 remain proposed corrections and browser path review is outstanding. Rules/Lore contents stay mounted in the new shell. 19 November amendments 1–3 and 5–7 control hub/archive/setup changes; 24 November amendment 5 limits rejoin. |
+| 4. Launch, invite, rejoin, rematch, reset, Rules/Lore retained except approved changes | met, pending owner acceptance | IR1–IR3 fixed in main plan §15 22E.2–22E.3 and browser-verified by the planning assistant per the supplied brief. Judd's hands-on acceptance remains. Rules/Lore and the approved original-session-only continuation boundary are retained. |
 | 5. Optional username/password accounts, no email; server claims/bans | met | `/accounts/*`, account service / protection / name resolver; enabled, name, credential, game-identity and repository tests passed. Account-design owner lock / 19 November amendment 15 governs. Legacy `/signup` remains disabled; IR8 concerns descriptions. Hosted activation is not implied. |
 | 6. Claim Welcome confirmation, remembered menu, Logout Entry | met | `MenuShell.tsx:90`, line 152; remembered/Entry wiring and store lifecycle tests. §15 22B.3 default makes Welcome plus claimed rail the confirmation; no missing toast/screen finding. Startup outage handling is in §15 22B.4 review. |
-| 7. Five account preferences without breaking guests | met | Preference store/sync and route ownership/conflict tests, menu Sound/Music and in-game Sound/Flash/desktop rail integration. Main §6 / §15 22C.4–22C.5 and 22A.1. Actual other-device restore and bounded save failure still need owner review. |
+| 7. Five account preferences without breaking guests | pending owner acceptance | Preference store/sync and route ownership/conflict tests support the implementation (main §6 / §15 22C.4–22C.5 and 22A.1). Actual other-device restore and bounded save failure still require Judd's review. |
 | 8. Eligible one-time import, higher-run selection, recovery without duplicate/stale results | met; cross-device continuation deferred | 22D.1–22D.3 code and offline contract/lifecycle tests; Q1–Q6 and P17. Main 24 November amendments 4–5 supersede §8.4: only original-S continuation, with count preserved elsewhere. No cross-device seat recovery is required for acceptance. PostgreSQL evidence belongs to criterion 9. |
-| 9. Required credential/abuse/persistence/concurrency checks pass | gap | 899 offline server tests plus 16 steps and 1,380 client tests passed. Streak P17 requires actual PostgreSQL ACL/lock/race/rollback evidence and backup/restore evidence. §15's reported F1-only SQL round trip explicitly did not validate later F2 bodies; owner-reported live application alone does not supply the missing acceptance attachment. Hosted hash/ingress checks remain activation gates. |
+| 9. Required credential/abuse/persistence/concurrency checks pass | met for SQL evidence; activation gates pending | The supplied PostgreSQL 17.6/set-05, PostgREST 51/51, race/ACL/CRLF/rollback and whole-function evidence is consolidated in the status section above and supersedes the earlier F1-only evidence gap. Backup/restore rehearsal and hosted hash/ingress checks remain activation gates. |
 | 10. Music, Stats/ratings/history and account Lore progression accurately deferred | met; features deferred | Main §2.2 / §6, 18 November amendments 2–3 and 19 November amendment 1. Music preference works, playback is Phase 23; inactive My Stats remains accurate. No account Lore migration or soundtrack content is added. Video is also deferred by 25 November amendment 1. |
-| 11. Activation/configuration, recovery and limitations documented | gap | Account addendum L16–L19, manual SQL guide and this review supply most instructions; IR5–IR6 identify inconsistencies/incomplete consolidation. Production keys/hostnames, exact verified IP posture, restore and hosted measurements need owner evidence before activation. The latest off-first and single-deploy decisions govern. |
+| 11. Activation/configuration, recovery and limitations documented | documentation met; owner activation gates pending | IR5–IR6 and IR8 are reconciled in 22E.4. Names-only-first emergency disable and guarded 05→01 rollback apply. Production keys/hostnames, verified IP posture, restore rehearsal and hosted measurements remain owner gates. |
 
 ## 7. Activation readiness — names and rules only
 
@@ -190,7 +227,7 @@ No environment file, stored secret, real credential, hostname value, backup cont
 
 | Name / location | Production setting rule / readiness evidence |
 | --- | --- |
-| `ACCOUNTS_MODE` — Supabase function environment | `on` for the completed accepted launch; `off` first for emergency rollback. Unset/invalid parses off. No temporary names-only/partial-launch stage is proposed. Source: `accounts/accountsMode.ts`, latest main amendment. |
+| `ACCOUNTS_MODE` — Supabase function environment | `on` for the completed accepted launch. Per 25 November amendment 4, emergency disable uses `names-only` first: sign-in/claim and streak routes are dormant, claimed names remain protected, existing games retain session authority and remembered owners see the outage note and may use another name. Set `off` only before SQL rollback; it does not protect claimed names. Unset/invalid still parses off. Historical off-first emergency guidance is superseded; no partial-launch stage is proposed. |
 | `ACCOUNTS_TURNSTILE_SECRET` — server-only secret | Real production Siteverify secret corresponding to the client widget; never a published dummy. Source: `accountService.ts:428`, `humanCheck.ts:45`. Creation/hosted validation is an owner activation task. |
 | `ACCOUNTS_TURNSTILE_HOSTNAMES` — server setting | Exact comma-separated production hostname allowlist aligned with the widget's Cloudflare hostname settings; reject test-hostname/dummy responses. Expected actions are claim and sign-in; forced change uses sign-in. Source: `humanCheck.ts:42`, line 114. Record approved hostnames privately, not their values here. |
 | `ACCOUNTS_LOCAL_TEST_MODE` — server setting | Unset for hosted production. Exact true permits local dummy behaviour; the server does not independently detect whether it is hosted. Verify this setting is absent rather than assuming a client production build disables it. |
@@ -210,21 +247,25 @@ No environment file, stored secret, real credential, hostname value, backup cont
 
 These are pending activation/acceptance gates in the approved sequence, not new code findings or permission for this pass to perform operations.
 
-1. **Browser verification and agreed fixes:** planning assistant verifies IR1–IR3 and the reported paths on the local stack, recommends disposition; Judd agrees the scoped passes. Confirm IR4 by synthetic log inspection and IR5–IR8 by source/runbook review. Then Judd completes desktop/mobile acceptance below.
-2. **Database evidence attachment:** retain the owner-reported sets 01–05 application status. Attach current verification and the P17 disposable PostgreSQL results for final set-05 bodies: role/ACL/RLS/search-path/constraints, atomic failure rollback, both race orders, same-anchor replay/other-account refusal, owner dependency guards, LF/CRLF handling, forward→verify→empty rollback→04 verify→reapply, and populated rollback refusal. Do not substitute fake tests or the older F1-only run. No SQL executes in this review.
+1. **Browser verification and agreed fixes:** 22E.2 (IR1/IR4/IR7) and 22E.3 (IR2/IR3) are complete and planning-assistant browser verification is reported. 22E.4 reconciles IR5/IR6/IR8. The planning assistant reviews this pass, then Judd completes desktop/mobile acceptance using the separately supplied shorter hands-on checklist.
+2. **Database evidence attachment:** retain the owner-reported sets 01–05 application status and the supplied final set-05 PostgreSQL 17.6 evidence consolidated above. It covers both race orders, same-account reset serialisation, postgres-only lookup, import-anchor preservation, LF/CRLF round trips/reapply, populated rollback refusal and PostgREST/whole-function results. The original F1-only gap is closed by the supplied final-body evidence; backup/restore rehearsal remains separate. No SQL executes in 22E.4.
 3. **Private backups and restore rehearsal:** weekly manual Supabase CLI exports plus pre-SQL-set and pre-destructive-cleanup backup; store outside the repo. Prove restore to an isolated target and record outcome/location reference privately without including hashes, tokens or dump contents. An export without a restore result is not the rehearsal. Check current total database size/growth headroom against the account design's recorded Free-plan budget; do not reuse its historical table-size measurement as current capacity.
-4. **Development-account cleanup:** use postgres-only `account_owner_lookup` and `account_owner_streak_lookup` to identify reviewed test accounts. `account_owner_cleanup` is bounded expired-token/link/counter maintenance, not bulk account deletion. Explicit `account_owner_delete_development_accounts` accepts reviewed UUIDs in batches of 1–20 and a note; it revokes/removes selected dependencies, deletes their runs and anonymizes import ownership while retaining consumed anchors. Preserve nonselected accounts and every canonical game/session/history KV row. Keep private output counts/UUID record; never delete by a name wildcard or truncate import tombstones. IR6 consolidates this documentation. Leave any unrelated Auth user unless Judd separately identifies/removes it through the existing owner process.
+4. **Development-account cleanup:** use postgres-only `account_owner_lookup` and `account_owner_streak_lookup` to identify reviewed test accounts. `account_owner_cleanup` is bounded expired-token/link/counter maintenance, not bulk account deletion. Explicit `account_owner_delete_development_accounts` accepts reviewed UUIDs in batches of 1–20 and a note; it revokes/removes selected dependencies, deletes their runs and anonymizes import ownership while retaining consumed anchors. Preserve nonselected accounts and every canonical game/session/history KV row. Keep private output counts/UUID record; never delete by a name wildcard or truncate import tombstones. IR6 is resolved by the current owner-routines section in `supabase/manual/account/README.md` (22E.4). Leave any unrelated Auth user unless Judd separately identifies/removes it through the existing owner process.
 5. **Reserved names / moderation:** review System/Computer, official/regular-player reservations and owner conflicts before enabling claims. Review the documented Therapist exception proposal and Document reservation deliberately; the seed does not silently resolve those questions. Do not reseed away owner decisions or insert synthetic test rules as production bans.
 6. **Production protection posture:** create real Turnstile widget/keys and allowed hostnames; verify actions, expiry/replay/failure behaviour and absence of local dummy mode. Prove the selected ingress header or explicitly accept/test LA13's target/global/Turnstile policy. The exact trusted hosted header remains **unverified** in the available records.
 7. **Hosted evidence at the completed-phase activation:** measure cold/warm hashing, memory/CPU, verification/rehash and concurrency 1/4 alongside gameplay, as L18 requires; observe safe unavailable/429/AUTH_BUSY outcomes. Check real CORS preflight for X-Account-Token and exposed Retry-After, no-store and no credential logging. Obtain this evidence through the approved completed-phase activation/isolated verification workflow, never an interim unfinished production deployment. Local timing is not hosted proof.
-8. **Idle-deploy checklist:** owner acceptance and agreed fixes complete; confirm the intended client/function revision and existing SQL compatibility; private recovery material ready; production configuration reviewed; no games in progress; deploy the completed phase once (with 23/24 if Judd chooses). Music/video deferrals follow the phase decisions, not invented placeholder screens. Observe safe account/game failures and resource limits; a failed gate uses off-first rollback. No automatic deployment is authorised by this report.
-9. **Rollback order:** first set `ACCOUNTS_MODE=off`. Retain data/schema for a fix where possible; disabling does not require SQL reversal. If Judd chooses full schema rollback, take/confirm a private backup, ensure client/server code will not call removed routines, then reverse **05→04→03→02→01**, respecting every guard and dependency. Set 05 refuses populated runs/imports and requires backup restoration; no destructive override exists for it. Later sets must be removed before earlier reversals. Do not rely on set 01's separate destructive override as an activation rollback recipe. SQL reversal alone cannot reconstruct accounts, credentials, counts or consumed anchors; preserve/restore the backup. Off mode ceases claimed-name enforcement, so disablement is a controlled owner operation, not a promise that account features remain available.
+8. **Idle-deploy checklist:** owner acceptance and agreed fixes complete; confirm the intended client/function revision and existing SQL compatibility; private recovery material ready; production configuration reviewed; no games in progress; deploy the completed phase once (with 23/24 if Judd chooses). Music/video deferrals follow the phase decisions, not invented placeholder screens. Observe safe account/game failures and resource limits; a failed gate first uses `ACCOUNTS_MODE=names-only` emergency disable under 25 November amendment 4. The older off-first recommendation is superseded. No automatic deployment is authorised by this report.
+9. **Rollback order:** emergency disable first sets `ACCOUNTS_MODE=names-only`: sign-in/claim and streak routes are dormant, claimed names stay protected and existing games keep session authority. Remembered owners see the outage note and can use another name. Fix forward with data/schema retained where possible; a mode switch is neither a schema rollback nor a backup. Only if Judd chooses full schema rollback: take/confirm a private backup → set `ACCOUNTS_MODE=off` → ensure deployed client/server code will not call removed routines → reverse **05→04→03→02→01**, respecting every guard/dependency. Set 05 refuses populated runs/imports: restore from backup instead of bypassing it. Never use set 01's destructive override as an activation recipe. SQL reversal cannot reconstruct accounts, credentials, counts or consumed anchors. In `off`, guests can use claimed names; coordinate entry restriction. The original off-first emergency wording is superseded by 25 November amendment 4.
+
+The planning assistant supplies the exact owner activation steps in a separate activation runbook; this sequence remains the gate inventory, not permission for this pass to perform those operations.
 
 ### 7.3 Readiness assessment
 
-Configuration **names and intended rules are documented**; production values/settings and real hosted results were not inspected. Backup/restore, final PostgreSQL acceptance attachment, name review, cleanup results, exact trusted ingress/LA13 choice, hosted hash/capacity evidence and full owner browser acceptance have no newly verified completion evidence in this pass. Keep them pending rather than reporting them failed or completed. IR5–IR6 are the documentation corrections that should precede those owner operations.
+Configuration **names and intended rules are documented**, and IR5–IR6/IR8 documentation is reconciled in 22E.4. The supplied final PostgreSQL acceptance evidence is attached in the status section above. Production values/settings, private backup/restore rehearsal, name review, actual cleanup results, exact trusted ingress/LA13 choice, hosted hash/capacity evidence and Judd's desktop/mobile acceptance remain owner gates; 22E.4 has not newly inspected them.
 
 ## 8. Judd's local owner acceptance checklist
+
+**Status after 22E.4:** the planning assistant reports the fault-injection items below are covered by automated browser and SQL runs, including delayed requests, response loss, forced comparison failure and two-tab races. Keep this detailed list as the original coverage inventory; it does not require Judd to repeat automated fault injection. Judd's acceptance uses the shorter hands-on checklist the planning assistant supplies separately.
 
 Run on desktop and mobile with accounts on, using distinct permitted test names, the owner-chosen local stack and separate browser contexts when specified. Clear the development account-preview override before evaluating real identity. Record actual outcome, device/context and any IR ID; this is a checklist, not a record that these steps ran.
 
@@ -255,20 +296,20 @@ Run on desktop and mobile with accounts on, using distinct permitted test names,
 
 P17's PostgreSQL/backup/cleanup evidence is attached separately under §7; completing this browser checklist does not prove SQL locks or hosted capacity.
 
-## 9. Proposed follow-up passes
+## 9. Proposed follow-up passes (22E.1 historical)
 
-These passes are recommendations for Judd's agreement after planning-assistant verification. Numbering does not authorise their implementation here. No authoritative gameplay-rule or SQL change is presently proposed.
+This table preserves the original recommendations and numbering. The actual completed passes differ: IR1/IR4/IR7 were grouped into 22E.2; IR2/IR3 into 22E.3; IR5/IR6/IR8 into 22E.4. Their current §15 references appear in the status section above. The historical off-first emergency recommendation is superseded by 25 November amendment 4; use names-only first. No additional 22E.5 implementation is implied.
 
 | Pass | Type / size | Findings and bounded deliverable | Validation / boundary |
 | --- | --- | --- | --- |
 | 22E.2 — guest Entry identity alignment | Client/UI / small | IR1. Correct explicit guest new-name submission with cached S, preserving unchanged-name and account-entry session semantics. | Focused existing callback/transport regressions; type-check/client tests; browser Back/root-return/claim preservation. No server/name-rule change. |
 | 22E.3 — game failure and rematch feedback | Client/UI / medium | IR2–IR3. Existing runtime/loading/game helper feedback for failed join, expired S and multiplayer rematch, with deliberate retry/return. | Guest/account/spectator failures and delayed-response fencing; no automatic active-game session replacement or create replay. No new screen/router or account-seat recovery. |
 | 22E.4 — credential redaction and diagnostic gates | Client/UI / small | IR4 and nit IR7. Remove token/header contents, gate diagnostic-only output; preserve role updates and product lifecycle work. | Synthetic log capture plus client checks/build; confirm production diagnostic reduction and unchanged gameplay state. No tooling/config change. |
-| 22E.5 — account operational documentation reconciliation | Server-owned / small | IR5–IR6 and nit IR8. Update account-design/manual/server guidance to off-first 05→01 rollback, current set-05 owner semantics and deliberately disabled legacy signup. | Source cross-check against final routines, output names, dependency guards and owner decisions; diff check. **Explicitly allow the relevant documentation companions in its brief.** This is documentation of server contracts, not a SQL run, endpoint activation or rules pass; keep any code/comment cleanup separately bounded if requested. |
+| 22E.5 — account operational documentation reconciliation | Server-owned / small | IR5–IR6 and nit IR8. Update account-design/manual/server guidance (originally off-first; superseded by 25 November amendment 4) to names-only emergency disable and guarded 05→01 SQL rollback, current set-05 owner semantics and deliberately disabled legacy signup. | Source cross-check against final routines, output names, dependency guards and owner decisions; diff check. **Explicitly allow the relevant documentation companions in its brief.** This is documentation of server contracts, not a SQL run, endpoint activation or rules pass; keep any code/comment cleanup separately bounded if requested. |
 
 Then the planning assistant rechecks agreed fixes, Judd performs owner acceptance on the local stack, and owner activation steps occur at the single deploy. Unverified operational gates stay on the acceptance/activation checklist; do not invent a server feature pass merely to claim that hosted evidence exists.
 
-## 10. Validation baseline and final documentation checks
+## 10. Validation baseline and final documentation checks (22E.1 historical)
 
 Baseline was run against the unchanged reviewed source during this review's planning/exploration. Only documentation changes follow, so the suites were not rerun merely to repeat an unchanged baseline.
 
@@ -293,10 +334,12 @@ The live-integration opt-in flag was absent; its file was explicitly excluded. N
 
 ## 11. Risks, accepted limits and handoff
 
-- IR1–IR3 need actual browser verification before the planning assistant recommends final severity/fix scope. Tests passing does not negate an uncovered integration path; the review does not claim observed screenshots or browser reproduction.
+The original audit risks below retain their 22E.1 context. Browser verification and agreed fixes have since completed per the supplied brief; the current owner handoff and remaining activation gates are recorded above.
+
+- **Historical verification gate, now satisfied per supplied brief:** IR1–IR3 required browser verification; 22E.2 and 22E.3 are now fixed and planning-assistant browser-verified. This documentation pass itself supplies no new screenshots or browser reproduction.
 - Final desktop/mobile acceptance remains outstanding. Automated coverage is strong for account authority, imports and revision fencing, but it is not an end-to-end user-flow or hosted deployment result.
 - Original-session expiry/clearing can strand the old seat; Q5/Q6 deliberately defer general and cross-device seat continuation. Preserve counts as specified and make failure/navigation usable, without adding a new seat-transfer capability.
 - Historic guest counts originated at the client; evidence bounds and consumed anchors do not prove full legacy lineage. Distinct-anchor reuse and unavailable shared storage/Web Locks remain the owner-accepted limits in streak Q1–Q3. Do not reopen them as new blockers or add guest friction.
 - Account-token local storage has the already documented script/XSS risk. In-memory fallback does not promise remembered return across visits; offline logout cannot promise remote revocation until the queued request succeeds. An already authorised KV request may finish during revocation; account writes retain transaction-time checks.
 - The review does not inspect production secrets or private backup records. Unknown evidence remains unknown. The owner-reported live SQL status is preserved; no reapplication or live mutation is inferred.
-- **Next owner steps:** planning assistant verifies findings in the browser on the local stack and recommends which to fix; Judd agrees follow-up passes; planning assistant briefs 22E.2. After agreed fixes, Judd performs local desktop/mobile acceptance, then activation at the one idle deploy. This pass ends with documentation only and no commit.
+- **Next owner steps:** Judd zips the repo for planning-assistant review of 22E.4 against the code and SQL. The planning assistant supplies the shorter hands-on checklist and activation runbook. Judd performs desktop/mobile local-stack acceptance, then owner activation steps at the single completed-phase idle deploy. No deployment, live-database action or commit occurs in 22E.4.

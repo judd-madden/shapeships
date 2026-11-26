@@ -10,10 +10,8 @@
 // - filters hidden info (commit/reveal protocol)
 
 // ============================================================================
-// ALPHA v3 FEATURE FLAGS
+// RUNTIME FEATURE FLAGS
 // ============================================================================
-// Set to false Post-Alpha to re-enable authentication endpoints
-const ALPHA_DISABLE_AUTH = true;
 const ENABLE_TEST_ROUTES = Deno.env.get("ENABLE_TEST_ROUTES") === "true";
 
 import { Hono } from "npm:hono";

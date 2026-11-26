@@ -103,10 +103,10 @@ export function registerAuthRoutes(
     }
   });
 
-  // User signup endpoint (POST-ALPHA)
-  // Disabled in Alpha v3 - session-only authentication
+  // Deliberately disabled legacy signup scaffolding.
+  // Username/password accounts use /accounts/*, gated by ACCOUNTS_MODE.
   app.post("/make-server-825e19ab/signup", async (c) => {
-    // ALPHA v3: Disable auth endpoint
+    // This guard disables only legacy signup; preserve its compatibility response.
     const ALPHA_DISABLE_AUTH = true;
     if (ALPHA_DISABLE_AUTH) {
       return c.json({
@@ -115,17 +115,8 @@ export function registerAuthRoutes(
       }, 400);
     }
 
-    // POST-ALPHA: Full auth implementation will go here
     try {
       const { email, password, displayName } = await c.req.json();
-      
-      // TODO: Implement Supabase auth signup
-      // const { data, error } = await supabase.auth.admin.createUser({
-      //   email,
-      //   password,
-      //   user_metadata: { name: displayName },
-      //   email_confirm: true
-      // });
       
       return c.json({
         error: "Not implemented",

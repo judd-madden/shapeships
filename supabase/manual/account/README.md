@@ -7,9 +7,62 @@ Set 01 belongs to **22C.1, Server Pass**. These files are for Judd to paste into
 | Set | Phase / package |
 | --- | --- |
 | 01–04 | Existing account foundations, credentials, protection, preferences and owner operations; applied by Judd. |
-| 05 | 22D.1 account streaks: [forward](05-forward.sql), [single-SELECT verify](05-verify.sql), [empty-only rollback](05-rollback.sql). Disposable PostgreSQL 17 acceptance first, then private backup and owner apply; unused until 22D.2. Populated rollback refuses and requires the backup. |
+| 05 | 22D.1 account streaks: [forward](05-forward.sql), [single-SELECT verify](05-verify.sql), [empty-only rollback](05-rollback.sql). **Owner-reported:** Judd applied this live on 25 November 2026 after a private backup; verification PASS. It is used by the completed 22D.2 server/22D.3 client work. Planning-assistant PostgreSQL 17.6 evidence is recorded in the [Integration Review status](../../../src/documentation/plans/Phase%2022%20Addendum%20-%20Integration%20Review.md). Populated rollback refuses and requires backup restoration. |
+
+## Current owner routines (set 05)
+
+This is operating guidance for the already-applied sets 01–05, not another apply instruction. Run these routines in the Supabase SQL editor **as `postgres`**; they are unavailable to PUBLIC, anon, authenticated and service_role. Replace placeholders and review the selected accounts before any mutation. Notes must be nonblank and at most 500 characters; never include credentials or personal recovery conversations. Keep UUIDs and returned operational records private.
+
+### Find and review development accounts
+
+`account_owner_lookup(p_display_name text)` accepts one exact name, case-insensitively. It returns `accountId`, `displayName`, `status`, decimal-string `securityVersion`, `createdAt`, `activeTokens` and `activeLinks`; no credential data is returned. Active token counts require an active account and current-version, unexpired, unrevoked tokens; active link counts additionally require a matching non-detached link.
+
+~~~sql
+SELECT public.account_owner_lookup('REPLACE_WITH_EXACT_DISPLAY_NAME') AS outcome;
+~~~
+
+If the development names are not known, inspect this read-only ID/name/status/creation-time listing as postgres. Review each candidate and use exact-name lookup; never select accounts for deletion by a name wildcard.
+
+~~~sql
+SELECT id AS "accountId", display_name AS "displayName", status, created_at AS "createdAt"
+FROM public.account_accounts
+ORDER BY created_at DESC, id;
+~~~
+
+`account_owner_streak_lookup(p_account_id uuid)` is also **postgres-only**. It returns `run` (the raw streak-run row, or null) and `imports` (up to 100 raw import rows, newest consumed first, then anchor ID; an empty array when absent). These are SQL row fields, not the client streak envelope. Review this evidence alongside the account lookup; it does not prove an account should be deleted.
+
+~~~sql
+SELECT public.account_owner_streak_lookup('REPLACE_WITH_REVIEWED_ACCOUNT_UUID'::uuid) AS outcome;
+~~~
+
+### Bounded expiry maintenance
+
+`account_owner_cleanup(p_note text)` removes expired tokens, links and counter/replay rows only; it does **not** delete accounts, streak runs or consumed import anchors. Tokens remain until expiry or revocation is more than seven days old. Each call removes at most 100 eligible links, then at most 100 eligible tokens with no remaining links, and calls bounded rate-limit cleanup for at most 100 rows while preserving its replay/expiry margins. Repeat while eligible counts remain; locked rows can require another batch. The routine retains dependency guards and records a cleanup event.
+
+~~~sql
+SELECT public.account_owner_cleanup('REPLACE_WITH_MAINTENANCE_NOTE') AS outcome;
+~~~
+
+The final set-05 result fields are exactly: `streakRunsDeleted` (always 0), `streakImportsAnonymized` (always 0), `tokensDeleted`, `linksDeleted`, `rateLimitsDeleted`, `eventId`, `tokensRemainingEligible`, `linksRemainingEligible`, `rateLimitsRemainingEligible`.
+
+### Explicit development-account deletion
+
+`account_owner_delete_development_accounts(p_account_ids uuid[], p_note text)` takes **1–20 reviewed UUIDs** and a note. Null/empty/multidimensional/oversized arrays and null entries fail; duplicates are normalised after the raw 20-entry cap. Missing UUIDs are reported. It revokes tokens and detaches links, then removes the selected accounts with their credentials, preferences, tokens, links, owner events and streak runs. Import ownership is anonymised to null while the permanently consumed anchors remain. One accountless cleanup event survives. Dependency guards prevent cascading into unrelated data; no other accounts or canonical game/session/history KV rows are changed.
+
+~~~sql
+SELECT public.account_owner_delete_development_accounts(
+  ARRAY['REPLACE_WITH_REVIEWED_ACCOUNT_UUID_1','REPLACE_WITH_REVIEWED_ACCOUNT_UUID_2']::uuid[],
+  'REPLACE_WITH_REVIEWED_CLEANUP_NOTE'
+) AS outcome;
+~~~
+
+The final set-05 result fields are exactly: `deletedAccountIds`, `missingAccountIds`, `accountsDeleted`, `tokensDeleted`, `linksDeleted`, `credentialsDeleted`, `preferencesDeleted`, `ownerEventsDeleted`, `streakRunsDeleted`, `streakImportsAnonymized`, `eventId`.
+
+**Activation cleanup order:** take/confirm a private backup → lookup accounts and streak evidence → review the exact UUID list → delete in batches of 1–20 → keep output counts and UUIDs privately. Never delete by a name pattern, truncate import anchors or bypass dependency guards. The planning assistant supplies the exact activation runbook separately.
 
 ## Apply order
+
+**Historical set-01 delivery procedure:** the SQL-set table and current owner-routines section above describe the present state. The following delivery/validation notes retain their original pass context; they are not instructions to reapply sets 01–05.
 
 1. Send `01-forward.sql`, `01-verify.sql` and `01-rollback.sql` to the planning assistant for a disposable mock test. Test a clean forward/verify/rollback round trip and failing-precondition runs; failures must leave schema, grants and data unchanged. Test populated-table rollback refusal and the explicit destructive override only on the mock.
 2. **Judd takes a manual Supabase CLI export first**, stored privately outside this repo. Keep weekly exports and take one before every later SQL set. A restore rehearsal on an isolated target is required before public activation. Keep exports private: they may contain credential hashes and token digests.
@@ -37,9 +90,11 @@ Verification includes actual effective browser-role ACLs, column ACLs, required 
 
 ## Rollback
 
-Disable account operations first. For an application-only emergency, prefer `names-only` to retain claimed-name protection; set `off` before removing the account schema. Reverse later SQL sets in descending order before set 01. Keep legitimate game/session KV records and independent index maintenance intact.
+1. **Emergency:** first set `ACCOUNTS_MODE=names-only` under 25 November amendment 4. Sign-in/claim and streak routes are dormant, claimed names stay protected and existing games keep session authority. Remembered owners see the "couldn't reach your account" outage note and can play under another name. Historical off-first emergency wording is superseded by amendment 4.
+2. **Fix forward where possible:** retain data/schema while repairing the service. A mode switch is neither a schema rollback nor a backup.
+3. **Full schema rollback, only if Judd chooses it:** take/confirm a private backup → set `ACCOUNTS_MODE=off` → ensure deployed client/server code will not call removed routines → reverse **05 → 04 → 03 → 02 → 01**, respecting every guard. Set 05 refuses populated runs/imports; restore from backup instead of bypassing it. Never use set 01's destructive override as an activation recipe. SQL reversal cannot rebuild accounts, credentials, counts or consumed anchors. Keep legitimate game/session/history KV rows and independent index maintenance intact. In `off`, guests can use claimed names; coordinate new-entry restriction during full rollback.
 
-Paste the entire `01-rollback.sql` as one run. All preconditions execute before any changes; it locks/checks every account table and refuses if any has rows. There is one commented `allow_account_data_loss := true;` line inside the guard. **Uncommenting it explicitly permits destruction of all account rows**, including credentials, ownership, preferences, remembered tokens, links, moderation data/counters and owner events. Export first; the schema rollback does not restore that data. Unexpected external dependencies still fail with RESTRICT.
+For the final set-01 reversal only, after all later sets have been removed, paste the entire `01-rollback.sql` as one run. All preconditions execute before any changes; it locks/checks every account table and refuses if any has rows. **Historical set-01 guard detail, not an activation recipe:** its commented `allow_account_data_loss := true;` override explicitly permits destruction of all account rows, including credentials, ownership, preferences, remembered tokens, links, moderation data/counters and owner events. Do not enable it for activation recovery. Restore the private backup instead; schema rollback does not restore that data. Unexpected external dependencies still fail with RESTRICT.
 
 Rollback recreates the empty stub's four columns, three constraints/indexes, two policies and inventoried default grants (`SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER` to anon/authenticated/service_role). It does not recreate a deleted Auth user.
 
@@ -97,7 +152,7 @@ Exercise real concurrent same-name claims, first-link races between accounts, sa
 
 ### Set 02 rollback
 
-Set mode off first and reverse later account sets. Run the entire 02-rollback.sql, which refuses missing/unexpected signatures or later-set functions and drops exactly set 02 functions with RESTRICT. It preserves every table, row and table grant. Unexpected external dependencies abort the transaction; never use CASCADE to bypass them.
+For full SQL reversal only, follow the backup → `off` → compatible-code → 05-to-01 order in [Rollback](#rollback); an application emergency uses `names-only` first. After later sets are reversed, run the entire 02-rollback.sql, which refuses missing/unexpected signatures or later-set functions and drops exactly set 02 functions with RESTRICT. It preserves every table, row and table grant. Unexpected external dependencies abort the transaction; never use CASCADE to bypass them.
 
 Stage-a unit tests use cached dependencies and no runtime network permission. Their transactional/SQL guarantees remain subject to the separate PostgreSQL mock and owner verification.
 
@@ -196,7 +251,7 @@ For the separate mock, test forward/seed/verify/rollback/reapply, seed reruns wi
 
 **22C.3a local validation:** deno task check PASS; the fifteen test files above PASS, 70 tests and zero failures, with deterministic saved-output comparisons. Generator emitted 1,096 rows / 223,794 SQL bytes. git diff --check PASS for authored work; the staged check reports 25 original whitespace-only lines in the supplied gist snapshot, preserved byte-for-byte. The staged check excluding only that snapshot passes. Existing ignored Deno compiler-option warnings remain. Live-integration flag was unset; no database/local-live/deployment was used.
 
-Disable account operations and reverse later sets before `03-rollback.sql`. It removes generated seeds, the four new functions, masking column/constraints and the two set 03-only global counter scopes. It retains replay/other counters until expiry and restores set 02's checker verbatim. It refuses retained owner/other rules using safe substrings or wildcard keys; remove/review those dependencies explicitly first. Unexpected external dependencies abort through RESTRICT.
+For full SQL reversal, follow [Rollback](#rollback): backup → `off` → compatible code → reverse later sets before `03-rollback.sql`. An application emergency uses `names-only` first. It removes generated seeds, the four new functions, masking column/constraints and the two set 03-only global counter scopes. It retains replay/other counters until expiry and restores set 02's checker verbatim. It refuses retained owner/other rules using safe substrings or wildcard keys; remove/review those dependencies explicitly first. Unexpected external dependencies abort through RESTRICT.
 
 
 ## Set 04 — 22C.4 preferences and owner operations
@@ -220,6 +275,8 @@ Disable account operations and reverse later sets before `03-rollback.sql`. It r
 - GET and PUT use the existing account_token/unknown-IP admission scopes. LA13 adds one shared preferences_global ceiling of 1,200/minute. The 120/token/minute limit remains effective within that ceiling.
 
 ### Owner SQL-editor operations
+
+The lookup/block/unblock/revoke/reset contracts below retain the set-04 delivery context. Current maintenance/deletion guidance and complete set-05 results are consolidated in [Current owner routines (set 05)](#current-owner-routines-set-05).
 
 Replace every placeholder before running. Each block produces one SELECT result. Notes must be nonempty and at most 500 characters; never paste credentials or personal recovery conversations into a note. Lookup returns no credential data. Lookup/mutation missing-account errors are P2240; stale expected versions are P2241; invalid owner inputs are P2242. Reset on blocked status returns P2201. Owner UUID and version checks occur under locks; errors roll back the entire operation. Development cleanup intentionally reports missing UUIDs instead of failing for them.
 
@@ -283,22 +340,7 @@ deno cache --no-config --no-lock --node-modules-dir=none npm:hash-wasm@4.12.0
 
 This downloads only into the global Deno cache; it does not run the generator or change the repository lockfile/node_modules. The generator itself remains offline and permission-free.
 
-Bounded cleanup retains tokens until expiry or revocation is **more than seven days old**. It removes at most 100 old detached/dead-token links, then at most 100 eligible tokens with no remaining links; thus token FK cascades cannot bypass the row bound. It calls account_cleanup_rate_limits() for at most 100 expired counter/replay rows and preserves replay/expiry margins. Repeat while eligible counts remain; locked rows may require a later batch. It records cleanup and returns tokensDeleted, linksDeleted, rateLimitsDeleted, matching RemainingEligible counts and eventId.
-
-~~~sql
-SELECT public.account_owner_cleanup('REPLACE_WITH_CLEANUP_NOTE') AS outcome;
-~~~
-
-Pre-launch cleanup is destructive and explicit: review **1-20 UUIDs**, never a name pattern. Empty/NULL/multidimensional/oversized arrays and NULL elements fail; duplicates are normalized after the raw 20-entry cap. Found accounts are revoked then deleted with credentials, preferences, tokens, links and their owner events. Missing UUIDs are reported; nonselected accounts and every game/session KV row remain intact. One accountless cleanup event survives.
-
-~~~sql
-SELECT public.account_owner_delete_development_accounts(
-  ARRAY['REPLACE_WITH_REVIEWED_ACCOUNT_UUID_1','REPLACE_WITH_REVIEWED_ACCOUNT_UUID_2']::uuid[],
-  'REPLACE_WITH_PRELAUNCH_CLEANUP_NOTE'
-) AS outcome;
-~~~
-
-Expect deletedAccountIds, missingAccountIds, accountsDeleted, credentialsDeleted, preferencesDeleted, tokensDeleted, linksDeleted, ownerEventsDeleted and eventId. Keep the returned UUID list with the private operational record.
+Set 05 supersedes the original set-04 maintenance/deletion bodies and result fields. Use [Current owner routines (set 05)](#current-owner-routines-set-05) for lookup, bounded cleanup, explicit development-account deletion and the activation cleanup order. The password-reset procedure above retains its own contract.
 
 ### PostgreSQL 17.6 mock acceptance
 
@@ -313,7 +355,7 @@ Run all scenarios only on a disposable database:
 
 ### Set 04 rollback and remaining evidence
 
-Disable account operations first, reverse later sets, and **back up first**. Run the entire 04-rollback.sql as postgres. It checks 04-verify, the exact ten added/replaced function bodies and existing privileges/configuration, then locks counters and refuses any preferences_global rows. It restores set 03's limiter and constraint verbatim and drops the nine new routines with RESTRICT; it deletes no data. Owner mutations already performed, changed preferences and guest-renewal KV fields are retained. Restoring an old password or deleted account requires the private backup; schema rollback cannot reconstruct them.
+For full SQL reversal, follow [Rollback](#rollback): backup → `off` → compatible code → reverse set 05 before set 04, then 03 → 02 → 01. An application emergency uses `names-only` first. Run the entire 04-rollback.sql as postgres. It checks 04-verify, the exact ten added/replaced function bodies and existing privileges/configuration, then locks counters and refuses any preferences_global rows. It restores set 03's limiter and constraint verbatim and drops the nine new routines with RESTRICT; it deletes no data. Owner mutations already performed, changed preferences and guest-renewal KV fields are retained. Restoring an old password or deleted account requires the private backup; schema rollback cannot reconstruct them.
 
 Guest renewal is Edge-only and independent of account mode/SQL. Non-due accepted intents use zero extra database operations; due attempts use at most token read + CAS + mirror read + CAS, with no retries. Token and mirror writes are separate; the token is authoritative and mirror failure is best effort. Judd chose to preserve the current reducer's rejection of spectator chat (PLAYER_NOT_ACTIVE); rejected chat does not renew. Any accepted spectator intent uses the same hook. Full API/client obligations are in addendum §2.16 and the pass record in main-plan §15.
 

@@ -16,13 +16,16 @@ The current package is practical rather than perfectly clean. Route handlers, `e
 
 ## Current route families
 
-### Session and auth surfaces
-The server currently exposes session-backed entry points through `routes/auth_routes.ts` and `index.tsx`.
+### Session and account surfaces
+Game sessions continue through `routes/auth_routes.ts` and `index.tsx`: they mint session tokens and resolve session metadata. Game requests retain their existing session authority.
 
-These surfaces are responsible for:
-- minting session tokens
-- resolving session metadata
-- supporting the current session-only alpha posture
+Username/password accounts use `/accounts/*` in `routes/account_routes.ts`, gated by `ACCOUNTS_MODE`:
+
+- `off`: account routes are dormant and game entry does not read account tables or protect claimed names.
+- `names-only`: account sign-in/claim and streak routes are dormant, while game entry retains name-rule and claimed-name enforcement. Existing games keep session authority. This is the first emergency-disable mode under 25 November amendment 4; `off` is used before SQL rollback.
+- `on`: username/password account operations and account streak routes are enabled, with server-validated account identity.
+
+The legacy `/signup` route remains deliberately disabled compatibility scaffolding. Its unchanged disabled response is not a switch for enabling username accounts; use the `/accounts/*` implementation and `ACCOUNTS_MODE`.
 
 ### Game lifecycle and state-read surfaces
 `routes/game_routes.ts` currently owns the main game lifecycle and read-model surfaces.
