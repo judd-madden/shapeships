@@ -286,7 +286,7 @@ A compact set/list of stable Finding IDs is sufficient.
 Conceptually:
 
 ```json
-["mintaka", "betelgeuse", "delta-aquarii"]
+["groombridge", "betelgeuse", "delta-aquarii"]
 ```
 
 Do not store:

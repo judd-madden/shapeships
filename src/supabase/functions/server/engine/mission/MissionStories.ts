@@ -43,12 +43,12 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     id: "mission-human-v-xenite-save-colonies",
     playerSpecies: "human",
     opponentSpecies: "xenite",
-    findingIds: ["mintaka"],
+    findingIds: ["groombridge"],
     title: "Save Our Colonies from Xenite Invasion",
-    location: "Mintaka system",
+    location: "Groombridge system",
     author: "juddly",
     paragraphs: [
-      "We have detected a Xenite cluster moving against Mintaka. This is a crucial Human system, with mining and civilian colonies. The vast Xenite mind is ruthless and must be stopped. Millions of innocent lives are in your hands, [player].",
+      "We have detected a Xenite cluster moving against Groombridge. This is a crucial Human system, with mining and civilian colonies. The vast Xenite mind is ruthless and must be stopped. Millions of innocent lives are in your hands, [player].",
     ],
   },
   {
@@ -79,12 +79,12 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     id: "mission-xenite-v-human-reclaim-purify",
     playerSpecies: "xenite",
     opponentSpecies: "human",
-    findingIds: ["mintaka"],
+    findingIds: ["groombridge"],
     title: "Reclaim and Purify",
-    location: "Mintaka system",
+    location: "Groombridge system",
     author: "juddly",
     paragraphs: [
-      "The Mintaka system is infected. Humans tear it apart for metal. I must reclaim what was always mine.\n- XAMEHBZ",
+      "The Groombridge system is infected. Humans tear it apart for metal. I must reclaim what was always mine.\n- XAMEHBZ",
     ],
   },
   {

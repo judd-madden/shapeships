@@ -24,8 +24,12 @@ export function isMissionFindingUnlocked(
   finding: MissionFindingUnlockDefinition,
   completedFindingIds: ReadonlySet<string>,
 ): boolean {
+  // Retired session records and late results expire without an alias or migration.
+  if (finding.id === 'mintaka') return false;
   const requiredFindingIds = finding.requiredFindingIds ?? [finding.id];
-  return requiredFindingIds.every((findingId) => completedFindingIds.has(findingId));
+  return requiredFindingIds.every((findingId) =>
+    findingId !== 'mintaka' && completedFindingIds.has(findingId)
+  );
 }
 
 export function didUnlockAnyMissionFinding(
@@ -34,6 +38,7 @@ export function didUnlockAnyMissionFinding(
 ): boolean {
   const unlockedSingleIdFinding = Array.from(completedFindingIds).some(
     (findingId) =>
+      findingId !== 'mintaka' &&
       !previousCompletedFindingIds.has(findingId) && !groupedFindingIds.has(findingId),
   );
   if (unlockedSingleIdFinding) return true;

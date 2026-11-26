@@ -228,7 +228,7 @@ Deno.test("/game-state strips canonical assignment and projects Mission only to 
   assert.equal(human.requester.missionChallenge.mission.year, 2814);
   assert.equal(human.requester.missionChallenge.mission.author, "juddly");
   assert.deepEqual(human.requester.missionChallenge.mission.findingIds, [
-    "mintaka",
+    "groombridge",
   ]);
   assert.ok(human.requester.missionChallenge.mission.paragraphs.length > 0);
   assert.equal(human.requester.missionChallenge.introPending, true);

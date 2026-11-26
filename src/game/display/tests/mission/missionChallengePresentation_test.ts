@@ -78,7 +78,7 @@ for (const showChallengeAction of [false, true]) {
 }
 
 Deno.test('formats only a trailing Mission system suffix', () => {
-  assertEquals(formatMissionSystem('Mintaka system'), 'Mintaka');
+  assertEquals(formatMissionSystem('Groombridge system'), 'Groombridge');
   assertEquals(formatMissionSystem('Proxima Centauri SYSTEM'), 'Proxima Centauri');
   assertEquals(formatMissionSystem('[unknown]'), '[unknown]');
 });

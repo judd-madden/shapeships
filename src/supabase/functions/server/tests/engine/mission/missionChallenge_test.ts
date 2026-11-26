@@ -26,10 +26,10 @@ const MATCHUPS: Array<[MissionSpecies, MissionOpponentSpecies, string[][]]> = [
     "human",
     [["sol-1", "rebel-alliance-human"], ["barnards-star"]],
   ],
-  ["human", "xenite", [["mintaka"]]],
+  ["human", "xenite", [["groombridge"]]],
   ["human", "centaur", [["delta-aquarii"]]],
   ["human", "ancient", [["ancient-mysteries-human"]]],
-  ["xenite", "human", [["mintaka"]]],
+  ["xenite", "human", [["groombridge"]]],
   ["xenite", "xenite", [["betelgeuse"]]],
   ["xenite", "centaur", [["gamma-leporis"]]],
   ["xenite", "ancient", [["ancient-mysteries-xenite"]]],
@@ -212,7 +212,7 @@ Deno.test("Mission registry has the canonical directional content and Finding co
       "betelgeuse",
       "delta-aquarii",
       "gamma-leporis",
-      "mintaka",
+      "groombridge",
       "proxima-centauri",
       "rebel-alliance-centaur",
       "rebel-alliance-human",
@@ -221,7 +221,7 @@ Deno.test("Mission registry has the canonical directional content and Finding co
     ],
   );
   assert.ok(
-    MISSION_STORIES.filter((mission) => mission.findingIds.includes("mintaka"))
+    MISSION_STORIES.filter((mission) => mission.findingIds.includes("groombridge"))
       .length > 1,
   );
   assert.equal(
@@ -235,10 +235,10 @@ Deno.test("Mission registry has the canonical directional content and Finding co
     mission.id === "mission-xenite-v-human-reclaim-purify"
   );
   assert.equal(reclaim?.title, "Reclaim and Purify");
-  assert.equal(reclaim?.location, "Mintaka system");
+  assert.equal(reclaim?.location, "Groombridge system");
   assert.equal(
     reclaim?.paragraphs[0],
-    "The Mintaka system is infected. Humans tear it apart for metal. I must reclaim what was always mine.\n- XAMEHBZ",
+    "The Groombridge system is infected. Humans tear it apart for metal. I must reclaim what was always mine.\n- XAMEHBZ",
   );
   const response = MISSION_STORIES.find((mission) =>
     mission.id === "mission-xenite-v-centaur-respond-arrogance"

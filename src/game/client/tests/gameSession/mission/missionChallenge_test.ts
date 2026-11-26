@@ -35,10 +35,10 @@ function requesterState(overrides: Record<string, unknown> = {}) {
           id: 'mission-h-x',
           year: 2814,
           title: 'The Signal',
-          location: 'Mintaka',
+          location: 'Groombridge',
           author: 'juddly',
           paragraphs: ['Commander [player], respond.', 'Second paragraph.'],
-          findingIds: ['mintaka', 'rebel-alliance', 'mintaka'],
+          findingIds: ['groombridge', 'rebel-alliance', 'groombridge'],
         },
         challenge: { shipDefId: 'DEF', condition: 'with' },
         introPending: true,
@@ -83,10 +83,10 @@ Deno.test('normalizes only the requester Mission DTO and preserves authored data
     id: 'mission-h-x',
     year: 2814,
     title: 'The Signal',
-    location: 'Mintaka',
+    location: 'Groombridge',
     author: 'juddly',
     paragraphs: ['Commander [player], respond.', 'Second paragraph.'],
-    findingIds: ['mintaka', 'rebel-alliance'],
+    findingIds: ['groombridge', 'rebel-alliance'],
   });
   assertEquals(normalized.challenge, { shipDefId: 'DEF', condition: 'with' });
   assert(normalized.introPending === true);
@@ -164,7 +164,7 @@ Deno.test('rejects malformed core DTO fields', () => {
         ...requesterState().requester.missionChallenge,
         mission: {
           ...requesterState().requester.missionChallenge.mission,
-          findingIds: ['mintaka', ''],
+          findingIds: ['groombridge', ''],
         },
       },
     },
@@ -274,7 +274,7 @@ Deno.test('Mission Finding completion consumes only authoritative Mission succes
   assertEquals(getCompletedMissionFindingIds(reopenedMission), []);
   assertEquals(
     getCompletedMissionFindingIds(successfulMissionWithFailedChallenge),
-    ['mintaka', 'rebel-alliance'],
+    ['groombridge', 'rebel-alliance'],
   );
   assertEquals(
     getCompletedMissionFindingIds(failedMissionWithSuccessfulChallenge),

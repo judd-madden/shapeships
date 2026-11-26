@@ -19,6 +19,9 @@ export interface MissionFinding {
   id: string;
   requiredFindingIds?: readonly string[];
   topic: string;
+  distanceLabel?: string;
+  matchups: readonly (readonly SpeciesLoreId[])[];
+  locations?: readonly { name: string; distanceLabel?: string }[];
   author: string;
   content: ReactNode;
 }
@@ -108,18 +111,24 @@ export const missionFindings: readonly MissionFinding[] = [
   {
     id: 'barnards-star',
     topic: "Barnard's Star",
+    distanceLabel: '6 ly',
+    matchups: [['human', 'human']],
     author: 'juddly',
     content: <p>Humans have control of the red dwarf <em>Barnard's Star</em>. Pirates still exist.</p>,
   },
   {
     id: 'sol-1',
     topic: 'Sol',
+    distanceLabel: '0 ly',
+    matchups: [['human', 'human']],
     author: 'juddly',
     content: <p>Human Rebels have a base on <em>Neptune</em>.</p>,
   },
   {
     id: 'proxima-centauri',
     topic: 'Proxima Centauri',
+    distanceLabel: '4 ly',
+    matchups: [['centaur', 'centaur']],
     author: 'juddly',
     content: <p>Centaur Rebels have a base in the <em>Proxima Centauri</em> system.</p>,
   },
@@ -127,47 +136,61 @@ export const missionFindings: readonly MissionFinding[] = [
     id: 'rebel-alliance',
     requiredFindingIds: MULTI_MISSION_FINDING_REQUIREMENTS['rebel-alliance'],
     topic: 'Rebel Alliance',
+    matchups: [['human', 'human'], ['centaur', 'centaur']],
+    locations: [{ name: 'Sol', distanceLabel: '0 ly' }, { name: 'Proxima Centauri', distanceLabel: '4 ly' }],
     author: 'juddly',
     content: <p>There is a coalition of Human and Centaur Rebels who want to join forces against the Xenites.</p>,
   },
   {
-    id: 'mintaka',
-    topic: 'Mintaka',
+    id: 'groombridge',
+    topic: 'Groombridge',
+    distanceLabel: '12 ly',
+    matchups: [['human', 'xenite']],
     author: 'juddly',
     content: (
       <p>
-        There are Human colonies in the <em>Mintaka</em> system. Xenites are ‘reclaiming’ them.
+        There are Human colonies in the <em>Groombridge</em> system. Xenites are ‘reclaiming’ them.
       </p>
     ),
   },
   {
     id: 'betelgeuse',
     topic: 'Betelgeuse',
+    distanceLabel: '~550 ly',
+    matchups: [['xenite', 'xenite']],
     author: 'juddly',
     content: <p>Xenite colonies can mutate. There is a current mutation near the red supergiant <em>Betelgeuse</em>.</p>,
   },
   {
     id: 'gamma-leporis',
     topic: 'Gamma Leporis',
+    distanceLabel: '29 ly',
+    matchups: [['xenite', 'centaur']],
     author: 'juddly',
     content: <p>Xenites and Centaurs are at war over the <em>Gamma Leporis</em> system.</p>,
   },
   {
     id: 'delta-aquarii',
     topic: 'Delta Aquarii',
+    distanceLabel: '113 ly',
+    matchups: [['human', 'centaur']],
     author: 'juddly',
     content: <p>Humans are taking the <em>Delta Aquarii</em> system from the Centaurs.</p>,
   },
   {
     id: 'ancient-mysteries',
     requiredFindingIds: MULTI_MISSION_FINDING_REQUIREMENTS['ancient-mysteries'],
-    topic: 'Sol, Epsilon Eridani, Unknown',
+    topic: 'Ancient Mysteries',
+    matchups: [['ancient', 'human', 'xenite', 'centaur']],
+    locations: [{ name: 'Sol', distanceLabel: '0 ly' }, { name: 'Epsilon Eridani', distanceLabel: '11 ly' }, { name: 'Unknown' }],
     author: 'juddly',
     content: <p>The Ancients are openly involved in conflicts with Humans, Xenites and Centaurs across multiple systems.</p>,
   },
   {
     id: 'tau-ceti',
     topic: 'Tau Ceti',
+    distanceLabel: '12 ly',
+    matchups: [['ancient', 'ancient']],
     author: 'juddly',
     content: <p>The Watcher Ancients are non-interventionists who oppose Ancient involvement in the galactic war.</p>,
   },

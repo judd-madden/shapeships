@@ -440,9 +440,9 @@ The initial 12 Mission stories use the following canonical mapping:
 | Directional matchup | Finding IDs |
 |---|---|
 | Human v Human | `sol-1`, `rebel-alliance` |
-| Human v Xenite | `mintaka` |
+| Human v Xenite | `groombridge` |
 | Human v Centaur | `delta-aquarii` |
-| Xenite v Human | `mintaka` |
+| Xenite v Human | `groombridge` |
 | Xenite v Xenite | `betelgeuse` |
 | Xenite v Centaur | `gamma-leporis` |
 | Centaur v Human | `delta-aquarii` |

@@ -17,6 +17,10 @@ import {
   writeMinimizeMissionsThisSession,
   type StorageLike,
 } from '../../../gameSession/mission/missionChallengeSession';
+import {
+  didUnlockAnyMissionFinding,
+  isMissionFindingUnlocked,
+} from '../../../gameSession/mission/missionFindingUnlocks';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
   if (!condition) throw new Error(message);
@@ -50,6 +54,25 @@ const throwingStorage: StorageLike = {
     throw new Error('blocked');
   },
 };
+
+Deno.test('retired Mintaka records and late results cannot unlock Findings or mark Lore unread', () => {
+  const storage = new FakeStorage();
+  storage.values.set(MISSION_FINDINGS_COMPLETED_STORAGE_KEY, JSON.stringify(['mintaka']));
+  assert(!isMissionFindingUnlocked({ id: 'groombridge' }, new Set(readCompletedMissionFindingIds(storage))));
+  assert(!isMissionFindingUnlocked({ id: 'mintaka' }, new Set(['mintaka'])));
+  assert(!didUnlockAnyMissionFinding(new Set(), new Set(['mintaka'])));
+  assert(!recordCompletedMissionFindingIds(['mintaka'], storage).didUnlockMissionFinding);
+  assert(!readLoreUnread(storage));
+
+  const lateResultStorage = new FakeStorage();
+  assert(!recordCompletedMissionFindingIds(['mintaka'], lateResultStorage).didUnlockMissionFinding);
+  assert(!readLoreUnread(lateResultStorage));
+  assert(recordCompletedMissionFindingIds(['groombridge', 'mintaka'], lateResultStorage).didUnlockMissionFinding);
+  assert(readLoreUnread(lateResultStorage));
+  clearLoreUnread(lateResultStorage);
+  assert(!recordCompletedMissionFindingIds(['groombridge'], lateResultStorage).didUnlockMissionFinding);
+  assert(!readLoreUnread(lateResultStorage));
+});
 
 Deno.test('Minimize Missions defaults safely and uses its dedicated versioned key', () => {
   const storage = new FakeStorage();
@@ -86,22 +109,22 @@ Deno.test('Mission Findings read empty and add flat unique IDs deterministically
   );
   assertEquals(
     recordCompletedMissionFindingIds(
-      ['sol-1', 'rebel-alliance-human', 'mintaka'],
+      ['sol-1', 'rebel-alliance-human', 'groombridge'],
       storage,
     ),
     {
-      completedFindingIds: ['rebel-alliance-human', 'sol-1', 'mintaka'],
+      completedFindingIds: ['rebel-alliance-human', 'sol-1', 'groombridge'],
       didUnlockMissionFinding: true,
     },
   );
   assertEquals(readCompletedMissionFindingIds(storage), [
     'rebel-alliance-human',
     'sol-1',
-    'mintaka',
+    'groombridge',
   ]);
   assertEquals(
     JSON.parse(storage.values.get(MISSION_FINDINGS_COMPLETED_STORAGE_KEY) ?? 'null'),
-    ['rebel-alliance-human', 'sol-1', 'mintaka'],
+    ['rebel-alliance-human', 'sol-1', 'groombridge'],
   );
 });
 
@@ -109,7 +132,7 @@ Deno.test('Mission Findings do not migrate the old visibility-based session key'
   const storage = new FakeStorage();
   storage.values.set(
     'shapeships.missionFindingsSeen.v1',
-    JSON.stringify(['mintaka']),
+    JSON.stringify(['groombridge']),
   );
 
   assertEquals(readCompletedMissionFindingIds(storage), []);
@@ -123,9 +146,9 @@ Deno.test('Mission Findings ignore invalid IDs and malformed stored JSON', () =>
   storage.values.set(MISSION_FINDINGS_COMPLETED_STORAGE_KEY, '{bad json');
   assertEquals(readCompletedMissionFindingIds(storage), []);
   assertEquals(
-    recordCompletedMissionFindingIds(['', '   ', 'mintaka', 'mintaka'], storage),
+    recordCompletedMissionFindingIds(['', '   ', 'groombridge', 'groombridge'], storage),
     {
-      completedFindingIds: ['mintaka'],
+      completedFindingIds: ['groombridge'],
       didUnlockMissionFinding: true,
     },
   );
@@ -140,12 +163,12 @@ Deno.test('Mission Findings ignore invalid IDs and malformed stored JSON', () =>
 Deno.test('Mission Findings tolerate unavailable and throwing storage', () => {
   assertEquals(readCompletedMissionFindingIds(null), []);
   assertEquals(readCompletedMissionFindingIds(throwingStorage), []);
-  assertEquals(recordCompletedMissionFindingIds(['mintaka'], null), {
-    completedFindingIds: ['mintaka'],
+  assertEquals(recordCompletedMissionFindingIds(['groombridge'], null), {
+    completedFindingIds: ['groombridge'],
     didUnlockMissionFinding: false,
   });
-  assertEquals(recordCompletedMissionFindingIds(['mintaka'], throwingStorage), {
-    completedFindingIds: ['mintaka'],
+  assertEquals(recordCompletedMissionFindingIds(['groombridge'], throwingStorage), {
+    completedFindingIds: ['groombridge'],
     didUnlockMissionFinding: false,
   });
 });
@@ -205,8 +228,8 @@ Deno.test('Lore unread defaults safely and only accepts true', () => {
 Deno.test('Lore unread follows newly unlocked completed Mission Findings', () => {
   const storage = new FakeStorage();
 
-  assertEquals(recordCompletedMissionFindingIds(['mintaka'], storage), {
-    completedFindingIds: ['mintaka'],
+  assertEquals(recordCompletedMissionFindingIds(['groombridge'], storage), {
+    completedFindingIds: ['groombridge'],
     didUnlockMissionFinding: true,
   });
   assert(readLoreUnread(storage) === true);
@@ -217,8 +240,8 @@ Deno.test('Lore unread follows newly unlocked completed Mission Findings', () =>
   clearLoreUnread(storage);
   assert(readLoreUnread(storage) === false);
 
-  assertEquals(recordCompletedMissionFindingIds(['mintaka'], storage), {
-    completedFindingIds: ['mintaka', 'ancient-mysteries-human'],
+  assertEquals(recordCompletedMissionFindingIds(['groombridge'], storage), {
+    completedFindingIds: ['groombridge', 'ancient-mysteries-human'],
     didUnlockMissionFinding: false,
   });
   assert(readLoreUnread(storage) === false);
@@ -230,7 +253,7 @@ Deno.test('Lore unread follows newly unlocked completed Mission Findings', () =>
   assert(readLoreUnread(storage) === true);
 
   assertEquals(readCompletedMissionFindingIds(storage), [
-    'mintaka',
+    'groombridge',
     'ancient-mysteries-human',
     'ancient-mysteries-centaur',
     'ancient-mysteries-xenite',
@@ -287,12 +310,12 @@ Deno.test('Lore unread ignores inputs that do not grow the normalized completed 
   const storage = new FakeStorage();
   storage.values.set(
     MISSION_FINDINGS_COMPLETED_STORAGE_KEY,
-    JSON.stringify(['mintaka']),
+    JSON.stringify(['groombridge']),
   );
 
-  recordCompletedMissionFindingIds(['', '   ', 'mintaka', 'mintaka'], storage);
+  recordCompletedMissionFindingIds(['', '   ', 'groombridge', 'groombridge'], storage);
   assert(readLoreUnread(storage) === false);
-  assertEquals(readCompletedMissionFindingIds(storage), ['mintaka']);
+  assertEquals(readCompletedMissionFindingIds(storage), ['groombridge']);
 });
 
 Deno.test('Lore unread remains safe with unavailable and throwing storage', () => {
@@ -319,9 +342,9 @@ Deno.test('Lore unread is not written when the completed-ID write fails', () => 
   };
 
   assertEquals(
-    recordCompletedMissionFindingIds(['mintaka'], completedWriteThrowingStorage),
+    recordCompletedMissionFindingIds(['groombridge'], completedWriteThrowingStorage),
     {
-      completedFindingIds: ['mintaka'],
+      completedFindingIds: ['groombridge'],
       didUnlockMissionFinding: false,
     },
   );
