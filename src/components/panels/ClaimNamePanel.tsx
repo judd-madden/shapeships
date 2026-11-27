@@ -85,13 +85,13 @@ export function ClaimNamePanel({ currentName, actions, onClaimed }: ClaimNamePan
 
   return (
     <section className="flex w-full flex-col gap-[32px] text-white md:gap-[56px]" aria-labelledby={`${id}-heading`}>
-      <div className="flex items-start justify-center gap-[10px] md:justify-start">
+      <div className="mx-auto grid w-full max-w-[520px] grid-cols-[auto_minmax(0,1fr)] items-center gap-x-[10px] gap-y-[12px] md:mx-0 md:flex md:max-w-none md:items-start md:gap-[10px]">
         <VerifiedUserIcon className="size-[36px] shrink-0 text-shapeships-pastel-purple sm:size-[48px]" />
-        <div className="flex min-w-0 flex-col gap-[16px] text-center md:text-left">
+        <div className="contents md:flex md:min-w-0 md:flex-col md:gap-[16px]">
           <h1 id={`${id}-heading`} className="text-[24px] font-black leading-[28px] sm:text-[36px] sm:leading-[42px]">
             Claim Your Name
           </h1>
-          <p className="text-[15px] font-normal leading-[18px] sm:text-[20px] sm:leading-[24px]">Only you can use your name. This creates a simple account.</p>
+          <p className="col-span-2 text-[15px] font-normal leading-[18px] sm:text-[20px] sm:leading-[24px]">Only you can use your name. This creates a simple account.</p>
         </div>
       </div>
       <div className="flex w-full flex-col items-center gap-[32px] md:ml-[58px] md:w-[calc(100%_-_58px)] md:items-start md:gap-[48px] xl:grid xl:max-w-[958px] xl:grid-cols-[minmax(300px,520fr)_2px_minmax(0,340fr)] xl:items-stretch xl:gap-x-[48px] xl:gap-y-0">

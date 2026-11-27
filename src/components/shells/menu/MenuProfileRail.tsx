@@ -62,7 +62,7 @@ function RailAction({
             setFocused(false);
           }
         }}
-        className={`flex max-w-[64px] flex-col items-center justify-center gap-[4px] text-center text-[14px] font-normal leading-[1.15] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-shapeships-pastel-purple min-[400px]:max-xl:max-w-none min-[400px]:max-xl:whitespace-nowrap md:text-[16px] xl:max-w-none xl:flex-row xl:gap-[6px] xl:text-[18px] ${inactive ? 'cursor-default' : 'cursor-pointer'} ${color}`}
+        className={`flex w-min flex-col items-center justify-center gap-[4px] text-center text-[14px] font-normal leading-[1.15] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-shapeships-pastel-purple min-[400px]:max-xl:w-auto min-[400px]:max-xl:whitespace-nowrap md:text-[16px] xl:w-auto xl:flex-row xl:gap-[6px] xl:text-[18px] ${inactive ? 'cursor-default' : 'cursor-pointer'} ${color}`}
       >
         <Icon className="size-[20px] shrink-0 md:size-[24px]" />
         <span>{label}</span>
@@ -113,12 +113,12 @@ export function MenuProfileRail({ identity, onChangeName, onLogout, onClaimName,
             </div>
           </div>
         </div>
-        <div className="relative grid min-h-[88px] grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] items-center rounded-b-[6px] bg-shapeships-grey-90 px-[20px] py-[16px] min-[400px]:max-xl:flex min-[400px]:max-xl:min-h-0 min-[400px]:max-xl:justify-evenly min-[400px]:max-xl:px-0 min-[400px]:max-xl:py-[18px] xl:ml-auto xl:flex xl:shrink-0 xl:rounded-b-none xl:rounded-r-[6px] xl:bg-transparent xl:px-[40px] xl:py-0">
+        <div className="relative flex min-h-[88px] items-center justify-evenly rounded-b-[6px] bg-shapeships-grey-90 py-[16px] min-[400px]:max-xl:min-h-0 min-[400px]:max-xl:py-[18px] xl:ml-auto xl:shrink-0 xl:justify-start xl:rounded-b-none xl:rounded-r-[6px] xl:bg-transparent xl:px-[40px] xl:py-0">
           <div className="flex items-center justify-center gap-[24px] xl:gap-[36px]">
             {claimed ? (
               <>
                 <RailAction label="Logout" icon={ExitToAppIcon} onClick={onLogout} />
-                <RailAction label="My Stats" icon={BarChartIcon} inactive color="text-shapeships-grey-50" tooltip="Stats coming soon" />
+                <RailAction label="My&nbsp;Stats" icon={BarChartIcon} inactive color="text-shapeships-grey-50" tooltip="Stats coming soon" />
               </>
             ) : (
               <>
