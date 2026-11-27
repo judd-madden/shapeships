@@ -35,6 +35,16 @@ export interface AccountPreferences {
   revision: string;
   updatedAt: string;
 }
+export interface AccountMissionProgress {
+  missions: string[];
+  findings: string[];
+}
+export const MISSION_PROGRESS_MAX_ENTRIES = 100;
+export const MISSION_PROGRESS_MAX_BYTES = 16384;
+export function isMissionProgressId(value: unknown): value is string {
+  return typeof value === "string" && value.length >= 1 && value.length <= 80 &&
+    /^[a-z0-9]/.test(value) && !/[^a-z0-9-]/.test(value);
+}
 export type PreferencePatch = Partial<PreferenceValues>;
 export type PreferenceUpdateResult =
   | { status: "updated"; preferences: AccountPreferences }
@@ -80,6 +90,13 @@ export interface AccountRepository {
   resume(tokenHash: Uint8Array, sessionId?: string): Promise<AccountEntry>;
   logout(tokenHash: Uint8Array): Promise<void>;
   getPreferences(tokenHash: Uint8Array): Promise<AccountPreferences>;
+  getMissionProgress(tokenHash: Uint8Array): Promise<AccountMissionProgress>;
+  addMissionProgress(
+    tokenHash: Uint8Array,
+    missions: string[],
+    findings: string[],
+  ): Promise<AccountMissionProgress>;
+  resetMissionProgress(tokenHash: Uint8Array): Promise<AccountMissionProgress>;
   updatePreferences(
     tokenHash: Uint8Array,
     patch: PreferencePatch,
@@ -373,6 +390,21 @@ function preferences(value: unknown): AccountPreferences {
   }
   return { values, revision: version(p.revision), updatedAt: iso(p.updatedAt) };
 }
+function missionProgress(value: unknown): AccountMissionProgress {
+  const row = object(value);
+  if (Object.keys(row).length !== 2) fault();
+  for (const key of ["missions", "findings"] as const) {
+    const list = row[key];
+    if (
+      !Array.isArray(list) || list.length > MISSION_PROGRESS_MAX_ENTRIES ||
+      !list.every(isMissionProgressId)
+    ) fault();
+  }
+  return {
+    missions: [...row.missions as string[]],
+    findings: [...row.findings as string[]],
+  };
+}
 function entry(value: unknown, sessionId?: string): AccountEntry {
   const row = object(value);
   const result: AccountEntry = {
@@ -507,6 +539,23 @@ export function createAccountRepository(
         }),
       );
       return preferences(row.preferences);
+    },
+    async getMissionProgress(hash) {
+      return missionProgress(await rpc("account_get_mission_progress", {
+        p_token_hash: bytea(hash),
+      }));
+    },
+    async addMissionProgress(hash, missions, findings) {
+      return missionProgress(await rpc("account_add_mission_progress", {
+        p_token_hash: bytea(hash),
+        p_missions: missions,
+        p_findings: findings,
+      }));
+    },
+    async resetMissionProgress(hash) {
+      return missionProgress(await rpc("account_reset_mission_progress", {
+        p_token_hash: bytea(hash),
+      }));
     },
     async updatePreferences(hash, patch, expectedRevision) {
       const row = object(

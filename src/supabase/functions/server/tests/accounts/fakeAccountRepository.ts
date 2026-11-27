@@ -4,6 +4,10 @@ import {
   type AccountIdentity,
   type AccountLink,
   type AccountPreferences,
+  type AccountMissionProgress,
+  isMissionProgressId,
+  MISSION_PROGRESS_MAX_BYTES,
+  MISSION_PROGRESS_MAX_ENTRIES,
   type AccountRepository,
   type ClaimInput,
   type CredentialSnapshot,
@@ -122,6 +126,7 @@ export class FakeAccountRepository implements AccountRepository {
   accounts = new Map<string, FakeAccount>();
   credentials = new Map<string, FakeCredential>();
   preferences = new Map<string, AccountPreferences>();
+  missionProgress = new Map<string, AccountMissionProgress>();
   tokens = new Map<string, FakeToken>();
   links = new Map<string, FakeLink>();
   rules: Rule[] = [];
@@ -325,6 +330,7 @@ export class FakeAccountRepository implements AccountRepository {
         updatedAt: new Date(this.now).toISOString(),
       });
       this.#step("claim.preferences");
+      tx.set(this.missionProgress, a.id, { missions: [], findings: [] });
       return this.#entry(
         tx,
         a,
@@ -409,6 +415,56 @@ export class FakeAccountRepository implements AccountRepository {
     if (!found) throw new AccountFault("ACCOUNT_TOKEN_INVALID");
     const { a } = this.#authorize(new Journal(), found.accountId, found.id);
     return structuredClone(this.preferences.get(a.id)!);
+  }
+  async getMissionProgress(hash: Uint8Array): Promise<AccountMissionProgress> {
+    const found = this.#token(hash);
+    if (!found) throw new AccountFault("ACCOUNT_TOKEN_INVALID");
+    const { a } = this.#authorize(new Journal(), found.accountId, found.id);
+    return structuredClone(this.missionProgress.get(a.id)!);
+  }
+  addMissionProgress(
+    hash: Uint8Array, missions: string[], findings: string[],
+  ): Promise<AccountMissionProgress> {
+    for (const list of [missions, findings]) {
+      if (
+        !Array.isArray(list) || list.length > MISSION_PROGRESS_MAX_ENTRIES ||
+        !list.every(isMissionProgressId)
+      ) return Promise.reject(new AccountFault("INVALID_REQUEST"));
+    }
+    const found = this.#token(hash);
+    if (!found) return Promise.reject(new AccountFault("ACCOUNT_TOKEN_INVALID"));
+    return this.#transaction("missions.add", ["account:" + found.accountId], (tx) => {
+      const { a } = this.#authorize(tx, found.accountId, found.id);
+      const current = tx.get(this.missionProgress, a.id)!;
+      const next = {
+        missions: [...new Set([...current.missions, ...missions])],
+        findings: [...new Set([...current.findings, ...findings])],
+      };
+      // PostgreSQL jsonb::text includes a space after each comma and colon.
+      // IDs are ASCII without escapes, so this matches the column's byte cap.
+      const jsonbText = JSON.stringify(next).replaceAll(",", ", ").replaceAll(
+        ":", ": ",
+      );
+      if (
+        next.missions.length > MISSION_PROGRESS_MAX_ENTRIES ||
+        next.findings.length > MISSION_PROGRESS_MAX_ENTRIES ||
+        jsonbText.length > MISSION_PROGRESS_MAX_BYTES
+      ) throw new AccountFault("INVALID_REQUEST");
+      if (JSON.stringify(next) !== JSON.stringify(current)) {
+        tx.set(this.missionProgress, a.id, next);
+      }
+      return next;
+    });
+  }
+  resetMissionProgress(hash: Uint8Array): Promise<AccountMissionProgress> {
+    const found = this.#token(hash);
+    if (!found) return Promise.reject(new AccountFault("ACCOUNT_TOKEN_INVALID"));
+    return this.#transaction("missions.reset", ["account:" + found.accountId], (tx) => {
+      const { a } = this.#authorize(tx, found.accountId, found.id);
+      const next = { missions: [], findings: [] };
+      tx.set(this.missionProgress, a.id, next);
+      return next;
+    });
   }
   updatePreferences(
     hash: Uint8Array,

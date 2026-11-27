@@ -8,6 +8,7 @@ Set 01 belongs to **22C.1, Server Pass**. These files are for Judd to paste into
 | --- | --- |
 | 01–04 | Existing account foundations, credentials, protection, preferences and owner operations; applied by Judd. |
 | 05 | 22D.1 account streaks: [forward](05-forward.sql), [single-SELECT verify](05-verify.sql), [empty-only rollback](05-rollback.sql). **Owner-reported:** Judd applied this live on 25 November 2026 after a private backup; verification PASS. It is used by the completed 22D.2 server/22D.3 client work. Planning-assistant PostgreSQL 17.6 evidence is recorded in the [Integration Review status](../../../src/documentation/plans/Phase%2022%20Addendum%20-%20Integration%20Review.md). Populated rollback refuses and requires backup restoration. |
+| 06 | 22F.1 account mission progress: [forward](06-forward.sql), [single-SELECT verify](06-verify.sql), [default-only rollback](06-rollback.sql). Delivered unapplied; PostgreSQL 17 and local-route acceptance remain with the planning assistant. One preferences column, three service-only RPCs; populated rollback refuses and requires backup restoration. |
 
 ## Current owner routines (set 05)
 
@@ -92,7 +93,7 @@ Verification includes actual effective browser-role ACLs, column ACLs, required 
 
 1. **Emergency:** first set `ACCOUNTS_MODE=names-only` under 25 November amendment 4. Sign-in/claim and streak routes are dormant, claimed names stay protected and existing games keep session authority. Remembered owners see the "couldn't reach your account" outage note and can play under another name. Historical off-first emergency wording is superseded by amendment 4.
 2. **Fix forward where possible:** retain data/schema while repairing the service. A mode switch is neither a schema rollback nor a backup.
-3. **Full schema rollback, only if Judd chooses it:** take/confirm a private backup → set `ACCOUNTS_MODE=off` → ensure deployed client/server code will not call removed routines → reverse **05 → 04 → 03 → 02 → 01**, respecting every guard. Set 05 refuses populated runs/imports; restore from backup instead of bypassing it. Never use set 01's destructive override as an activation recipe. SQL reversal cannot rebuild accounts, credentials, counts or consumed anchors. Keep legitimate game/session/history KV rows and independent index maintenance intact. In `off`, guests can use claimed names; coordinate new-entry restriction during full rollback.
+3. **Full schema rollback, only if Judd chooses it:** take/confirm a private backup → set `ACCOUNTS_MODE=off` → ensure deployed client/server code will not call removed routines → reverse **06 → 05 → 04 → 03 → 02 → 01** after set 06 is applied (otherwise start at 05), respecting every guard. Set 06 refuses non-default mission progress; set 05 refuses populated runs/imports. Restore from backup instead of bypassing either guard. Never use set 01's destructive override as an activation recipe. SQL reversal cannot rebuild accounts, credentials, counts or consumed anchors. Keep legitimate game/session/history KV rows and independent index maintenance intact. In `off`, guests can use claimed names; coordinate new-entry restriction during full rollback.
 
 For the final set-01 reversal only, after all later sets have been removed, paste the entire `01-rollback.sql` as one run. All preconditions execute before any changes; it locks/checks every account table and refuses if any has rows. **Historical set-01 guard detail, not an activation recipe:** its commented `allow_account_data_loss := true;` override explicitly permits destruction of all account rows, including credentials, ownership, preferences, remembered tokens, links, moderation data/counters and owner events. Do not enable it for activation recovery. Restore the private backup instead; schema rollback does not restore that data. Unexpected external dependencies still fail with RESTRICT.
 
@@ -152,7 +153,7 @@ Exercise real concurrent same-name claims, first-link races between accounts, sa
 
 ### Set 02 rollback
 
-For full SQL reversal only, follow the backup → `off` → compatible-code → 05-to-01 order in [Rollback](#rollback); an application emergency uses `names-only` first. After later sets are reversed, run the entire 02-rollback.sql, which refuses missing/unexpected signatures or later-set functions and drops exactly set 02 functions with RESTRICT. It preserves every table, row and table grant. Unexpected external dependencies abort the transaction; never use CASCADE to bypass them.
+For full SQL reversal only, follow the backup → `off` → compatible-code → latest-applied-set-to-01 order in [Rollback](#rollback); an application emergency uses `names-only` first. After later sets are reversed, run the entire 02-rollback.sql, which refuses missing/unexpected signatures or later-set functions and drops exactly set 02 functions with RESTRICT. It preserves every table, row and table grant. Unexpected external dependencies abort the transaction; never use CASCADE to bypass them.
 
 Stage-a unit tests use cached dependencies and no runtime network permission. Their transactional/SQL guarantees remain subject to the separate PostgreSQL mock and owner verification.
 
@@ -328,7 +329,7 @@ SELECT public.account_owner_sign_out_everywhere('REPLACE_WITH_ACCOUNT_UUID'::uui
 
 5. **Send the temporary password privately**, only after the SQL succeeds. Never paste the password into a note or SQL.
 
-6. **The player signs in with the temporary password**, receives PASSWORD_CHANGE_REQUIRED without an account token, and sets a new password through the forced change-password screen. **That 22B screen is not built yet: the generator is ready, but player recovery is not usable end to end until it exists.**
+6. **The player signs in with the temporary password**, receives PASSWORD_CHANGE_REQUIRED without an account token, and sets a new password through the forced change-password screen. **The screen was built in 22B.4; verify the complete recovery flow against the local function before the single deploy.**
 
 If the SQL returns P2241 / ACCOUNT_OWNER_STALE_SECURITY_VERSION, discard both output blocks and repeat the lookup and generator. Never reuse old output or edit its version to force it through.
 
@@ -355,8 +356,31 @@ Run all scenarios only on a disposable database:
 
 ### Set 04 rollback and remaining evidence
 
-For full SQL reversal, follow [Rollback](#rollback): backup → `off` → compatible code → reverse set 05 before set 04, then 03 → 02 → 01. An application emergency uses `names-only` first. Run the entire 04-rollback.sql as postgres. It checks 04-verify, the exact ten added/replaced function bodies and existing privileges/configuration, then locks counters and refuses any preferences_global rows. It restores set 03's limiter and constraint verbatim and drops the nine new routines with RESTRICT; it deletes no data. Owner mutations already performed, changed preferences and guest-renewal KV fields are retained. Restoring an old password or deleted account requires the private backup; schema rollback cannot reconstruct them.
+For full SQL reversal, follow [Rollback](#rollback): backup → `off` → compatible code → reverse set 06 if applied, then set 05 before set 04, then 03 → 02 → 01. An application emergency uses `names-only` first. Run the entire 04-rollback.sql as postgres. It checks 04-verify, the exact ten added/replaced function bodies and existing privileges/configuration, then locks counters and refuses any preferences_global rows. It restores set 03's limiter and constraint verbatim and drops the nine new routines with RESTRICT; it deletes no data. Owner mutations already performed, changed preferences and guest-renewal KV fields are retained. Restoring an old password or deleted account requires the private backup; schema rollback cannot reconstruct them.
 
 Guest renewal is Edge-only and independent of account mode/SQL. Non-due accepted intents use zero extra database operations; due attempts use at most token read + CAS + mirror read + CAS, with no retries. Token and mirror writes are separate; the token is authoritative and mirror failure is best effort. Judd chose to preserve the current reducer's rejection of spectator chat (PLAYER_NOT_ACTIVE); rejected chat does not renew. Any accepted spectator intent uses the same hook. Full API/client obligations are in addendum §2.16 and the pass record in main-plan §15.
 
 **22C.4 author validation:** deno task check PASS; all 86 offline server test files PASS, 833 tests plus 16 steps, zero failures; git diff --check PASS. Static SQL inventory and exact source-restoration checks PASS. PostgreSQL 17.6 execution remains pending with the planning assistant; no live/database/deployment action or commit was performed.
+
+## Set 06 — 22F.1 account mission progress
+
+**Server Pass; delivered unapplied.** Sets 01–05 are owner-reported applied. This package adds only `account_preferences.mission_progress`, its named CHECK, and three new functions. Existing SQL functions remain byte-identical. Existing preferences INSERTs use explicit columns and receive the default. Development-account deletion already cascades through the preferences row; bounded cleanup needs no change.
+
+### Owner apply order
+
+1. Judd zips the repository. The planning assistant tests the package on disposable PostgreSQL 17 and the mission routes against a local function, including LF/CRLF forward → verify → rollback → reapply, populated-rollback refusal, and real service-role RPCs through PostgREST.
+2. Judd takes the usual private export/backup before applying set 06.
+3. As postgres, paste the **whole** `06-forward.sql` in one run. It verifies exact set 05 and absent mission-progress objects, adds them in one transaction, and checks the final contract.
+4. Run the single SELECT in `06-verify.sql`; every row, including overall SET 06, must report PASS. It supersedes `05-verify.sql` while set 06 is present; the old verifier intentionally rejects the three extra functions.
+5. Retain `06-rollback.sql` with the backup and verification evidence. After a failed forward/rollback, run `rollback;` alone before further SQL. Continue with client pass 22F.2 only after owner application/verification. No interim deploy.
+
+### Contract and reversal
+
+- Storage is NOT NULL jsonb with default `{"missions":[],"findings":[]}`. `account_preferences_mission_progress_check` requires exactly those two array keys and at most 16384 bytes of jsonb text; it contains no subquery.
+- `account_get_mission_progress(p_token_hash bytea)`, `account_add_mission_progress(p_token_hash bytea,p_missions text[],p_findings text[])`, and `account_reset_mission_progress(p_token_hash bytea)` each return the progress object directly as jsonb. They are postgres-owned SECURITY INVOKER functions with empty search_path, two-second lock_timeout and service_role-only EXECUTE apart from the owner.
+- Get uses preference-read authority; add/reset use preference-update account/token/preference locks, name enforcement and the post-wait expiry check. They never renew tokens, bind sessions, change the five booleans, or touch preference revision/updated_at.
+- Add accepts non-null one-dimensional arrays (empty allowed), at most 100 raw entries each, with IDs matching `^[a-z0-9][a-z0-9-]{0,79}$`. Union retains existing order then input order, deduplicates, and rejects a merged list over 100 or object over 16384 bytes. No-op adds write nothing. Reset clears both lists. Input/limit failures use P2212 / ACCOUNT_INVALID_PREFERENCE_INPUT, mapped to INVALID_REQUEST.
+- Account-only GET `/accounts/missions/state`, POST `/accounts/missions/add` with optional `missions`/`findings` arrays (omitted means empty), and POST `/accounts/missions/reset` with empty body or `{}` use the existing function prefix. They require X-Account-Token, use preferences protection/rate admission, cap bodies at 16 KiB and return no-store `{ok:true,missionProgress:{missions,findings}}`. The add route validates raw types/format/count before silently dropping IDs absent from the mission catalogue or all missions' findingIds; SQL itself validates syntax/limits only.
+- For owner-chosen schema reversal, follow [Rollback](#rollback), stop consumers, and run the entire set-06 rollback as postgres. It validates the contract, locks preferences, and refuses **any** non-default progress without deleting data. Restore the backup in that case. Otherwise it drops only the three functions and column with RESTRICT and verifies set 05 restoration. No CASCADE or populated-data bypass.
+
+SQL execution: **Not run — the planning assistant tests set 06 on PostgreSQL 17 (LF/CRLF forward → verify → rollback → reapply, populated-rollback refusal, real RPCs through PostgREST).**

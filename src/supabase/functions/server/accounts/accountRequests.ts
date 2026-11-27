@@ -3,8 +3,8 @@ import { AccountFault, type PreferenceValues } from "./accountRepository.ts";
 export async function readAccountJson(
   request: Request,
   allowEmpty = false,
+  cap = 8192,
 ): Promise<Record<string, unknown>> {
-  const cap = 8192;
   const declared = request.headers.get("Content-Length");
   if (declared && /^\d+$/.test(declared) && Number(declared) > cap) {
     throw new AccountFault("REQUEST_TOO_LARGE");

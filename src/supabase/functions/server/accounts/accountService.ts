@@ -7,7 +7,11 @@ import {
   createAccountProtectionRepository,
   createAccountRepository,
   type PreferencePatch,
+  isMissionProgressId,
+  MISSION_PROGRESS_MAX_BYTES,
+  MISSION_PROGRESS_MAX_ENTRIES,
 } from "./accountRepository.ts";
+import { MISSION_STORIES } from "../engine/mission/MissionStories.ts";
 import {
   accountError,
   accountNoContent,
@@ -91,10 +95,17 @@ const routes: readonly string[] = [
   "resume",
   "logout",
   "preferences",
+  "missions/state",
+  "missions/add",
+  "missions/reset",
   "streak/state",
   "streak/import",
   "streak/reset",
 ];
+const knownMissionIds = new Set(MISSION_STORIES.map((mission) => mission.id));
+const knownFindingIds = new Set(
+  MISSION_STORIES.flatMap((mission) => mission.findingIds),
+);
 export function createAccountService(
   deps: AccountServiceDependencies,
 ): AccountService {
@@ -150,13 +161,18 @@ export function createAccountService(
       if (
         route === "preferences"
           ? c.req.method !== "GET" && c.req.method !== "PUT"
+          : route === "missions/state"
+          ? c.req.method !== "GET"
           : c.req.method !== "POST"
       ) {
         log(route, "METHOD_NOT_ALLOWED");
         return accountError(c, "METHOD_NOT_ALLOWED");
       }
       const isStreak = route.startsWith("streak/");
-      const category: AccountCategory = isStreak ? "preferences" : route as AccountCategory;
+      const isMission = route.startsWith("missions/");
+      const category: AccountCategory = isStreak || isMission
+        ? "preferences"
+        : route as AccountCategory;
       const started = performance.now(), requestId = crypto.randomUUID();
       const report = (code: string) =>
         log(route, code, {
@@ -201,6 +217,50 @@ export function createAccountService(
             tokenFault = new AccountFault("ACCOUNT_TOKEN_REQUIRED");
           }
           await rate.token(context, tokenHash);
+        }
+        if (isMission) {
+          const body = await readAccountJson(
+            c.req.raw,
+            route !== "missions/add",
+            MISSION_PROGRESS_MAX_BYTES,
+          );
+          requireFields(
+            body,
+            route === "missions/add" ? ["missions", "findings"] : [],
+          );
+          // Like preferences, progress needs only A; never renew or link a session.
+          if (route === "missions/state") {
+            if (tokenFault) throw tokenFault;
+            const missionProgress = await repository.getMissionProgress(
+              tokenHash!,
+            );
+            report("OK");
+            return accountSuccess(c, { missionProgress });
+          }
+          const lists: { missions: string[]; findings: string[] } = {
+            missions: [], findings: [],
+          };
+          for (const key of ["missions", "findings"] as const) {
+            const list = body[key];
+            if (list === undefined) continue;
+            if (
+              !Array.isArray(list) ||
+              list.length > MISSION_PROGRESS_MAX_ENTRIES ||
+              !list.every(isMissionProgressId)
+            ) throw new AccountFault("INVALID_REQUEST", key);
+            lists[key] = list;
+          }
+          if (tokenFault) throw tokenFault;
+          // Validate the raw lists before dropping unknown IDs or deduplicating.
+          const missionProgress = route === "missions/reset"
+            ? await repository.resetMissionProgress(tokenHash!)
+            : await repository.addMissionProgress(
+              tokenHash!,
+              lists.missions.filter((id) => knownMissionIds.has(id)),
+              lists.findings.filter((id) => knownFindingIds.has(id)),
+            );
+          report("OK");
+          return accountSuccess(c, { missionProgress });
         }
         if (isStreak) {
           const gameSession = await session(c, true);

@@ -329,3 +329,49 @@ Deno.test("malformed RPC results and network failures fail as service faults", a
     code: "ACCOUNT_SERVICE_UNAVAILABLE",
   });
 });
+
+Deno.test("mission progress adapter maps all three RPCs and preserves ordered lists", async () => {
+  const progress = { missions: ["second", "first"], findings: ["sol-1"] };
+  const f = fixture([{ data: progress }, { data: progress }, { data: { missions: [], findings: [] } }]);
+  assert.deepEqual(await f.repository.getMissionProgress(hash), progress);
+  assert.deepEqual(await f.repository.addMissionProgress(hash, ["second", "first"], ["sol-1"]), progress);
+  assert.deepEqual(await f.repository.resetMissionProgress(hash), { missions: [], findings: [] });
+  assert.deepEqual(f.requests.map((r) => r.url.pathname.split("/").pop()), [
+    "account_get_mission_progress", "account_add_mission_progress", "account_reset_mission_progress",
+  ]);
+  assert.deepEqual(f.requests.map((r) => r.body), [
+    { p_token_hash: "\\x" + "07".repeat(32) },
+    { p_token_hash: "\\x" + "07".repeat(32), p_missions: ["second", "first"], p_findings: ["sol-1"] },
+    { p_token_hash: "\\x" + "07".repeat(32) },
+  ]);
+});
+
+Deno.test("mission RPC errors reuse account authorization and invalid-input mappings", async () => {
+  const codes = { P2212: "INVALID_REQUEST", P2201: "ACCOUNT_BLOCKED", P2206: "ACCOUNT_TOKEN_INVALID",
+    P2207: "ACCOUNT_TOKEN_EXPIRED", P2208: "ACCOUNT_TOKEN_INVALID", P2209: "NAME_BANNED", P2210: "NAME_RESERVED",
+    "23514": "ACCOUNT_SERVICE_UNAVAILABLE" };
+  for (const [code, expected] of Object.entries(codes)) {
+    for (const method of ["get", "add", "reset"]) {
+      const r = fixture([{ error: { code, message: "private database details" } }]).repository;
+      await assert.rejects(() => method === "get" ? r.getMissionProgress(hash) : method === "add"
+        ? r.addMissionProgress(hash, [], []) : r.resetMissionProgress(hash), { code: expected, message: expected });
+    }
+  }
+});
+
+Deno.test("mission RPC malformed results and transport failures return safe service faults", async () => {
+  for (const data of [null, [], {}, { missions: [] }, { missions: [], findings: null },
+    { missions: [], findings: [], revision: "1" }, { missions: [1], findings: [] },
+    { missions: ["id\n"], findings: [] }, { missions: ["Upper"], findings: [] },
+    { missions: [], findings: Array(101).fill("id") }]) {
+    for (const method of ["get", "add", "reset"]) {
+      const r = fixture([{ data }]).repository;
+      await assert.rejects(() => method === "get" ? r.getMissionProgress(hash) : method === "add"
+        ? r.addMissionProgress(hash, [], []) : r.resetMissionProgress(hash), { code: "ACCOUNT_SERVICE_UNAVAILABLE" });
+    }
+  }
+  const r = createAccountRepository({ rpc: () => { throw new Error("private transport details"); } });
+  for (const call of [() => r.getMissionProgress(hash), () => r.addMissionProgress(hash, [], []), () => r.resetMissionProgress(hash)]) {
+    await assert.rejects(call, { code: "ACCOUNT_SERVICE_UNAVAILABLE", message: "ACCOUNT_SERVICE_UNAVAILABLE" });
+  }
+});
