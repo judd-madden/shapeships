@@ -8,10 +8,13 @@ export type MusicGameInfo =
 export type MusicPlayback =
   | { kind: 'loop'; track: MusicTrackId }
   | { kind: 'alternate'; left: MusicTrackId; right: MusicTrackId };
-export type MusicTrackRule = MusicPlayback | { kind: 'stop' } | { kind: 'keep' };
+export type MusicTrackRule = MusicPlayback | { kind: 'stop' } | { kind: 'keep' } | { kind: 'silent' };
 
-export function getMusicTrackRule(scene: MusicScene, game: MusicGameInfo | null): MusicTrackRule {
+export function getMusicTrackRule(
+  scene: MusicScene, game: MusicGameInfo | null, entryShowing = false, hasPlayed = false
+): MusicTrackRule {
   if (scene === 'none') return { kind: 'stop' };
+  if (entryShowing) return { kind: hasPlayed ? 'keep' : 'silent' };
   if (scene === 'menu') return { kind: 'loop', track: 'menu' };
   if (game?.role === 'player' && game.species) {
     return { kind: 'loop', track: musicTrackForSpecies(game.species) };
@@ -25,7 +28,7 @@ export function getMusicTrackRule(scene: MusicScene, game: MusicGameInfo | null)
 }
 
 export function resolveMusicPlayback(rule: MusicTrackRule, lastPlayed: MusicTrackId | null): MusicPlayback | null {
-  if (rule.kind === 'stop') return null;
+  if (rule.kind === 'stop' || rule.kind === 'silent') return null;
   if (rule.kind === 'keep') return { kind: 'loop', track: lastPlayed ?? 'menu' };
   return rule;
 }

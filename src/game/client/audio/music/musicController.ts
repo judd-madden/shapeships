@@ -36,12 +36,15 @@ interface MusicControllerOptions {
 type FadeKind = 'out' | 'in' | 'restore' | 'off';
 const ACTIVATION_EVENTS = ['keydown', 'pointerdown', 'pointerup', 'touchend'] as const;
 const ACTIVATION_OPTIONS = { capture: true, passive: true };
+// Supplied 12.5 ms silent WAV: unlock the same element without fetching music.
+const ENTRY_UNLOCK_SRC = 'data:audio/wav;base64,UklGRogAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YWQAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA';
 
 export function createMusicController({ audio, document: doc, window: browser, preferences }: MusicControllerOptions) {
   let disposed = false;
   let scene: MusicScene = 'none';
   let sceneGameId: string | null = null;
   let gameReport: { gameId: string; info: MusicGameInfo | null; owner: symbol } | null = null;
+  let entryReport: { showing: boolean; owner: symbol } | null = null;
   let reportQueued = false;
   let reportGeneration = 0;
   let activated = false;
@@ -51,6 +54,9 @@ export function createMusicController({ audio, document: doc, window: browser, p
   let lastPlayed: MusicTrackId | null = null;
   let playGeneration = 0;
   let pendingPlay: number | null = null;
+  let pendingUnlock: number | null = null;
+  let unlockAttempted = false;
+  let unlockSourceLoaded = false;
   let fadeGeneration = 0;
   let fadeTimer: number | undefined;
   let fadeKind: FadeKind | null = null;
@@ -73,9 +79,13 @@ export function createMusicController({ audio, document: doc, window: browser, p
     try { audio.volume = value; } catch { /* Quiet on read-only platforms. */ }
   }
 
-  function playback(): MusicPlayback | null {
+  function trackRule() {
     const info = gameReport?.gameId === sceneGameId ? gameReport.info : null;
-    return resolveMusicPlayback(getMusicTrackRule(scene, info), lastPlayed);
+    return getMusicTrackRule(scene, info, entryReport?.showing ?? false, lastPlayed !== null);
+  }
+
+  function playback(): MusicPlayback | null {
+    return resolveMusicPlayback(trackRule(), lastPlayed);
   }
 
   function targetFor(policy: MusicPlayback): MusicTrackId {
@@ -84,7 +94,7 @@ export function createMusicController({ audio, document: doc, window: browser, p
   }
 
   function canPlay(): boolean {
-    return !disposed && activated && !needsActivation && preferences.getSnapshot().musicEnabled &&
+    return !disposed && activated && !needsActivation && pendingUnlock === null && preferences.getSnapshot().musicEnabled &&
       doc.visibilityState !== 'hidden' && playback() !== null;
   }
 
@@ -125,14 +135,16 @@ export function createMusicController({ audio, document: doc, window: browser, p
   function pause(): void {
     playGeneration++;
     pendingPlay = null;
+    pendingUnlock = null;
     try { audio.pause(); } catch { /* Audio never blocks navigation. */ }
   }
 
   function release(): void {
     cancelFade();
     pause();
-    if (current !== null) {
+    if (current !== null || unlockSourceLoaded) {
       current = null;
+      unlockSourceLoaded = false;
       try {
         audio.removeAttribute('src');
         audio.load();
@@ -149,6 +161,29 @@ export function createMusicController({ audio, document: doc, window: browser, p
       if (armed) doc.addEventListener(event, onActivation, ACTIVATION_OPTIONS);
       else doc.removeEventListener(event, onActivation, ACTIVATION_OPTIONS);
     }
+  }
+
+  function attemptEntryUnlock(): void {
+    if (unlockAttempted || trackRule().kind !== 'silent' ||
+      !preferences.getSnapshot().musicEnabled || doc.visibilityState === 'hidden') return;
+    unlockAttempted = true;
+    const generation = ++playGeneration;
+    pendingUnlock = generation;
+    function finish(): void {
+      if (disposed) { pause(); return; }
+      if (generation !== playGeneration || pendingUnlock !== generation) return;
+      pause();
+      // The silent clip never consumes activation listeners or counts as music.
+      // Let all scene/Entry reports settle before starting the real target.
+      queueReport();
+    }
+    try {
+      unlockSourceLoaded = true;
+      audio.loop = false;
+      setVolume(1);
+      audio.src = ENTRY_UNLOCK_SRC;
+      void Promise.resolve(audio.play()).then(finish, finish);
+    } catch { finish(); }
   }
 
   function attemptPlay(fadeIn: boolean): void {
@@ -207,6 +242,7 @@ export function createMusicController({ audio, document: doc, window: browser, p
     if (!policy) return;
     try {
       current = track;
+      unlockSourceLoaded = false;
       audio.loop = policy.kind === 'loop';
       setVolume(writableVolume ? 0 : 1);
       audio.src = MUSIC_MANIFEST[track].src;
@@ -221,7 +257,12 @@ export function createMusicController({ audio, document: doc, window: browser, p
 
   function reconcile(resume = false): void {
     if (disposed) return;
-    const policy = playback();
+    const rule = trackRule();
+    if (rule.kind === 'silent') {
+      if (current !== null || !preferences.getSnapshot().musicEnabled || doc.visibilityState === 'hidden') release();
+      return;
+    }
+    const policy = resolveMusicPlayback(rule, lastPlayed);
     if (!policy) {
       release();
       return;
@@ -283,6 +324,7 @@ export function createMusicController({ audio, document: doc, window: browser, p
     }
     activated = true;
     needsActivation = false;
+    attemptEntryUnlock();
     reconcile(true);
   }
 
@@ -320,6 +362,17 @@ export function createMusicController({ audio, document: doc, window: browser, p
       scene = nextScene;
       sceneGameId = gameId;
       queueReport();
+    },
+    reportEntry(showing: boolean): () => void {
+      if (disposed) return () => {};
+      const owner = Symbol();
+      entryReport = { showing, owner };
+      queueReport();
+      return () => {
+        if (disposed || entryReport?.owner !== owner) return;
+        entryReport = null;
+        queueReport();
+      };
     },
     reportGame(gameId: string, info: MusicGameInfo | null): () => void {
       if (disposed) return () => {};

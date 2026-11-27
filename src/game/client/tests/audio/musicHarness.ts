@@ -44,7 +44,11 @@ export function deferredPlay() {
   return { promise, resolve, reject };
 }
 
-export function musicHarness({ enabled = true, writableVolume = true } = {}) {
+export function musicHarness({ enabled = true, writableVolume = true, preferences: suppliedPreferences }: {
+  enabled?: boolean;
+  writableVolume?: boolean;
+  preferences?: ReturnType<typeof createPlayerPreferencesStore>;
+} = {}) {
   const data = new Map([[PLAYER_PREFERENCE_STORAGE_KEYS.musicEnabled, String(enabled)]]);
   const storage: Storage = {
     get length() { return data.size; },
@@ -54,7 +58,7 @@ export function musicHarness({ enabled = true, writableVolume = true } = {}) {
     removeItem: (key) => { data.delete(key); },
     clear: () => data.clear(),
   };
-  const preferences = createPlayerPreferencesStore({ storage, eventTarget: null });
+  const preferences = suppliedPreferences ?? createPlayerPreferencesStore({ storage, eventTarget: null });
   const audio = new FakeMusicAudio(writableVolume);
   const document = new FakeDocument();
   // Explicit queue lets reporting tests distinguish microtasks from fade timers.
@@ -83,6 +87,6 @@ export function musicHarness({ enabled = true, writableVolume = true } = {}) {
   return {
     audio, document, preferences, controller, browser, microtasks,
     flushReports, settle, advance, start,
-    dispose() { controller.dispose(); preferences.dispose(); },
+    dispose() { controller.dispose(); if (!suppliedPreferences) preferences.dispose(); },
   };
 }

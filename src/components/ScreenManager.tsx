@@ -4,6 +4,7 @@ import type { Player } from '../game/hooks/usePlayer';
 import type { AccountIdentity } from '../game/client/account/types';
 import type { ClaimNameActions } from '../game/client/account/claimNameForm';
 import { guestEntryFailure } from '../game/client/gameSession/accountSessionWiring';
+import { useMusicEntry } from '../game/client/audio/music/useMusic';
 import type { EntryAccountActions, EntryNotice, EntryResult } from '../game/client/account/entryForm';
 import type { CreatePrivateGameSettings } from './panels/CreatePrivateGamePanel';
 import { LoginShell } from './shells/LoginShell';
@@ -60,6 +61,7 @@ export default function ScreenManager({
   winStreakActions,
 }: ScreenManagerProps) {
   const [currentShell, setCurrentShell] = useState<ShellId>(initialShell);
+  useMusicEntry(currentShell === 'login');
   const [isStartingSession, setIsStartingSession] = useState(false);
 
   useEffect(() => {

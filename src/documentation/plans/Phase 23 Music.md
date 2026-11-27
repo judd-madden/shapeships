@@ -13,7 +13,7 @@
 
 ## 1. Scope
 
-**In:** four background music tracks (menu + one per non-Human species); playback on the menu screens and in games; start on the first user interaction; species-based switching for players; matchup-based playback for spectators; pause in the background; the existing Music on/off preference, plus a Music toggle in the in-game menu.
+**In:** four background music tracks (menu + one per non-Human species); playback on Welcome, menu screens and in games; silent first Entry with gesture unlock and automatic music on arrival at Welcome or a game; species-based switching for players; matchup-based playback for spectators; pause in the background; the existing Music on/off preference, plus a Music toggle in the in-game menu.
 
 **Out:** volume sliders or a mixer; crossfades; playlists beyond the spectator rule; music on the dev dashboard; new preferences; server-side music state; changes to sound-effect cues or code (the two sound-effect files are re-levelled in 23.0; one conditional code exception in §7).
 
@@ -22,8 +22,8 @@
 | # | Decision |
 |---|---|
 | D1 | Tracks: `menu` (also the Human track), `xenite`, `centaur`, `ancient`. |
-| D2 | Plays on Entry, menu screens and in games. |
-| D3 | Starts on the first user activation anywhere (including focusing the Entry name field). Never attempts playback before that, even where the browser would allow it. |
+| D2 | Plays on Welcome, menu screens and in games. Later returns to Entry keep the audible track. |
+| D3 | Refined in 23.3 (27 Nov): first Entry is silent. Entry interactions record activation and, with Music on, attempt one embedded silent unlock on the same element. Real music starts automatically when Welcome or a game appears, only if Music is on; refusal falls back to the next interaction there. Remembered accounts that skip Entry still start on their first menu interaction. No preference/default changes. |
 | D4 | One fixed level, set in the files (§3): music −18 LUFS, sound effects raised 3 dB. Element volume stays 1 except during fades. On/off only, using the existing `musicEnabled` preference (default on, local + account sync). |
 | D5 | Plays on mobile; pauses whenever the page is hidden (desktop included) and resumes when visible. |
 | D6 | In-game Music toggle beside Sound and Health Flash, desktop panel and mobile takeover. |
@@ -56,7 +56,9 @@ A pure function decides the desired track from the current context:
 | Context | Desired track |
 |---|---|
 | Dev dashboard (`mode === 'dev'`) | none (silent) |
-| Entry, menu shell, player loading screens | `menu` |
+| Entry shell (`currentShell === 'login'`), before any real music has played in this page load | silent (no music source or request) |
+| Entry shell after real music has played | keep current |
+| Welcome, menu shell, player loading screens without Entry | `menu` |
 | In a game, viewer is a player with a confirmed species | that species' track (`human` → `menu`) |
 | In a game, viewer is a player without a confirmed species (species selection, including after a rematch) | keep current |
 | In a game, viewer is a spectator and both species are revealed | mirror: that track, looping; asymmetric: the pair, alternating |
@@ -66,7 +68,9 @@ A pure function decides the desired track from the current context:
 
 Rules:
 
-- If the desired track is already playing, it never restarts or fades. A Human player hears one unbroken track from first interaction, through game launch and back to the menu.
+- First Entry includes the name screen, claimed-name password, forced password change and invite JOIN GAME while the login shell is showing. No real music loads or plays there. When Entry ends, the menu/game rule applies automatically using the already-recorded activation; an unresolved invite game starts with `menu`.
+- Returning to Entry after real playback (Change Name, Logout or a refused invite) keeps the last audible track. A reload resets first-Entry silence. The embedded unlock clip never counts as music playback.
+- If the desired track is already playing, it never restarts or fades. A Human player hears one unbroken track from Welcome, through game launch and back to the menu.
 - Card clicks during species selection never change music. The signal is the authoritative species the server returns once the player confirms (it is also present after a mid-game reload).
 - Spectator alternation: if the current track is one of the pair, it continues and the other follows at its end; otherwise start with the left-hand displayed player's track. Alternation uses the track's natural end (no fade). Mirror matchups and players use `loop`.
 - Returning to the menu after a Xenite/Centaur/Ancient game starts `menu` from the top. A finished game keeps its music until the player leaves.
@@ -74,10 +78,12 @@ Rules:
 ### 4.2 Playback mechanics
 
 - One module-level controller outside React, owning **one** `HTMLAudioElement` reused for every track (swap `src`). An element started by a user gesture stays playable later on iOS, so later switches (species confirm after a server round trip, spectator alternation, resume from background) aren't blocked.
-- First activation: capture-phase, passive listeners for `keydown`, `pointerup` and `touchend` (plus `pointerdown` for mouse). On touch screens `pointerdown` is not a user activation. `play()` is called synchronously inside the handler. Listeners stay armed until playback actually starts.
+- First activation: capture-phase, passive listeners for `keydown`, `pointerup` and `touchend` (plus `pointerdown` for mouse). On touch screens `pointerdown` is not a user activation. Entry interactions record activation even with Music off. On menus/games without Entry, `play()` is called synchronously inside the handler. Listeners stay armed until real music playback starts.
+- First Entry unlock: with Music on, attempt the supplied embedded 12.5 ms silent WAV once, synchronously inside an Entry activation, on the same music element; then pause it. The embedded source stays on that element until a real track is wanted, or Music off, backgrounding or disposal clears it. It fetches no music file, never sets the current/last-played track, never consumes the activation listeners, and quietly ignores refusal. If Entry ends while unlock is pending, the latest target waits for completion; stale completions are fenced after hiding, Music off or disposal.
+- Leaving Entry starts the normal target from the top with the usual fade-in, without another interaction, only when Music is on. Account sign-in applies its saved preference before Entry navigation completes, so saved Music off never starts a real track. Refused automatic playback re-arms the existing first-interaction fallback on Welcome/the game.
 - If `play()` is ever refused (`NotAllowedError`), stay quiet and re-arm the activation listeners.
 - Preference: the controller subscribes to the preferences store directly (not through a React effect), so turning Music on inside a click starts playback within that gesture. Off → fade/pause, clear `src` (stop downloading). Account-synced changes apply the same way.
-- Loading: `preload="none"` until a track is wanted; nothing downloads before the first activation or while Music is off. A species track is fetched only when it becomes the desired track.
+- Loading: `preload="none"` until a track is wanted; no real track downloads before the first activation, during first Entry or while Music is off. The embedded unlock has no network request. A species track is fetched only when it becomes the desired track.
 - Fades use element volume where it is writable; a short fade-in (~0.5 s) on start and after a switch. On iOS (volume read-only) cut instantly.
 - Background: `visibilitychange` hidden → pause and remember position; visible → resume if Music is on and the desired track is unchanged; otherwise start the desired track.
 - Media Session metadata (where supported): title = the track's label ("Human Theme" etc.), artist "Shapeships", so phone media cards don't show a hashed file name. No action handlers.
@@ -108,7 +114,7 @@ Pure-logic tests only (no UI/layout tests): the desired-track table (§4.1) incl
 
 ## 8. Owner checks (desktop, iPhone, Android)
 
-1. First tap/click on Entry starts the menu track; Music off from a fresh load downloads no music files (Network tab).
+1. Entry is silent through taps/clicks/typing with no music-file requests. Music starts when Welcome or the game appears, with a first-interaction fallback if automatic playback is refused. Music off from a fresh load downloads no music files (Network tab).
 2. Menu → create game → species selection: menu track uninterrupted.
 3. Confirm Xenite/Centaur/Ancient: fade to that track. Confirm Human: no change.
 4. Rematch: track continues through selection; a new confirm switches as in 3.
@@ -141,3 +147,11 @@ Browser checks: **Not run — browser/Vite testing handled by user**. Judd suppl
 - **Files:** `components/ui/primitives/controls/AudioToggle.tsx`, the primitives index, the two in-game menus, `game/display/layout/BoardStage.tsx` (HealthTrigger only), and this §9 record. Corrected the 23.1 audio test count to 58. No new cosmetic tests or changes to audio runtime, preferences, the menu rail, other hovers, or mobile board layouts.
 - **Validation:** `npm run typecheck` passed; `npm run test:client -- --silent` passed with 1530 tests passed and 7 skipped (77 files passed, 1 skipped), including the existing menu display harnesses; `npm run lint` passed with 0 errors and the same 28 existing warnings; `npm run build` passed with the existing sessionManager import/chunk-size warnings; `git diff --check` passed. Confirmed the production CSS includes `grid-template-rows: subgrid`. No new cosmetic UI tests were added.
 - **Owner checks:** browser checks **Not run — browser/Vite testing handled by user**. After Judd supplies the zip, the planning assistant re-runs the music suite, captures both menus' on/off states at desktop 1440 and mobile 360, and repeats both health hover sweeps at 1280, 1440, and 1920 to verify continuous activation and unchanged number/summary positions.
+
+### 23.3 record
+
+- **Changes/files:** musicTrackRule adds a distinct first-Entry `silent` result and keeps the last audible track on later Entry visits; musicController adds ownership-guarded Entry reports and one gesture-bound embedded silent unlock on its existing audio element; useMusic adds the thin `useMusicEntry` effect and ScreenManager reports `currentShell === 'login'` with unmount cleanup. Updated the existing audio rule tests/harness and added pure Entry controller tests; amended this roadmap. No layouts, account code, preference defaults/storage, sound effects, or App changes.
+- **Account-order finding (item 2):** `accountStore.enter()` assigns signed-in state and synchronously calls `preferenceSync.start()` → `apply()` → `preferences.applyExternalSnapshot()` before the sign-in/change-password promise resolves. `createEntryAccountActions.submit()` awaits that operation before returning success; AlphaEntryPanel/ChangePasswordPanel call `onEntered` only after success, then ScreenManager enters Welcome or launches the invite. Although the signed-in snapshot is published during preference application, that publication does not move ScreenManager out of Entry. The saved Music value is therefore applied before the Entry report clears; no App hold is needed. A test uses the real account store/preference sync with an account Music-off response and confirms no real track starts.
+- **Lifecycle:** Entry activations stay recorded while Music is off. The supplied silent clip is attempted at most once; its resolution/refusal never changes music history or listener ownership. Pending unlock completion defers the automatic start, while Music off, backgrounding and disposal cancel/fence stale work. Reports still coalesce with a microtask. Refused automatic playback uses the existing next-interaction fallback. Later Entry visits retain the audible track and position; remembered accounts without Entry retain first-interaction playback.
+- **Validation:** 77 audio tests passed, including first-Entry silence, the one gesture-bound silent clip, Music-off activation, automatic Welcome/invite start, refusal fallback, report ordering/ownership, background/disposal races and real account preference ordering. `npm run typecheck` passed; `npm run test:client -- --silent` passed with 1549 tests passed and 7 skipped (78 files passed, 1 skipped); `npm run lint` passed with 0 errors and the same 28 existing warnings; `npm run build` passed with the existing sessionManager import/chunk-size warnings; `git diff --check` passed. No UI rendering tests or new dependencies.
+- **Guest impact/owner checks:** no new interaction, account requirement, preference reset or guest flow change. Browser checks **Not run — browser/Vite testing handled by user**. After Judd supplies the zip, verify silent Entry and zero music requests, PLAY → automatic Welcome music, invite JOIN GAME → automatic game music, Change Name → continued playback, and Music off → no requests. Judd verifies Welcome arrival on iPhone; actual Safari gesture-unlock behaviour remains a device check.

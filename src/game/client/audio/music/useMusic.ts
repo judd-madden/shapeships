@@ -8,6 +8,10 @@ export function useMusicScene(scene: MusicScene, gameId: string | null): void {
   }, [scene, gameId]);
 }
 
+export function useMusicEntry(showing: boolean): void {
+  useEffect(() => getMusicController().reportEntry(showing), [showing]);
+}
+
 export function useMusicGame(gameId: string, info: MusicGameInfo | null): void {
   const role = info?.role ?? null;
   const left = info?.role === 'player' ? info.species : info?.left ?? null;

@@ -3,6 +3,21 @@ import { MUSIC_MANIFEST, musicTrackForSpecies } from '../../audio/music/musicMan
 import { getMusicTrackRule, resolveMusicPlayback, type MusicGameInfo, type MusicScene } from '../../audio/music/musicTrackRule';
 
 describe('music track rule', () => {
+  it('keeps first Entry silent, including an unresolved invite game', () => {
+    expect(getMusicTrackRule('menu', null, true, false)).toEqual({ kind: 'silent' });
+    expect(getMusicTrackRule('game', null, true, false)).toEqual({ kind: 'silent' });
+    expect(resolveMusicPlayback({ kind: 'silent' }, null)).toBeNull();
+    expect(getMusicTrackRule('none', null, true, false)).toEqual({ kind: 'stop' });
+  });
+
+  it('keeps the audible track on later Entry visits and starts menu when first Entry ends', () => {
+    expect(resolveMusicPlayback(getMusicTrackRule('menu', null, true, true), 'ancient'))
+      .toEqual({ kind: 'loop', track: 'ancient' });
+    expect(getMusicTrackRule('menu', null, false, false)).toEqual({ kind: 'loop', track: 'menu' });
+    expect(resolveMusicPlayback(getMusicTrackRule('game', null, false, false), null))
+      .toEqual({ kind: 'loop', track: 'menu' });
+  });
+
   it.each([
     ['none', null, { kind: 'stop' }],
     ['none', { role: 'player', species: 'ancient' }, { kind: 'stop' }],
