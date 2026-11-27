@@ -2,6 +2,8 @@ declare const Deno: {
   test(name: string, fn: () => void | Promise<void>): void;
 };
 
+import { afterEach, expect, test, vi } from 'vitest';
+
 import {
   LORE_UNREAD_STORAGE_KEY,
   MINIMIZE_MISSIONS_STORAGE_KEY,
@@ -15,6 +17,9 @@ import {
   readMinimizeMissionsThisSession,
   readCompletedMissionFindingIds,
   writeMinimizeMissionsThisSession,
+  migrateMissionProgressStorage,
+  removeSyncedMissionProgress,
+  clearMissionProgress,
   type StorageLike,
 } from '../../../gameSession/mission/missionChallengeSession';
 import {
@@ -44,6 +49,8 @@ class FakeStorage implements StorageLike {
   setItem(key: string, value: string): void {
     this.values.set(key, value);
   }
+
+  removeItem(key: string): void { this.values.delete(key); }
 }
 
 const throwingStorage: StorageLike = {
@@ -53,6 +60,7 @@ const throwingStorage: StorageLike = {
   setItem() {
     throw new Error('blocked');
   },
+  removeItem() { throw new Error('blocked'); },
 };
 
 Deno.test('retired Mintaka records and late results cannot unlock Findings or mark Lore unread', () => {
@@ -173,7 +181,7 @@ Deno.test('Mission Findings tolerate unavailable and throwing storage', () => {
   });
 });
 
-Deno.test('completed Missions use a separate versioned session key', () => {
+Deno.test('completed Missions use a separate versioned browser key', () => {
   const storage = new FakeStorage();
   assertEquals(readCompletedMissionIds(storage), []);
   assertEquals(
@@ -339,6 +347,7 @@ Deno.test('Lore unread is not written when the completed-ID write fails', () => 
         unreadWrites.push(value);
       }
     },
+    removeItem() {},
   };
 
   assertEquals(
@@ -349,4 +358,102 @@ Deno.test('Lore unread is not written when the completed-ID write fails', () => 
     },
   );
   assertEquals(unreadWrites, []);
+});
+
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+test('default progress helpers use localStorage and leave minimization in sessionStorage', () => {
+  const localStorage = new FakeStorage(), sessionStorage = new FakeStorage();
+  vi.stubGlobal('window', { localStorage, sessionStorage });
+  recordCompletedMissionId('mission-a');
+  recordCompletedMissionFindingIds(['groombridge']);
+  writeMinimizeMissionsThisSession(true);
+  expect(readCompletedMissionIds()).toEqual(['mission-a']);
+  expect(readCompletedMissionFindingIds()).toEqual(['groombridge']);
+  expect(readLoreUnread()).toBe(true);
+  clearLoreUnread();
+  expect(localStorage.values.get(LORE_UNREAD_STORAGE_KEY)).toBe('false');
+  expect(sessionStorage.values.size).toBe(1);
+  expect(readMinimizeMissionsThisSession()).toBe(true);
+});
+
+test.each([false, true])('first default read migrates every legacy key once; unread local=%s', localUnread => {
+  const localStorage = new FakeStorage(), sessionStorage = new FakeStorage();
+  localStorage.setItem(MISSIONS_COMPLETED_STORAGE_KEY, '["mission-b","mission-a"]');
+  localStorage.setItem(MISSION_FINDINGS_COMPLETED_STORAGE_KEY, '["sol-1"]');
+  localStorage.setItem(LORE_UNREAD_STORAGE_KEY, String(localUnread));
+  sessionStorage.setItem(MISSIONS_COMPLETED_STORAGE_KEY, '["mission-a","mission-c"]');
+  sessionStorage.setItem(MISSION_FINDINGS_COMPLETED_STORAGE_KEY, '["sol-1","groombridge"]');
+  sessionStorage.setItem(LORE_UNREAD_STORAGE_KEY, 'true');
+  sessionStorage.setItem(MINIMIZE_MISSIONS_STORAGE_KEY, 'true');
+  vi.stubGlobal('window', { localStorage, sessionStorage });
+  expect(readLoreUnread()).toBe(true);
+  expect(readCompletedMissionIds()).toEqual(['mission-b', 'mission-a', 'mission-c']);
+  expect(readCompletedMissionFindingIds()).toEqual(['sol-1', 'groombridge']);
+  expect([...sessionStorage.values.keys()]).toEqual([MINIMIZE_MISSIONS_STORAGE_KEY]);
+  clearMissionProgress();
+  sessionStorage.setItem(MISSIONS_COMPLETED_STORAGE_KEY, '["mission-legacy"]');
+  expect(readCompletedMissionIds()).toEqual([]);
+});
+
+test('migration preserves local unread true and does not migrate the retired seen key', () => {
+  const local = new FakeStorage(), session = new FakeStorage();
+  local.setItem(LORE_UNREAD_STORAGE_KEY, 'true');
+  session.setItem(LORE_UNREAD_STORAGE_KEY, 'false');
+  session.setItem('shapeships.missionFindingsSeen.v1', '["groombridge"]');
+  migrateMissionProgressStorage(local, session);
+  expect(readLoreUnread(local)).toBe(true);
+  expect(readCompletedMissionFindingIds(local)).toEqual([]);
+  expect(session.getItem('shapeships.missionFindingsSeen.v1')).not.toBeNull();
+});
+
+test('reads reject every malformed ID without trimming and preserve valid stored order', () => {
+  const storage = new FakeStorage();
+  const ids = ['a', 'bad_id', 'Upper', '-leading', 'has space', 'a'.repeat(80), 'a'.repeat(81), 'a', null, 1, 'last-1'];
+  for (const key of [MISSIONS_COMPLETED_STORAGE_KEY, MISSION_FINDINGS_COMPLETED_STORAGE_KEY]) storage.setItem(key, JSON.stringify(ids));
+  expect(readCompletedMissionIds(storage)).toEqual(['a', 'a'.repeat(80), 'last-1']);
+  expect(readCompletedMissionFindingIds(storage)).toEqual(['a', 'a'.repeat(80), 'last-1']);
+});
+
+test('exact removal rereads lists and retains IDs added while upload was pending', () => {
+  const storage = new FakeStorage();
+  recordCompletedMissionId('mission-a', storage);
+  recordCompletedMissionFindingIds(['groombridge'], storage);
+  const sent = { missions: readCompletedMissionIds(storage), findings: readCompletedMissionFindingIds(storage) };
+  recordCompletedMissionId('mission-b', storage);
+  recordCompletedMissionFindingIds(['sol-1'], storage);
+  removeSyncedMissionProgress(sent, storage);
+  expect(readCompletedMissionIds(storage)).toEqual(['mission-b']);
+  expect(readCompletedMissionFindingIds(storage)).toEqual(['sol-1']);
+});
+
+test('no-op records, removals and clears never write storage', () => {
+  const storage = new FakeStorage();
+  recordCompletedMissionId('mission-a', storage);
+  recordCompletedMissionFindingIds(['groombridge'], storage);
+  const set = vi.spyOn(storage, 'setItem'), remove = vi.spyOn(storage, 'removeItem');
+  recordCompletedMissionId('mission-a', storage);
+  recordCompletedMissionFindingIds(['groombridge'], storage);
+  removeSyncedMissionProgress({ missions: ['absent'], findings: ['absent'] }, storage);
+  expect(set).not.toHaveBeenCalled();
+  expect(remove).not.toHaveBeenCalled();
+  clearMissionProgress(storage);
+  set.mockClear(); remove.mockClear();
+  clearMissionProgress(storage);
+  clearLoreUnread(storage);
+  expect(set).not.toHaveBeenCalled();
+  expect(remove).not.toHaveBeenCalled();
+});
+
+test('migration and cleanup swallow exceptions and retain legacy source on failed destination write', () => {
+  const session = new FakeStorage();
+  session.setItem(MISSIONS_COMPLETED_STORAGE_KEY, '["mission-a"]');
+  migrateMissionProgressStorage(throwingStorage, session);
+  expect(session.getItem(MISSIONS_COMPLETED_STORAGE_KEY)).not.toBeNull();
+  expect(() => migrateMissionProgressStorage(null, throwingStorage)).not.toThrow();
+  expect(() => clearMissionProgress(throwingStorage)).not.toThrow();
+  const storage = new FakeStorage();
+  storage.setItem(MISSIONS_COMPLETED_STORAGE_KEY, '["mission-a"]');
+  vi.spyOn(storage, 'removeItem').mockImplementation(() => { throw new Error('blocked'); });
+  expect(() => removeSyncedMissionProgress({ missions: ['mission-a'], findings: [] }, storage)).not.toThrow();
 });

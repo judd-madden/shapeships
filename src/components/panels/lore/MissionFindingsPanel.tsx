@@ -1,6 +1,7 @@
-import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { LockKeyhole } from 'lucide-react';
-import { readCompletedMissionFindingIds } from '../../../game/client/gameSession/mission/missionChallengeSession';
+import { useMissionProgress } from '../../../game/client/gameSession/mission/useMissionProgress';
+import { GameMenuButton } from '../../ui/primitives/buttons/GameMenuButton';
 import { isMissionFindingUnlocked } from '../../../game/client/gameSession/mission/missionFindingUnlocks';
 import { missionFindings, type MissionFinding, type SpeciesLoreId } from './loreContent';
 import { MissionFindingsMap } from './MissionFindingsMap';
@@ -68,12 +69,33 @@ export function MissionFindingCard({ finding, unlocked }: { finding: MissionFind
 }
 
 export function MissionFindingsPanel() {
-  const [completedFindingIds] = useState(() => new Set(readCompletedMissionFindingIds()));
-  return <MissionFindingsView completedFindingIds={completedFindingIds} />;
+  const progress = useMissionProgress();
+  const sync = progress.sync;
+  useEffect(() => {
+    void sync();
+  }, [sync]);
+  const savingMessage = progress.mode === 'guest'
+    ? 'Saved in this browser. Claim your name to keep them across devices.'
+    : progress.loadFailed
+      ? "Couldn't reach your account. Showing findings saved in this browser."
+      : 'Saved to your account.';
+  const hasProgress = progress.displayedProgress.missions.length > 0 || progress.displayedProgress.findings.length > 0;
+  return <MissionFindingsView completedFindingIds={new Set(progress.displayedProgress.findings)} savingMessage={savingMessage}
+    footer={hasProgress ? <div className="mt-[24px] flex flex-col items-start">
+      <GameMenuButton size="compact" requiresConfirm confirmLabel="Reset Mission Findings (Confirm)"
+        pendingLabel="RESETTING..." disabled={progress.resetBusy} onClick={progress.reset}>
+        Reset Mission Findings
+      </GameMenuButton>
+      {progress.resetError && <div role="alert" className="mt-[12px] max-w-[520px] rounded-lg border border-red-500/50 bg-red-500/20 p-4">
+        {progress.resetError}
+      </div>}
+    </div> : undefined} />;
 }
 
 /** Presentation seam shared by the live session wrapper and focused rendering tests. */
-export function MissionFindingsView({ completedFindingIds }: { completedFindingIds: ReadonlySet<string> }) {
+export function MissionFindingsView({ completedFindingIds,
+  savingMessage = 'Saved in this browser. Claim your name to keep them across devices.', footer,
+}: { completedFindingIds: ReadonlySet<string>; savingMessage?: string; footer?: ReactNode }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loreWidth, setLoreWidth] = useState(390);
   useLayoutEffect(() => {
@@ -97,7 +119,7 @@ export function MissionFindingsView({ completedFindingIds }: { completedFindingI
           <span className="text-[9px] leading-[12px] font-bold tracking-[1px] text-shapeships-grey-20 @min-[640px]/findings:text-[10px] @min-[720px]/findings:text-[12px] @min-[720px]/findings:leading-[16px]">UNLOCKED</span>
         </p>
         <p className="col-span-2 text-[14px] leading-[20px] font-normal @min-[340px]/findings:text-[15px] @min-[640px]/findings:text-[16px] @min-[640px]/findings:leading-[24px] @min-[720px]/findings:col-span-1 @min-[720px]/findings:text-[20px] @min-[720px]/findings:leading-[28px]">
-          Win Single Player games to unlock. <span className="inline-block text-shapeships-grey-50">Mission Findings reset each play session.</span>
+          <span className="text-shapeships-white">Win Single Player games to unlock.</span> <span className="inline-block text-shapeships-grey-50">{savingMessage}</span>
         </p>
       </header>
       <div className="mt-[16px] @min-[720px]/findings:mt-[32px] @min-[1040px]/findings:mt-[40px]">
@@ -109,5 +131,6 @@ export function MissionFindingsView({ completedFindingIds }: { completedFindingI
           {missionFindings.filter((finding) => finding.locations).map((finding) => <Fragment key={finding.id}>{renderCard(finding)}</Fragment>)}
         </div>
       </section>
+      {footer}
   </div>;
 }

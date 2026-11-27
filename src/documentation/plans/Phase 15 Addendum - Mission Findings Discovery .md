@@ -264,6 +264,8 @@ Use a small focused helper and the existing Mission/Lore seams.
 ## 6. Session persistence
 -------------------------------------------------------------------------------
 
+**Superseded by Phase 22F — 27 November 2026:** guests now keep completed missions, finding contributions and Lore unread in localStorage; signed-in players keep progress on their account across devices. 22F.2 moves the three legacy session keys once per tab. The session-only persistence described below is historical; Minimize Missions remains a session preference.
+
 ### 6.1 Use `sessionStorage`
 
 For the current pre-account product, discovered Finding IDs are stored in browser `sessionStorage`.

@@ -17,6 +17,7 @@ import GameScreen from './game/display/GameScreen';
 import { usePlayer } from './game/hooks/usePlayer';
 import { getAccountStore } from './game/client/account/accountStore';
 import { useAccountState } from './game/client/account/useAccountState';
+import { getMissionProgressRuntime } from './game/client/gameSession/mission/missionProgressRuntime';
 import type { ClaimNameActions } from './game/client/account/claimNameForm';
 import type { EntryNotice } from './game/client/account/entryForm';
 import { getPlayerPreferencesStore } from './game/client/preferences/playerPreferences';
@@ -171,6 +172,7 @@ function pushUrl(params: URLSearchParams) {
 }
 
 export default function App() {
+  useEffect(() => { getMissionProgressRuntime(); }, []);
   const [accountStore] = useState(getAccountStore);
   const account = useAccountState();
   const hasRememberedAccountToken = accountStore.hasRememberedToken();

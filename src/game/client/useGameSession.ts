@@ -146,12 +146,10 @@ import {
   type MissionAutoAckState,
 } from './gameSession/mission/missionChallenge';
 import {
-  readCompletedMissionIds,
-  recordCompletedMissionId,
-  recordCompletedMissionFindingIds,
   readMinimizeMissionsThisSession,
   writeMinimizeMissionsThisSession,
 } from './gameSession/mission/missionChallengeSession';
+import { getMissionProgressRuntime } from './gameSession/mission/missionProgressRuntime';
 import {
   getManualBuildGroupCount,
   getEvolverProducedBuildGroupCount,
@@ -5752,12 +5750,10 @@ useEffect(() => {
         const completedMissionId = getCompletedMissionId(
           normalizedMissionChallenge,
         );
-        if (completedMissionId) {
-          recordCompletedMissionId(completedMissionId);
-        }
-        didUnlockMissionFinding = recordCompletedMissionFindingIds(
-          getCompletedMissionFindingIds(normalizedMissionChallenge),
-        ).didUnlockMissionFinding;
+        didUnlockMissionFinding = getMissionProgressRuntime().recordMissionResult({
+          missionId: completedMissionId,
+          findingIds: getCompletedMissionFindingIds(normalizedMissionChallenge),
+        }).didUnlockMissionFinding;
       }
       findingCompletion = {
         ...findingCompletion,
@@ -7721,7 +7717,7 @@ useEffect(() => {
       const submittedSpecies = selectedSpecies;
       const submittedBotSpecies = isComputerGame ? selectedBotSpecies : null;
       const completedMissionIds = submittedBotSpecies
-        ? readCompletedMissionIds()
+        ? getMissionProgressRuntime().getCompletedMissionIds()
         : undefined;
       const submissionEntryKey = speciesSelectionEntryKey;
       const requestId = speciesConfirmationRequestIdRef.current + 1;

@@ -107,6 +107,18 @@ export interface AccountStreakSnapshot {
   readonly updatedAt: string;
 }
 
+export interface AccountMissionProgress {
+  readonly missions: readonly string[];
+  readonly findings: readonly string[];
+}
+
+export interface AccountMissionBody { readonly ok: true; readonly missionProgress: AccountMissionProgress }
+export interface AccountMissionApi {
+  state(token: string): Promise<AccountResult<AccountMissionBody>>;
+  add(token: string, progress: AccountMissionProgress): Promise<AccountResult<AccountMissionBody>>;
+  reset(token: string): Promise<AccountResult<AccountMissionBody>>;
+}
+
 export interface GuestStreakCandidate {
   readonly currentCount: number;
   readonly anchorGameId: string;

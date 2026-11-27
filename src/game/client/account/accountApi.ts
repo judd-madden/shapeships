@@ -3,6 +3,7 @@ import type {
   AccountApi, AccountEntryBody, AccountIdentity, AccountLink, AccountPreferences,
   AccountResult, AccountResumeBody, NameCheckBody, PreferencesBody,
   AccountStreakApi, AccountStreakSnapshot, AccountStreakBody, AccountStreakImportBody,
+  AccountMissionApi, AccountMissionBody,
 } from './types';
 
 const keys = Object.keys(PLAYER_PREFERENCE_DEFAULTS) as (keyof PlayerPreferences)[];
@@ -13,6 +14,54 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const isUtc = (value: unknown): value is string => typeof value === 'string'
   && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(value) && Number.isFinite(Date.parse(value));
 const isDelay = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
+
+function missionBody(value: unknown): AccountMissionBody | null {
+  if (!isObject(value) || value.ok !== true || !isObject(value.missionProgress)) return null;
+  const progress = value.missionProgress;
+  if (Object.keys(progress).length !== 2 || !['missions', 'findings'].every(key => {
+    const ids = progress[key];
+    return Array.isArray(ids) && ids.length <= 100
+      && ids.every(id => typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,79}$/.test(id));
+  })) return null;
+  return { ok: true, missionProgress: Object.freeze({
+    missions: Object.freeze([...(progress.missions as string[])]),
+    findings: Object.freeze([...(progress.findings as string[])]),
+  }) };
+}
+
+/** Mission progress needs account authority only; never link or renew a game session. */
+export function createAccountMissionApi({ baseUrl, anonKey, fetch: fetchRequest, timeoutMs }: {
+  baseUrl: string; anonKey: string; fetch: typeof fetch; timeoutMs: number;
+}): AccountMissionApi {
+  async function request(path: string, token: string, body?: object): Promise<AccountResult<AccountMissionBody>> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
+    const operation = async (): Promise<AccountResult<AccountMissionBody>> => {
+      try {
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${anonKey}`, apikey: anonKey, 'X-Account-Token': token,
+        };
+        if (body !== undefined) headers['Content-Type'] = 'application/json';
+        const response = await fetchRequest(`${baseUrl.replace(/\/+$/, '')}/accounts/missions/${path}`, {
+          method: body === undefined ? 'GET' : 'POST', headers, cache: 'no-store', signal: controller.signal,
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        });
+        return await parseAccountResponse(response, missionBody);
+      } catch { return { kind: 'unavailable' }; }
+    };
+    try {
+      if (timeoutMs <= 0) return await operation();
+      return await Promise.race([operation(), new Promise<AccountResult<AccountMissionBody>>(resolve => {
+        timer = globalThis.setTimeout(() => { resolve({ kind: 'unavailable' }); controller.abort(); }, timeoutMs);
+      })]);
+    } finally { if (timer !== undefined) globalThis.clearTimeout(timer); }
+  }
+  return {
+    state: token => request('state', token),
+    add: (token, progress) => request('add', token, progress),
+    reset: token => request('reset', token, {}),
+  };
+}
 
 function preferences(value: unknown): AccountPreferences | null {
   if (!isObject(value) || !isObject(value.values) || Object.keys(value.values).length !== keys.length
