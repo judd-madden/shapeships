@@ -17,6 +17,7 @@
 
 import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo } from 'react';
 import { useGameSound } from '../client/audio/useGameSound';
+import { useMusicGame } from '../client/audio/music/useMusic';
 import { getPlayerPreference, setPreference } from '../client/preferences/playerPreferences';
 import { usePlayerPreference } from '../client/preferences/usePlayerPreference';
 import { type GameSessionViewModel, useGameSession } from '../client/useGameSession';
@@ -198,6 +199,11 @@ function GameScreenContent({ gameId, playerName, onBack, onReturnAfterSessionExp
     healthBarCompletion,
   });
   const isMobileLandscapeBlocked = useMobileLandscapeBlocker();
+  useMusicGame(gameId, vm.isBootstrapping || loadFailure ? null
+    : vm.viewer.isPlayerViewer ? { role: 'player', species: vm.displayLeftSpeciesId ?? null }
+    : vm.viewer.isSpectator ? {
+      role: 'spectator', left: vm.displayLeftSpeciesId ?? null, right: vm.displayRightSpeciesId ?? null,
+    } : null);
   const isFinished = Boolean(vm.actionPanel.endOfGame);
   const presentedMatchupIntro = useMatchupIntroPresentation({
     gameId,

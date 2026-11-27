@@ -29,6 +29,7 @@ vi.mock('react', async (original) => ({
   useEffect: () => {},
   useLayoutEffect: () => {},
 }));
+vi.mock('../../client/preferences/usePlayerPreference', () => ({ usePlayerPreference: () => true }));
 
 function elements(node: ReactNode): ReactElement<any>[] {
   return Children.toArray(node).flatMap((child) => isValidElement(child)

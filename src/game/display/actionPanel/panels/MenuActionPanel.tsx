@@ -5,6 +5,8 @@
  */
 
 import { Checkbox } from '../../../../components/ui/primitives';
+import { usePlayerPreference } from '../../../client/preferences/usePlayerPreference';
+import { setPreference } from '../../../client/preferences/playerPreferences';
 import { GameMenuButton } from '../../../../components/ui/primitives/buttons/GameMenuButton';
 import { ChallengeIcon } from '../../../../components/ui/primitives/icons/ChallengeIcon';
 
@@ -45,6 +47,7 @@ export function MenuActionPanel({
   onSoundEnabledChange,
   onBoardFlashEnabledChange,
 }: MenuActionPanelProps) {
+  const musicEnabled = usePlayerPreference('musicEnabled');
   const dangerAction = canAbortGame
     ? {
         disabled: false,
@@ -112,6 +115,12 @@ export function MenuActionPanel({
         </div>
 
         <div className="mt-[32px] flex items-center justify-center gap-[32px]">
+          <Checkbox
+            checked={musicEnabled}
+            onChange={(checked) => setPreference('musicEnabled', checked)}
+            label="Music"
+            labelClassName="text-[18px] font-bold leading-none text-white"
+          />
           <Checkbox
             checked={soundEnabled}
             onChange={onSoundEnabledChange}

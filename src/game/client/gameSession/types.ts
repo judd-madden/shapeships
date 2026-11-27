@@ -1092,6 +1092,9 @@ export interface ActionPanelViewModel {
 }
 
 export interface GameSessionViewModel {
+  /** Viewer-safe authoritative species, before presentation defaults or previews. */
+  displayLeftSpeciesId?: SpeciesId | null;
+  displayRightSpeciesId?: SpeciesId | null;
   /** Presentation data only; authoritative stats/effects retain their inputs. */
   resolvedHealth?: ResolvedHealthPresentation | null;
   resolvedHealthSession?: ResolvedHealthSessionPresentation | null;

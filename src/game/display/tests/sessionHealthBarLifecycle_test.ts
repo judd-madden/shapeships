@@ -54,6 +54,7 @@ vi.mock('../../client/useGameSession', () => ({ useGameSession: (_game: string, 
   runtime.options = options; return { vm: runtime.vm, actions: { onReadyToggle: () => {} } };
 } }));
 vi.mock('../../client/audio/useGameSound', () => ({ useGameSound: () => {} }));
+vi.mock('../../client/audio/music/useMusic', () => ({ useMusicGame: () => {} }));
 vi.mock('../../client/preferences/usePlayerPreference', async () => {
   const { getPlayerPreference } = await import('../../client/preferences/playerPreferences');
   return { usePlayerPreference: getPlayerPreference };

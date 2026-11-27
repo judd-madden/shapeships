@@ -20,6 +20,7 @@ import { useAccountState } from './game/client/account/useAccountState';
 import type { ClaimNameActions } from './game/client/account/claimNameForm';
 import type { EntryNotice } from './game/client/account/entryForm';
 import { getPlayerPreferencesStore } from './game/client/preferences/playerPreferences';
+import { useMusicScene } from './game/client/audio/music/useMusic';
 import { bootstrapRememberedAccount, createEntryAccountActions, entryNoticeForRefusal, observeAccountSession, type AccountStartupOutcome } from './game/client/gameSession/accountSessionWiring';
 import { useWinStreakMenu } from './game/client/winStreak/useWinStreakProfile';
 import { accountStreakRequestBody } from './game/client/winStreak/accountWorkflow';
@@ -194,6 +195,7 @@ export default function App() {
   const [hasUsablePlayerIdentity, setHasUsablePlayerIdentity] = useState(initialStoredPlayerIdentity);
   const [deploymentStatus, setDeploymentStatus] = useState<'unknown' | 'ready' | 'error'>('unknown');
   const [gameId, setGameId] = useState<string | null>(() => readGameIdFromUrl());
+  useMusicScene(mode === 'dev' ? 'none' : mode === 'player' ? 'menu' : 'game', mode === 'game' ? gameId : null);
   const pendingInviteRef = useRef(pendingInviteGameId);
   pendingInviteRef.current = pendingInviteGameId;
 

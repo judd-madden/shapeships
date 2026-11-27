@@ -1,5 +1,7 @@
 import type { ActionPanelViewModel, GameSessionActions, GameSessionViewModel, TurnPhasePresentationVm, TurnPhaseVm } from '../../../client/useGameSession';
 import { Checkbox, GameMenuButton } from '../../../../components/ui/primitives';
+import { usePlayerPreference } from '../../../client/preferences/usePlayerPreference';
+import { getPlayerPreference, setPreference } from '../../../client/preferences/playerPreferences';
 import { ChallengeIcon } from '../../../../components/ui/primitives/icons/ChallengeIcon';
 import { MobileTakeoverShell } from './MobileTakeoverShell';
 import { TurnPhaseList } from '../../shared/TurnPhaseList';
@@ -70,6 +72,7 @@ export function MobileMenuTakeover({
   onToggleSound,
   onToggleBoardFlash,
 }: MobileMenuTakeoverProps) {
+  const musicEnabled = usePlayerPreference('musicEnabled');
   const dangerAction = vm.canAbortGame
     ? {
         disabled: false,
@@ -153,6 +156,12 @@ export function MobileMenuTakeover({
         </div>
 
           <div className="flex flex-wrap items-center justify-center gap-x-[26px] gap-y-[12px] mb-[24px]">
+            <MobilePreferenceToggle
+              label="Music"
+              checked={musicEnabled}
+              onChange={(checked) => setPreference('musicEnabled', checked)}
+              onToggle={() => setPreference('musicEnabled', !getPlayerPreference('musicEnabled'))}
+            />
             <MobilePreferenceToggle
               label="Sound"
               checked={soundEnabled}

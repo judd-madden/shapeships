@@ -1403,6 +1403,8 @@ export function mapGameSessionVm(args: {
 
   
   const vm: GameSessionViewModel = {
+    displayLeftSpeciesId,
+    displayRightSpeciesId,
     isBootstrapping,
     viewer,
     matchupIntro,
