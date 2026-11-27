@@ -41,7 +41,11 @@ Historical phase roadmaps and planning records retained as implementation contex
 - [Phase 15 Missions and Challenges - Revised with Mission Findings](<plans/Phase 15 Missions and Challenges - Revised with Mission Findings.md>) - historical Phase 15 planning record
 - [Phase 15 Addendum - Mission Findings Discovery](<plans/Phase 15 Addendum - Mission Findings Discovery .md>) - historical Phase 15 discovery addendum
 - [Phase 15 Addendum - Multiplayer Matchup Intro](<plans/Phase 15 Addendum - Multiplayer Matchup Intro.md>) - historical Phase 15 multiplayer addendum
-- [Phase 23 Music](<plans/Phase 23 Music.md>) - background music roadmap and Phase 23.1 implementation record
+- [Phase 22 Menu and Account](<plans/Phase 22 Menu and Account.md>) - menu and account roadmap and implementation records
+- [Phase 22 Addendum - Account Design](<plans/Phase 22 Addendum - Account Design.md>) - account design and implementation records
+- [Phase 22 Addendum - Account Streak Design](<plans/Phase 22 Addendum - Account Streak Design.md>) - account streak design and implementation records
+- [Phase 22 Addendum - Integration Review](<plans/Phase 22 Addendum - Integration Review.md>) - account integration review and operational guidance
+- [Phase 23 Music](<plans/Phase 23 Music.md>) - background music roadmap and 23.1–23.3 implementation records
 
 Use [the current repository status](../VERSION.md) for current implementation posture, the canonical definitions and authoritative server implementation for current gameplay, and the contracts for stable architecture and ownership rules.
 

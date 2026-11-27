@@ -49,26 +49,31 @@ Client runtime and display work may move together in a Client/UI pass as long as
 - **Client:** React, TypeScript, Vite, and Tailwind CSS
 - **Server:** Supabase Edge Functions using Deno and Hono
 - **State transport:** session-backed HTTP calls, polling, targeted refreshes, and on-demand history reads
-- **Graphics and audio:** React SVG ship components, local assets, live dice and destruction cues, and placeholder species cues
+- **Graphics and audio:** React SVG ship components, local assets, dice and destruction sound effects, and four background music tracks
 
-Species-specific sound coverage remains incomplete.
+Species stings remain unsupplied.
 
 ## Repository Layout
 
 - `game/client/**` — session lifecycle, networking, polling, intent submission, and view-model orchestration
+- `game/client/account/**` — account runtime, remembered tokens, and preference sync
+- `game/client/audio/**` — sound effects and background music
 - `game/display/**` — desktop and mobile match screens, panels, board UI, animation, and feedback
 - `components/**` — application shells, rules screens, panels, and reusable UI primitives
 - `graphics/**` — species ship graphics and visual assets
 - `supabase/functions/server/**` — Edge Function entrypoint, routes, authoritative engine, and server-owned shared logic
 - `supabase/functions/server/tests/**` — centralized authoritative-server regression tests; this is not production runtime code
+- `../supabase/manual/account/**` — repository-root, owner-applied account SQL sets
 - `documentation/**` — current status, contracts, workflows, planning records, and infrastructure notes
 
 ## Current Codebase Overview
 
-- `App.tsx` is the active top-level entry and development launcher; the player shell and scaffolding remain intentional active project code.
-- `ScreenManager` and the shell components provide display-name entry, menus, private and computer game creation, rules, and direct match launch.
+- `App.tsx` is the player application entry, routing through `ScreenManager` and `GameScreen`; the development dashboard is a localhost-only development mode.
+- `ScreenManager` and the shell components provide Entry with guest names and claimed-name sign-in, Claim Name, menus, private and computer game creation, rules, and direct match launch.
 - `GameScreen` is the live match shell and switches between active desktop and mobile layouts.
 - `useGameSession` centralizes auto-join, session-backed networking, authoritative refreshes, chat, history, intent submission, and client-only presentation state.
+- The account runtime owns account requests, browser token storage, and preference sync alongside the separate tab-scoped game session.
+- The music controller owns presentation-only playback, species and spectator track selection, preference changes, and background pause/resume.
 - Full state and lightweight head reads support authoritative polling and clock snapshots, chat is polled separately, and battle history is fetched on demand.
 - Server reads return requester-, opponent-, and spectator-safe projections, including available actions and filtered hidden commitments.
 - Server bot code combines phase-aware authoritative orchestration and shared build, power, and targeting helpers with authored Human, Xenite, and Centaur plans. Ancient adds authored opening strategies and plans plus dedicated build-payload and Solar/Energy planning seams.

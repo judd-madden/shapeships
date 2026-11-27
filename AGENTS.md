@@ -200,6 +200,8 @@ Do not:
 - duplicate existing rule logic without justification
 - modify config files unintentionally
 - replace whole files when smaller edits are sufficient
+- change account SQL outside new numbered sets in `supabase/manual/account/` (forward/verify/rollback, owner-applied; never `supabase/migrations/`)
+- log account tokens or put them in URLs
 
 ## When Unsure
 When uncertain:
@@ -213,7 +215,7 @@ When uncertain:
 
 The repo currently has two intentional UI entry paths:
 
-- `App.tsx` is the active development dashboard / launcher used during ongoing implementation and testing
-- the shell/scaffolding area remains active project code and is intended to mature into the long-term primary player-facing entry path
+- `App.tsx` is the player application: Entry → menu → game through `ScreenManager` and `GameScreen`.
+- The development dashboard is a localhost-only Vite development mode.
 
 Agents must not treat shell/scaffolding code as obsolete unless explicitly instructed.

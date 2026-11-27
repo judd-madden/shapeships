@@ -18,6 +18,7 @@ Responsibilities:
 - combat resolution
 - intent validation
 - effect execution
+- account identity, name rules, credentials, tokens, and account streak authority
 - Mission and Challenge assignment for Play Computer games
 - canonical Mission-intro pending state, acknowledgement, gameplay and clock gating
 - final Challenge evaluation from the finished game and active fleet
@@ -33,6 +34,7 @@ Responsibilities:
 - communication with the server
 - view-model generation
 - orchestration of UI state
+- account store, token handling, preference sync, and presentation-only audio controllers
 - Mission networking through the existing session seam
 - session-local Mission minimization preference and presentation orchestration
 
@@ -49,6 +51,7 @@ Responsibilities:
 - layout
 - animation
 - visual feedback
+- account screens and audio toggles
 - Mission and Challenge presentation, including desktop and mobile overlays
 - catalogue/reference indicators and Mission Finding presentation in Lore
 

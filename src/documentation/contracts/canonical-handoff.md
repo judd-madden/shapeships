@@ -42,6 +42,8 @@ Client responsibilities include:
 
 The client must never determine final legality or final state.
 
+The client never decides name ownership or account authority.
+
 ### 2.3 Display Layer Is Presentation Only
 Directories such as:
 - `src/game/display/**`
@@ -79,6 +81,7 @@ Responsibilities:
 - intent resolution
 - effect application
 - canonical state transitions
+- account identity, name rules, credentials, tokens, and account streak authority
 
 ### 3.2 Client Runtime
 Primary client/runtime ownership lives under:
@@ -89,6 +92,7 @@ Responsibilities:
 - server communication
 - view-model creation
 - client-side orchestration
+- account store, token handling, preference sync, and presentation-only audio controllers
 
 ### 3.3 Display Layer
 Primary display ownership lives under:
@@ -101,6 +105,7 @@ Responsibilities:
 - layout
 - animation
 - visual feedback
+- account screens and audio toggles
 
 Display layers consume view models but do not own authoritative rules.
 

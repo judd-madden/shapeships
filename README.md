@@ -10,6 +10,7 @@ Shapeships isn’t about movement or targeting. Ships don't move, don't have hea
 
 ## Current Game
 
+- Play as a guest, or claim a name with a password (no email) to keep settings and your Play Computer win streak.
 - Create private online matches or play against a server-controlled computer opponent.
 - Play Computer games include a matchup-specific narrative Mission across every player/computer species matchup and an optional Challenge to win with or without a selected ship.
 - Choose timed or untimed play and develop a persistent fleet through simultaneous Build and Battle phases.
@@ -18,6 +19,7 @@ Shapeships isn’t about movement or targeting. Ships don't move, don't have hea
 - Watch or join matches as a spectator and use in-game chat.
 - Review battle logs, download match history, inspect endgame statistics, and quickly create a rematch.
 - Offer or refuse draws, resign, and resolve victories through the authoritative server.
+- Hear species background music and control Music and Sound independently with speaker toggles.
 
 ## Species
 
@@ -31,6 +33,8 @@ All four species are available for player-controlled play and as server-controll
 ## Technology
 
 The client uses React, TypeScript, Vite, and Tailwind CSS. The authoritative server runs as a Supabase Edge Function using Deno and Hono.
+
+Account data lives in dedicated Supabase Postgres tables alongside the game KV store.
 
 The server determines legality, phase progression, clocks, combat, effect resolution, persistence, and canonical game state. The client renders projected state, gathers input, and submits player intents.
 

@@ -1,6 +1,6 @@
 # Shapeships — Current Repo Status
 
-**Snapshot date:** September 1, 2026
+**Snapshot date:** September 1, 2026; accounts and audio sections updated 27 November 2026
 
 **Status:** Active alpha codebase
 
@@ -60,7 +60,32 @@ The bot system shares phase-aware orchestration, build planning, power planning,
 - Integrated core rules, species references, and turn-timing guidance
 - Spectator counts, chat, draw controls, resignation, victory summaries, and rematches
 - Battle logs, on-demand persisted history, downloadable match records, and endgame statistics
-- Local sound and board-flash preferences, animation, visual feedback, and targeted reduced-motion handling
+- Music, sound, and board-flash preferences, account-synced when signed in, plus animation, visual feedback, and targeted reduced-motion handling
+
+## Accounts and identity
+
+- Play as a guest with a display name, or claim a name with a password and no email. Name ownership is case-insensitive, and names are checked against seeded banned/reserved-name rules.
+- Claiming a name and escalated sign-in use Cloudflare Turnstile.
+- Remembered sign-in stores only an account token, never a password, in browser localStorage alongside the separate tab-scoped game session; unavailable storage falls back to memory.
+- Five preferences sync to the account: sound, health flash, chat minimised, battle-log preference, and music.
+- Account Play Computer win streaks are stored server-side, with eligible guest-streak carry-over on claim or sign-in.
+- Owner-assisted password reset supplies a temporary password and requires a password change before sign-in completes.
+- Accounts ship dormant: `ACCOUNTS_MODE` defaults to `off`, and the owner enables `on` at deployment. Emergency `names-only` mode keeps claimed names protected while sign-in is paused.
+- Account data lives in dedicated Postgres tables created by owner-applied numbered SQL sets (forward/verify/rollback) in repository-root `supabase/manual/account/`; game state stays in KV storage. The server owns name ownership, credentials, tokens, and account streak authority.
+
+See [Phase 22 Menu and Account](<documentation/plans/Phase 22 Menu and Account.md>) for the account design and implementation records.
+
+## Music and sound
+
+- Dice and destruction sound effects accompany four background music tracks: menu (also Human), Xenite, Centaur, and Ancient.
+- First arrival at Entry is silent. With Music on, playback starts on reaching Welcome or a game, falling back to the next interaction if the browser blocks autoplay; remembered accounts that skip Entry start on their first menu interaction.
+- Players hear their confirmed species' track. Spectators hear the matchup: mirror matches loop one track, and asymmetric matches alternate the two tracks.
+- Music pauses while the page is hidden and resumes when visible.
+- Music and Sound have independent speaker toggles on the menu rail and in the in-game menu. Both default to on, with local guest preferences and account sync when signed in.
+- Audio levels are set in the files. Music tracks are separate, lazy-loaded assets; music files do not load while Music is off.
+- Audio is client-side presentation only.
+
+See [Phase 23 Music](<documentation/plans/Phase 23 Music.md>) for playback rules and implementation records.
 
 ## Missions & Challenges
 
@@ -80,7 +105,7 @@ Separately, multiplayer games show a brief post-species matchup introduction bef
 
 - React, TypeScript, Vite, and Tailwind CSS client
 - Deno and Hono Supabase Edge Function server
-- Server-minted, session-backed identity associated with temporary display names
+- Server-minted, session-backed identity with guest display names and optional claimed accounts
 - Server-owned rules, legality, phases, clocks, effects, persistence, combat, and canonical state
 - Polling-based authoritative state and chat reads, with targeted refreshes and on-demand history retrieval
 - Requester-, opponent-, and spectator-specific projections that protect hidden choices
@@ -110,9 +135,9 @@ No broad automated browser-test baseline is included in this validation posture.
 ## Current Alpha Limitations
 
 - The active creation flow offers one standard 1v1 variant and no automatic in-app matchmaking.
-- Identity is session- and display-name-based rather than a complete account-authentication system.
+- Identity supports guest names and optional claimed names, with no email recovery; password reset is owner-assisted.
 - Authored bot plans and matchup balance remain under active testing and refinement across all four species.
-- Dice and destruction cues are active, but wider species-specific sound coverage is incomplete.
+- Dice and destruction sound effects and background music are active; species stings remain unsupplied.
 - Broad browser automation is not part of the current regression baseline.
 
 The public game URL does not establish that every current source revision has been deployed.
