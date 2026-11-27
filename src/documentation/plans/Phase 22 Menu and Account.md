@@ -204,7 +204,7 @@ The entry design includes a video area. Use a media/poster integration, not a li
 - Prefill from the current guest name where appropriate, while allowing an eligible different name to be claimed.
 - Clearly state that claiming creates an account and requires no email.
 - Account-storage copy must describe the preferences actually saved in this phase.
-- Use exactly: "We'll create a very simple account for you that only stores your player name, settings, and password (securely hashed)."
+- Use the account-storage label and pills specified in approved amendment 5 of 27 November 2026 (Judd).
 - Future Stats, history and ranked features mentioned in copy remain future intentions, not Phase 22 implementation scope.
 - The illustrated CAPTCHA is not a locked provider choice.
 
@@ -561,6 +561,7 @@ These approved decisions override conflicting text elsewhere in this planning ba
 2. It is delivered as 22F.1 (SQL + server) and 22F.2 (client) before the single deploy.
 3. On claim or sign-in, this browser's mission progress is added to the account and cleared from the browser; after logout the browser starts empty. Successful uploads still clear their sent IDs if logout races the response; unsynced results remain the accepted browser carry-over edge.
 4. Reset Mission Findings is a two-click button at the bottom of Lore › Mission Findings and clears both completed missions and finding contributions.
+5. The Claim Name page's account-storage copy is now "Your account only stores:" followed by pills, in order: Player Name, Game Settings, Password (securely hashed), Win Streak, Lore Unlocks. This supersedes the exact-sentence rule in §5.6; the requirement that the copy describe what is actually saved still applies. "Password resets are via Discord" and the closing "say hi on Discord" now link to Discord.
 
 ## 15. Implementation record
 
@@ -1708,3 +1709,13 @@ Judd zips the repository; the planning assistant reviews the documents against t
 3. Judd checks desktop and mobile, then commits.
 
 Cross-device updates appear at the specified synchronization triggers; concurrent adds/resets follow existing server serialization. Browser-denied persistence/cleanup remains best effort. An upload that fails before logout remains browser progress and may merge into the next account; successful late uploads are removed. Browser/local-stack acceptance remains the owner/planning-assistant gate before the single completed-phase deploy.
+
+### 22B.5 — Claim Name info column (pills and Discord links) — 27 November 2026
+
+- **Pass / layer:** Small Client/UI Pass, display only, after 22F.2. Account behavior, guest play and server authority are unchanged.
+- **Changed files:** `src/components/panels/ClaimNamePanel.tsx`; this main plan's §5.6, approved amendment 5 for 27 November and this §15 record.
+- **Presentation:** replaced the storage sentence with the approved label and five noninteractive list pills, using the specified mobile/desktop sizes and spacing. The information column uses grey-20 and retains its existing type sizes, widths and paragraph gaps; the two-name warning stays italic with its bold lead.
+- **Links / preservation:** both Discord mentions use the existing `DISCORD_URL`, underlining and safe new-tab attributes. Removed the double space before "Have fun". Title, subtitle, rail, form behavior, hint/error replacement, Turnstile, CREATE ACCOUNT button and responsive layout are unchanged. No tests added.
+- **Validation:** `npm run typecheck` PASS; `npm run test:client` PASS (**80 files passed / 1 skipped; 1,612 tests passed / 7 skipped**, unchanged); `npm run lint` PASS (**0 errors / 28 existing warnings**, none added); `npm run build` PASS (existing sessionManager import and chunk-size warnings); `git diff --check` PASS.
+- **Supplemental checks:** existing client lint rules applied to ClaimNamePanel in memory, without config changes: **0 errors / 0 warnings**, unchanged from HEAD. All requested pill utilities are present in generated CSS. Only the two allowed files changed; this plan retains CRLF line endings.
+- **Browser: Not run — browser/Vite testing handled by user.** No commit.

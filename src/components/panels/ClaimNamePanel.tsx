@@ -4,6 +4,7 @@ import {
   NAME_HINT, VERIFICATION_UNAVAILABLE,
   type ClaimFeedback, type ClaimNameActions,
 } from '../../game/client/account/claimNameForm';
+import { DISCORD_URL } from '../../game/client/account/entryForm';
 import { createNameCheckScheduler } from '../../game/client/account/nameCheckScheduler';
 import type { NameCheckBody } from '../../game/client/account/types';
 import { FormField } from '../ui/primitives/inputs/FormField';
@@ -110,7 +111,7 @@ export function ClaimNamePanel({ currentName, actions, onClaimed }: ClaimNamePan
             </FormField>
             <FormField
               htmlFor={`${id}-password`} messageId={`${id}-password-message`} label="Set password"
-              hint={<>10+ characters, case sensitive.<br />Password resets are via Discord.</>}
+              hint={<>10+ characters, case sensitive.<br />Password resets are via <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="underline">Discord</a>.</>}
               error={passwordError}
             >
               <PasswordInput
@@ -143,12 +144,21 @@ export function ClaimNamePanel({ currentName, actions, onClaimed }: ClaimNamePan
           </div>
         </form>
         <div aria-hidden="true" className="h-[2px] w-full max-w-[520px] bg-shapeships-grey-70 xl:h-auto xl:w-[2px]" />
-        <div className="flex w-full max-w-[520px] min-w-0 flex-col gap-[12px] text-[15px] leading-[20px] md:gap-[20px] md:text-[18px] md:leading-[24px] xl:max-w-[340px]">
+        <div className="flex w-full max-w-[520px] min-w-0 flex-col gap-[12px] text-[15px] leading-[20px] text-shapeships-grey-20 md:gap-[20px] md:text-[18px] md:leading-[24px] xl:max-w-[340px]">
           <p className="font-bold">No email address required.</p>
-          <p>Your account only stores your player name, settings and password (securely hashed).</p>
+          <div className="flex flex-col gap-[8px] md:gap-[12px]">
+            <p>Your account only stores:</p>
+            <ul role="list" className="list-none m-0 p-0 flex flex-wrap gap-[8px] md:gap-[12px]">
+              {['Player Name', 'Game Settings', 'Password (securely hashed)', 'Win Streak', 'Lore Unlocks'].map((label) => (
+                <li key={label} className="rounded-[8px] bg-shapeships-grey-90 text-shapeships-grey-20 whitespace-nowrap px-[12px] py-[6px] text-[14px] leading-[20px] md:px-[14px] md:py-[8px] md:text-[16px] md:leading-[22px]">
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </div>
           <p><em><strong>Two-name limit per player.</strong> Players found in breach of this limit will be... frowned upon. Maybe banned.</em></p>
           <p>Accounts will always be free.</p>
-          <p>In the future, we plan to add more account features like Game History, Stats and Ranked Multiplayer.  Have fun, come and say hi on Discord!</p>
+          <p>In the future, we plan to add more account features like Game History, Stats and Ranked Multiplayer. Have fun, come and say hi on <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="underline">Discord</a>!</p>
         </div>
       </div>
     </section>

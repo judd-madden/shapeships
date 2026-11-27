@@ -114,7 +114,7 @@ export function MenuProfileRail({ identity, onChangeName, onLogout, onClaimName,
           </div>
         </div>
         <div className="relative grid min-h-[88px] grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] items-center rounded-b-[6px] bg-shapeships-grey-90 px-[20px] py-[16px] min-[400px]:max-xl:flex min-[400px]:max-xl:min-h-0 min-[400px]:max-xl:justify-evenly min-[400px]:max-xl:px-0 min-[400px]:max-xl:py-[18px] xl:ml-auto xl:flex xl:shrink-0 xl:rounded-b-none xl:rounded-r-[6px] xl:bg-transparent xl:px-[40px] xl:py-0">
-          <div className="flex items-center justify-center gap-[28px] xl:gap-[36px]">
+          <div className="flex items-center justify-center gap-[24px] xl:gap-[36px]">
             {claimed ? (
               <>
                 <RailAction label="Logout" icon={ExitToAppIcon} onClick={onLogout} />
@@ -128,7 +128,7 @@ export function MenuProfileRail({ identity, onChangeName, onLogout, onClaimName,
             )}
           </div>
           <div aria-hidden="true" className="h-[54px] w-px bg-shapeships-grey-70 min-[400px]:max-xl:h-[42px] xl:mx-[40px] xl:h-[52px] xl:w-[2px]" />
-          <div className="flex items-center justify-center gap-[28px] xl:gap-[36px]">
+          <div className="flex items-center justify-center gap-[24px] xl:gap-[36px]">
             <RailAction
               label="Music"
               icon={musicEnabled ? VolumeUpIcon : VolumeOffIcon}
