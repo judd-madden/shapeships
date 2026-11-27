@@ -4,7 +4,7 @@
  * Displays in-progress game menu with draw offer and resign options
  */
 
-import { Checkbox } from '../../../../components/ui/primitives';
+import { AudioToggle, Checkbox } from '../../../../components/ui/primitives';
 import { usePlayerPreference } from '../../../client/preferences/usePlayerPreference';
 import { setPreference } from '../../../client/preferences/playerPreferences';
 import { GameMenuButton } from '../../../../components/ui/primitives/buttons/GameMenuButton';
@@ -115,17 +115,19 @@ export function MenuActionPanel({
         </div>
 
         <div className="mt-[32px] flex items-center justify-center gap-[32px]">
-          <Checkbox
-            checked={musicEnabled}
-            onChange={(checked) => setPreference('musicEnabled', checked)}
+          <AudioToggle
+            enabled={musicEnabled}
+            onToggle={() => setPreference('musicEnabled', !musicEnabled)}
             label="Music"
-            labelClassName="text-[18px] font-bold leading-none text-white"
+            gapClassName="gap-[4px] sm:gap-[6px]"
+            labelClassName="text-[18px] font-bold leading-none"
           />
-          <Checkbox
-            checked={soundEnabled}
-            onChange={onSoundEnabledChange}
+          <AudioToggle
+            enabled={soundEnabled}
+            onToggle={() => onSoundEnabledChange(!soundEnabled)}
             label="Sound"
-            labelClassName="text-[18px] font-bold leading-none text-white"
+            gapClassName="gap-[4px] sm:gap-[6px]"
+            labelClassName="text-[18px] font-bold leading-none"
           />
           <Checkbox
             checked={boardFlashEnabled}

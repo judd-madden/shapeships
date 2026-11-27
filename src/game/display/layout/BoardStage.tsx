@@ -348,8 +348,13 @@ function HealthTrigger({
   const isRight = align === 'right';
   const deltaText = netDelta > 0 ? `+${netDelta}` : netDelta === 0 ? '±0' : `−${Math.abs(netDelta)}`;
   const previousValues = (
-    <span className={cx('row-start-1 w-max', isRight ? 'col-start-1 mr-[12px] justify-self-end' : 'col-start-2 ml-[12px] justify-self-start')}>
-      <CombatValues damage={previous?.damage.totalText ?? '0'} healing={previous?.healing.totalText ?? '0'} previous anchorRef={summaryAnchorRef} />
+    <span className={cx(
+      'row-start-1 row-end-3 grid w-max grid-rows-subgrid self-stretch',
+      isRight ? 'col-start-1 justify-self-end pr-[12px]' : 'col-start-2 justify-self-start pl-[12px]',
+    )}>
+      <span className="row-start-1 self-center">
+        <CombatValues damage={previous?.damage.totalText ?? '0'} healing={previous?.healing.totalText ?? '0'} previous anchorRef={summaryAnchorRef} />
+      </span>
     </span>
   );
 

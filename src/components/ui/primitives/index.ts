@@ -24,6 +24,7 @@ export { LobbyRow } from './lobby/LobbyRow';
 // Controls
 export { RadioButton } from './controls/RadioButton';
 export { Checkbox } from './controls/Checkbox';
+export { AudioToggle } from './controls/AudioToggle';
 
 // Navigation
 export { Tab } from './navigation/Tab';
